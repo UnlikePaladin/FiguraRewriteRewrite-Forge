@@ -20,7 +20,7 @@ dependencies {
 	// Fabric
 	minecraft "com.mojang:minecraft:$minecraft_version"
 	mappings loom.layered {
-		mappings("org.quiltmc:quilt-mappings:$minecraft_version+build.$mappings:intermediary-v2")
+		//mappings("org.quiltmc:quilt-mappings:$minecraft_version+build.$mappings:intermediary-v2")
 		officialMojangMappings()
 	}
 	modImplementation "net.fabricmc:fabric-loader:$loader_version"

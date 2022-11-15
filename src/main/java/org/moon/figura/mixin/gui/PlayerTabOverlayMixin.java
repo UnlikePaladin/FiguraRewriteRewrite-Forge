@@ -76,7 +76,7 @@ public class PlayerTabOverlayMixin {
         uuid = gameProfile.getId();
     }
 
-    @ModifyArgs(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/components/PlayerFaceRenderer;draw(Lcom/mojang/blaze3d/vertex/PoseStack;IIIZZ)V"))
+    @ModifyArgs(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiComponent;blit(Lcom/mojang/blaze3d/vertex/PoseStack;IIIIFFIIII)V"))
     private void doNotDrawFace(Args args) {
         if (uuid != null) {
             Avatar avatar = AvatarManager.getAvatarForPlayer(uuid);
