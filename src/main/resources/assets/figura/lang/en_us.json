@@ -321,6 +321,9 @@
   "figura.config.toast_title_time": "Long Toast Swap",
   "figura.config.toast_title_time.tooltip": "Changes how much time (in seconds) long toasts should swap the display of its title and message",
 
+  "figura.config.wardrobe_file_names": "Wardrobe File Names",
+  "figura.config.wardrobe_file_names.tooltip": "Changes the wardrobe avatar list to use the file names instead of the metadata name",
+
 
   "figura.config.paperdoll": "Paperdoll",
   "figura.config.paperdoll.tooltip": "Paperdoll settings",
@@ -489,7 +492,7 @@
   "figura.docs.globals.models": "The global instance of the Avatar Models and its subtypes.",
   "figura.docs.globals.player": "The global instance of the EntityAPI and its subtypes.",
   "figura.docs.globals.events": "The global instance of the EventsAPI and its subtypes.",
-  "figura.docs.globals.keybind": "The global instance of the KeybindAPI and its subtypes.",
+  "figura.docs.globals.keybinds": "The global instance of the KeybindAPI and its subtypes.",
   "figura.docs.globals.vectors": "The global instance of the VectorsAPI and its subtypes.",
   "figura.docs.globals.matrices": "The global instance of the MatricesAPI and its subtypes.",
   "figura.docs.globals.particles": "The global instance of ParticleAPI.",
@@ -523,8 +526,8 @@
   "figura.docs.action_wheel.execute": "Executes the action of the given index. If the index is null, it will execute the last selected action. A second parameter can be given to specify if it should be executed the left or right action.",
   "figura.docs.action_wheel.is_enabled": "Returns if the Action Wheel is being currently rendered or not.",
   "figura.docs.action_wheel.get_selected": "Returns the index of the currently selected action.",
-  "figura.docs.action_wheel.create_action": "Creates a new Action that is not automatically asigned to a Page.",
-  "figura.docs.action_wheel.create_page": "Creates a new Page for the action wheel. A Title can be given to store this page internally. If no Title is given, the Page will just be returned from this function.",
+  "figura.docs.action_wheel.new_action": "Creates a new Action that is not automatically asigned to a Page.",
+  "figura.docs.action_wheel.new_page": "Creates a new Page for the action wheel. A Title can be given to store this page internally. If no Title is given, the Page will just be returned from this function.",
   "figura.docs.action_wheel.set_page": "Sets the Page of the action wheel to the given Title or Page.",
   "figura.docs.action_wheel.get_page": "Returns an stored Page by the given title.",
   "figura.docs.action_wheel.get_current_page": "Returns the current set Page from the Action Wheel, or NIL if no Page has been set.",
@@ -574,7 +577,7 @@
   "figura.docs.animation.get_time": "Get the animation's playback current time.",
   "figura.docs.animation.set_time": "Sets the animation's playback current time.",
   "figura.docs.animation.get_play_state": "Get the animation's playback state.",
-  "figura.docs.animation.add_code": "Adds a string to run in a determinant time. If theres already code to run at that time, it is overridden.",
+  "figura.docs.animation.new_code": "Adds a string to run in a determinant time. If theres already code to run at that time, it is overridden.",
   "figura.docs.animation.get_blend": "Gets the animation's keyframe blend factor.",
   "figura.docs.animation.blend": "Sets the animation's keyframe blend factor.",
   "figura.docs.animation.get_offset": "Gets the animation's offset time.",
@@ -817,7 +820,7 @@
   "figura.docs.events.post_world_render": "The POST_WORLD_RENDER event runs every frame, after the world is rendered. Always runs when a world is visible, even when the avatar itself is not, so this runs even in first person. Takes a parameter delta, which is a number from 0 to 1 indicating the proportion of the way the game is between ticks.",
   "figura.docs.events.chat_send_message": "The CHAT_SEND_MESSAGE event is run every time you send a message in chat. A string parameter is passed in, which contains the message that was sent. The return value is chained to the next events of the same type, whereas NIL cancels the message from being sent and any other value will modify the sent message (if allowed in the settings).",
   "figura.docs.events.chat_receive_message": "The CHAT_RECEIVE_MESSAGE event is run every time a message is received in chat. A string parameter is passed in, which contains the message you received.",
-  "figura.docs.events.skull_render": "Called between POST_RENDER and POST_WORLD_RENDER, on every one of your skull blocks placed in the world. The arguments are the tick delta, the position of the skull as a vector, and a reference itemstack if it's being rendered from an item.",
+  "figura.docs.events.skull_render": "Called between POST_RENDER and POST_WORLD_RENDER, on every one of your skull blocks placed in the world. The arguments are the tick delta, a blockstate reference of the skull when rendered from a block, and a itemstack reference when rendered from an item.",
   "figura.docs.events.mouse_scroll": "The MOUSE_SCROLL event runs every time the mouse is scrolled. Takes a parameter delta, which is the direction of the scroll.",
   "figura.docs.events.mouse_move": "The MOUSE_MOVE event runs every time the mouse is moved around. Takes two parameters, x and y, which is the position of the mouse. The position is not scaled by the GUI.",
   "figura.docs.events.use_item": "The USE_ITEM event is run every time the entity uses an item. The item, action and amount of particles this item would produce is given as argument.",
@@ -879,7 +882,7 @@
 
 
   "figura.docs.keybind_api": "A global API containing a function to create new Keybind instances.",
-  "figura.docs.keybind_api.create": "Creates and returns a new Keybind. The name is used in the keybind menu. The key parameter is an identifier for a key, such as \"key.keyboard.r\". The boolean gui indicates whether the keybind should always work, or if it should only work when you don't have a screen open. Check the docs list command for all key names.",
+  "figura.docs.keybind_api.new_keybind": "Creates and returns a new Keybind. The name is used in the keybind menu. The key parameter is an identifier for a key, such as \"key.keyboard.r\". The boolean gui indicates whether the keybind should always work, or if it should only work when you don't have a screen open. Check the docs list command for all key names.",
   "figura.docs.keybind_api.get_vanilla_key": "Gets the id of the key bound to the given action, as a string. Check the docs list command for all key names and vanilla actions.",
 
   "figura.docs.keybind": "Represents a key binding for your script. Instances are obtained using the KeybindAPI's create() function.",
@@ -998,9 +1001,9 @@
   "figura.docs.model_part.override_vanilla_rot": "Returns if this part vanilla rotation is being overridden by an animation.",
   "figura.docs.model_part.override_vanilla_pos": "Returns if this part vanilla position is being overridden by an animation",
   "figura.docs.model_part.override_vanilla_scale": "Returns if this part vanilla scale is being overridden by an animation",
-  "figura.docs.model_part.add_text": "Adds a new Text Render Task on this part.",
-  "figura.docs.model_part.add_item": "Adds a new Item Render Task on this part.",
-  "figura.docs.model_part.add_block": "Adds a new Block Render Task on this part.",
+  "figura.docs.model_part.new_text": "Adds a new Text Render Task on this part.",
+  "figura.docs.model_part.new_item": "Adds a new Item Render Task on this part.",
+  "figura.docs.model_part.new_block": "Adds a new Block Render Task on this part.",
   "figura.docs.model_part.get_task": "Gets the Render Task with the given name from this part. Returns a table with all tasks if a name is not given.",
   "figura.docs.model_part.remove_task": "Removes the Task with the given name from this part. Removes ALL tasks if a name is not given.",
 
@@ -1030,7 +1033,7 @@
 
 
   "figura.docs.particles": "A global API which is used for dealing with Minecraft's particles. Particles instances are created when indexing their id. Accessed using the name \"particles\".",
-  "figura.docs.particles.add_particle": "Creates a particle with the given name at the specified position, with the given velocity. Some particles have special properties, like the \"dust\" particle. For these particles, the special properties can be put into the \"name\" parameter, the same way as it works for commands.",
+  "figura.docs.particles.new_particle": "Creates a particle with the given name at the specified position, with the given velocity. Some particles have special properties, like the \"dust\" particle. For these particles, the special properties can be put into the \"name\" parameter, the same way as it works for commands.",
   "figura.docs.particles.remove_particles": "Removes all particles spawned from this avatar.",
 
   "figura.docs.particle": "Represents a particle that can be spawned and modified. Obtained by indexing the ParticleAPI. Exists as an object-oriented alternative to particles:addParticle().",
@@ -1111,7 +1114,7 @@
   "figura.docs.sounds": "A global API which is used to play Minecraft sounds. Accessed using the name \"sounds\".",
   "figura.docs.sounds.play_sound": "Plays the specified sound at the specified position with the given volume and pitch multipliers. The sound id is either an identifier or the custom sound name. Volume in Minecraft refers to how far away people can hear the sound from, not the actual loudness of it. If you don't give values for volume and pitch, the default values are 1.",
   "figura.docs.sounds.stop_sound": "Stops the playing sounds from this avatar. If an id is specified, it only stops the sounds from that id.",
-  "figura.docs.sounds.add_sound": "Registers a new custom sound for this avatar. The first argument is the sound id while the second argument is either a byte array of the sound data, or a base64 string representation of the same.",
+  "figura.docs.sounds.new_sound": "Registers a new custom sound for this avatar. The first argument is the sound id while the second argument is either a byte array of the sound data, or a base64 string representation of the same.",
 
   "figura.docs.sound": "Represents a sound that can be played. Obtained by indexing the SoundAPI. Exists as an object-oriented alternative to sounds:playSound().",
   "figura.docs.sound.play": "Plays this sound, or resume a paused sound.",
@@ -1131,7 +1134,7 @@
 
 
   "figura.docs.textures": "A global API which allows for creating textures at runtime.",
-  "figura.docs.textures.register": "Creates a new texture with the given name, width and height. The texture is filled with a solid color. Returns the texture.",
+  "figura.docs.textures.new_texture": "Creates a new texture with the given name, width and height. The texture is filled with a solid color. Returns the texture.",
   "figura.docs.textures.read": "Reads a texture from a base64 string or a byte array.",
   "figura.docs.textures.get": "Gets a registered texture based on its name, or nil if no texture was found with that name.",
   "figura.docs.textures.get_textures": "Returns a table with all textures used by this avatar. Do not include generated textures from this API.",
