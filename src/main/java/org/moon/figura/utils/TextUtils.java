@@ -3,12 +3,11 @@ package org.moon.figura.utils;
 import com.google.gson.JsonParser;
 import net.minecraft.client.gui.Font;
 import net.minecraft.locale.Language;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.FormattedText;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
+import org.moon.figura.ducks.StyleSerializerAccessor;
+import org.moon.figura.mixin.ClickEventActionMixin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -59,7 +58,13 @@ public class TextUtils {
     public static Component removeClickableObjects(Component text) {
         MutableComponent ret = Component.empty();
         text.visit((style, string) -> {
-            ret.append(Component.literal(string).withStyle(style.withClickEvent(null)));
+            if (style.getClickEvent() != null && style.getClickEvent().getAction() != ClickEvent.Action.getByName("script_event")) {
+                ret.append(Component.literal(string).withStyle(style.withClickEvent(null)));
+            }
+            else {
+                ret.append(Component.literal(string).withStyle(style));
+            }
+
             return Optional.empty();
         }, Style.EMPTY);
         return ret;
@@ -76,6 +81,7 @@ public class TextUtils {
             //check if its valid json text
             JsonParser.parseString(text);
 
+            StyleSerializerAccessor.allowScriptEvents = true;
             //attempt to parse json
             finalText = Component.Serializer.fromJsonLenient(text);
 
@@ -85,6 +91,9 @@ public class TextUtils {
         } catch (Exception ignored) {
             //on any exception, make the text as-is
             finalText = Component.literal(text);
+        }
+        finally {
+            StyleSerializerAccessor.allowScriptEvents = false;
         }
 
         //return text

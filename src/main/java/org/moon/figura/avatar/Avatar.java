@@ -368,6 +368,11 @@ public class Avatar {
         return result != null && result.arg(1).isboolean() && result.arg(1).checkboolean();
     }
 
+    public void chatComponentClickEvent(String uservalue) {
+        if (loaded)
+            run("CHAT_COMPONENT_CLICK", tick, uservalue);
+    }
+
     // -- rendering events -- //
 
     public void render(Entity entity, float yaw, float delta, float alpha, PoseStack matrices, MultiBufferSource bufferSource, int light, int overlay, LivingEntityRenderer<?, ?> entityRenderer, PartFilterScheme filter, boolean translucent, boolean glowing) {

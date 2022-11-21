@@ -57,6 +57,9 @@ public class EventsAPI {
     @LuaWhitelist
     @LuaFieldDoc("events.use_item")
     public final LuaEvent USE_ITEM = new LuaEvent();
+    @LuaWhitelist
+    @LuaFieldDoc("events.chat_component_click")
+    public final LuaEvent CHAT_COMPONENT_CLICK = new LuaEvent();
 
     @LuaWhitelist
     @LuaMetamethodDoc(overloads = @LuaMetamethodOverload(
@@ -79,6 +82,7 @@ public class EventsAPI {
             case "MOUSE_SCROLL" -> MOUSE_SCROLL;
             case "MOUSE_MOVE" -> MOUSE_MOVE;
             case "USE_ITEM" -> USE_ITEM;
+            case "CHAT_COMPONENT_CLICK" -> CHAT_COMPONENT_CLICK;
             default -> null;
         };
     }

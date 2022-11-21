@@ -7,11 +7,13 @@
   ],
   "client": [
     "BlockBehaviourAccessor",
+    "ClickEventActionMixin",
     "ClientLevelInvoker",
     "LivingEntityAccessor",
     "LivingEntityMixin",
     "MinecraftMixin",
     "SkullBlockEntityAccessor",
+    "StyleSerializerMixin",
 
     "gui.ChatComponentMixin",
     "gui.ChatScreenAccessor",
@@ -21,6 +23,7 @@
     "gui.InventoryScreenMixin",
     "gui.PauseScreenMixin",
     "gui.PlayerTabOverlayMixin",
+    "gui.ScreenMixin",
     "gui.SplashManagerMixin",
 
     "input.InputConstantsTypeMixin",
