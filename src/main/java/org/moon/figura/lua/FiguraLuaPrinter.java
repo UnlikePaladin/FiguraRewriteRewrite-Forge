@@ -1,10 +1,7 @@
 package org.moon.figura.lua;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.HoverEvent;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.*;
 import org.luaj.vm2.*;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.moon.figura.FiguraMod;
@@ -178,7 +175,8 @@ public class FiguraLuaPrinter {
             for (int i = 0; i < args.narg(); i++)
                 text.append(TextUtils.tryParseJson(args.arg(i + 1).tojstring()));
 
-            sendLuaChatMessage(TextUtils.removeClickableObjects(text));
+            sendLuaChatMessage(TextUtils.removeClickableObjects(text,
+                    p -> p.getAction() != ClickEvent.Action.getByName("script_event")));
             return LuaValue.valueOf(text.getString());
         }
 

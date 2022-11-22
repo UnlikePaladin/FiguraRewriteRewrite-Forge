@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 public class TextUtils {
 
@@ -56,9 +57,12 @@ public class TextUtils {
     }
 
     public static Component removeClickableObjects(Component text) {
+        return removeClickableObjects(text, p -> true);
+    }
+    public static Component removeClickableObjects(Component text, Predicate<ClickEvent> pred) {
         MutableComponent ret = Component.empty();
         text.visit((style, string) -> {
-            if (style.getClickEvent() != null && style.getClickEvent().getAction() != ClickEvent.Action.getByName("script_event")) {
+            if (style.getClickEvent() != null && pred.test(style.getClickEvent())) {
                 ret.append(Component.literal(string).withStyle(style.withClickEvent(null)));
             }
             else {
