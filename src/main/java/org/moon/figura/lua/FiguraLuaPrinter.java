@@ -175,8 +175,10 @@ public class FiguraLuaPrinter {
             for (int i = 0; i < args.narg(); i++)
                 text.append(TextUtils.tryParseJson(args.arg(i + 1).tojstring()));
 
-            sendLuaChatMessage(TextUtils.removeClickableObjects(text,
-                    p -> p.getAction() != ClickEvent.Action.getByName("script_event")));
+            sendLuaChatMessage(
+                    TextUtils.removeClickableObjects(text,
+                    p -> p.getAction() != ClickEvent.Action.getByName("script_event") || !FiguraMod.isLocal(runtime.owner.owner))
+            );
             return LuaValue.valueOf(text.getString());
         }
 
