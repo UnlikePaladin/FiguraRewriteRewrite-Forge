@@ -72,6 +72,7 @@ import java.util.function.Supplier;
 public class Avatar {
 
     private static CompletableFuture<Void> tasks;
+    public static boolean firstPerson;
 
     //properties
     public final UUID owner;
@@ -403,7 +404,7 @@ public class Avatar {
         }
     }
 
-    public synchronized void worldRender(Entity entity, double camX, double camY, double camZ, PoseStack matrices, MultiBufferSource bufferSource, int light, float tickDelta) {
+    public synchronized void worldRender(Entity entity, double camX, double camY, double camZ, PoseStack matrices, MultiBufferSource bufferSource, int lightFallback, float tickDelta) {
         if (renderer == null || !loaded)
             return;
 
@@ -416,12 +417,13 @@ public class Avatar {
         }
 
         renderer.allowMatrixUpdate = true;
+        renderer.updateLight = true;
         renderer.entity = entity;
         renderer.currentFilterScheme = PartFilterScheme.WORLD;
         renderer.bufferSource = bufferSource;
         renderer.matrices = matrices;
         renderer.tickDelta = tickDelta;
-        renderer.light = light;
+        renderer.light = lightFallback;
         renderer.alpha = 1f;
         renderer.overlay = OverlayTexture.NO_OVERLAY;
         renderer.translucent = false;
@@ -432,6 +434,8 @@ public class Avatar {
         matrices.scale(-1, -1, 1);
         complexity.use(renderer.renderSpecialParts());
         matrices.popPose();
+
+        renderer.updateLight = false;
     }
 
     public void firstPersonWorldRender(Entity watcher, MultiBufferSource bufferSource, PoseStack matrices, Camera camera, float tickDelta) {
@@ -659,6 +663,16 @@ public class Avatar {
 
         queue.clear();
         return true;
+    }
+
+    public void updateMatrices(LivingEntityRenderer<?, ?> entityRenderer, PoseStack stack) {
+        if (renderer == null || !loaded)
+            return;
+
+        renderer.currentFilterScheme = PartFilterScheme.MODEL;
+        renderer.matrices = stack;
+        renderer.vanillaModelData.update(entityRenderer);
+        renderer.updateMatrices();
     }
 
     // -- animations -- //

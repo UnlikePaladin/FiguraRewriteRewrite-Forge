@@ -4,8 +4,14 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.datafixers.util.Pair;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.world.level.LightLayer;
 import org.moon.figura.avatar.Avatar;
+import org.moon.figura.config.Config;
+import org.moon.figura.math.matrix.FiguraMat3;
+import org.moon.figura.math.matrix.FiguraMat4;
+import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.model.FiguraModelPart;
 import org.moon.figura.model.FiguraModelPartReader;
 import org.moon.figura.model.ParentType;
@@ -14,10 +20,6 @@ import org.moon.figura.model.rendering.texture.FiguraTexture;
 import org.moon.figura.model.rendering.texture.FiguraTextureSet;
 import org.moon.figura.model.rendering.texture.RenderTypes;
 import org.moon.figura.model.rendertasks.RenderTask;
-import org.moon.figura.config.Config;
-import org.moon.figura.math.matrix.FiguraMat3;
-import org.moon.figura.math.matrix.FiguraMat4;
-import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.utils.ColorUtils;
 
 import java.util.ArrayList;
@@ -66,6 +68,33 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         return commonRender(0);
     }
 
+    @Override
+    public void updateMatrices() {
+        //flag rendering state
+        this.isRendering = true;
+
+        //setup root customizations
+        PartCustomization customization = setupRootCustomization(1.5d);
+
+        //Push transform
+        customizationStack.push(customization);
+
+        //Free customization after use
+        customization.free();
+
+        //world matrices
+        VIEW_TO_WORLD_MATRIX.set(AvatarRenderer.worldToViewMatrix().invert());
+
+        //calculate each part matrices
+        calculatePartMatrices(root);
+
+        //finish rendering
+        customizationStack.pop();
+        checkEmpty();
+        customizationStack.fullClear();
+        this.isRendering = false;
+    }
+
     protected int commonRender(double vertOffset) {
         //flag rendering state
         this.isRendering = true;
@@ -75,6 +104,9 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
 
         //Push transform
         customizationStack.push(customization);
+
+        //Free customization after use
+        customization.free();
 
         //Iterate and setup each buffer
         for (FiguraImmediateBuffer buffer : buffers) {
@@ -92,20 +124,20 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         int config = Config.RENDER_DEBUG_PARTS_PIVOT.asInt();
         shouldRenderPivots = !Minecraft.getInstance().getEntityRenderDispatcher().shouldRenderHitBoxes() ? 0 : config;
 
-        //Free customization after use
-        customization.free();
-
         //world matrices
         if (allowMatrixUpdate)
             VIEW_TO_WORLD_MATRIX.set(AvatarRenderer.worldToViewMatrix().invert());
 
-        //Render all model parts
+        //complexity
         int prev = avatar.complexity.remaining;
         int[] remainingComplexity = new int[] {prev};
+
+        //render all model parts
         Boolean initialValue = currentFilterScheme.initialValue(root);
         if (initialValue != null)
             renderPart(root, remainingComplexity, initialValue);
 
+        //finish rendering
         customizationStack.pop();
         checkEmpty();
 
@@ -194,6 +226,15 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
                 FiguraMat4 mat = partToWorldMatrices(custom);
                 part.savedPartToWorldMat.set(mat);
                 mat.free();
+
+                //recalculate light
+                if (updateLight && entity != null) {
+                    FiguraVec3 pos = part.savedPartToWorldMat.apply(0d, 0d, 0d);
+                    int block = entity.level.getBrightness(LightLayer.BLOCK, pos.asBlockPos());
+                    int sky = entity.level.getBrightness(LightLayer.SKY, pos.asBlockPos());
+                    custom.light = LightTexture.pack(block, sky);
+                    pos.free();
+                }
             }
 
             PartCustomization peek = customizationStack.peek();
@@ -285,6 +326,43 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         translation.free();
 
         return customizePeek;
+    }
+
+    protected void calculatePartMatrices(FiguraModelPart part) {
+        PartCustomization custom = part.customization;
+
+        //Store old visibility, but overwrite it in case we only want to render certain parts
+        Boolean thisPassedPredicate = currentFilterScheme.test(part.parentType, true);
+        if (thisPassedPredicate == null)
+            return;
+
+        //calculate part transforms
+
+        //calculate vanilla parent
+        part.applyVanillaTransforms(vanillaModelData);
+        part.applyExtraTransforms(customizationStack.peek().positionMatrix);
+
+        //push customization stack
+        custom.recalculate();
+        customizationStack.push(custom);
+
+        //render extras
+        if (thisPassedPredicate) {
+            //part to world matrices
+            FiguraMat4 mat = partToWorldMatrices(custom);
+            part.savedPartToWorldMat.set(mat);
+            mat.free();
+        }
+
+        //render children
+        for (FiguraModelPart child : part.children)
+            calculatePartMatrices(child);
+
+        //reset the parent
+        part.resetVanillaTransforms();
+
+        //pop
+        customizationStack.pop();
     }
 
     public void pushFaces(int texIndex, int faceCount, int[] remainingComplexity) {

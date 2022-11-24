@@ -29,6 +29,7 @@ import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Mixin(PlayerTabOverlay.class)
 public class PlayerTabOverlayMixin {
@@ -52,8 +53,7 @@ public class PlayerTabOverlayMixin {
         NameplateCustomization custom = avatar == null || avatar.luaRuntime == null ? null : avatar.luaRuntime.nameplate.LIST;
         if (custom != null && custom.getText() != null && avatar.trust.get(Trust.NAMEPLATE_EDIT) == 1) {
             replacement = NameplateCustomization.applyCustomization(custom.getText().replaceAll("\n|\\\\n", " "));
-            if (custom.getText().contains("${badges}"))
-                replaceBadges = true;
+            replaceBadges = replacement.getString().contains("${badges}");
         } else {
             replacement = Component.literal(playerInfo.getProfile().getName());
         }
@@ -66,7 +66,7 @@ public class PlayerTabOverlayMixin {
             ((MutableComponent) replacement).append(" ").append(badges);
         }
 
-        text = TextUtils.replaceInText(text, "\\b" + playerInfo.getProfile().getName() + "\\b", replacement);
+        text = TextUtils.replaceInText(text, "\\b" + Pattern.quote(playerInfo.getProfile().getName()) + "\\b", replacement);
 
         cir.setReturnValue(text);
     }

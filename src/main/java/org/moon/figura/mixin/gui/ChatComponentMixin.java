@@ -24,6 +24,7 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Mixin(ChatComponent.class)
 public class ChatComponentMixin {
@@ -59,8 +60,7 @@ public class ChatComponentMixin {
             NameplateCustomization custom = avatar == null || avatar.luaRuntime == null ? null : avatar.luaRuntime.nameplate.CHAT;
             if (custom != null && custom.getText() != null && avatar.trust.get(Trust.NAMEPLATE_EDIT) == 1) {
                 replacement = NameplateCustomization.applyCustomization(custom.getText().replaceAll("\n|\\\\n", " "));
-                if (custom.getText().contains("${badges}"))
-                    replaceBadges = true;
+                replaceBadges = replacement.getString().contains("${badges}");
             } else {
                 replacement = Component.literal(player.getProfile().getName());
             }
@@ -74,7 +74,7 @@ public class ChatComponentMixin {
             }
 
             //modify message
-            message = TextUtils.replaceInText(message, "\\b" + player.getProfile().getName() + "\\b", replacement);
+            message = TextUtils.replaceInText(message, "\\b" + Pattern.quote(player.getProfile().getName()) + "\\b", replacement);
         }
 
         return message;
