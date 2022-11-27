@@ -154,7 +154,6 @@ public class AvatarManager {
 
         NetworkStuff.clear(id);
         NetworkStuff.unsubscribe(id);
-
         FiguraMod.debug("Cleared avatars of " + id);
     }
 
@@ -205,9 +204,10 @@ public class AvatarManager {
 
     //get avatar from the backend
     private static void fetchBackend(UUID id) {
+        FETCHED_USERS.add(id);
+
         UserData user = LOADED_USERS.computeIfAbsent(id, UserData::new);
 
-        FETCHED_USERS.add(id);
         FiguraMod.debug("Getting userdata for " + id);
         NetworkStuff.getUser(user);
     }

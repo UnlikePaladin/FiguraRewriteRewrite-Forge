@@ -108,10 +108,6 @@
   "figura.badges.pride.pride": "Pride Mark!",
   "figura.badges.pride.transgender": "Transgender Mark!",
 
-  "figura.badges.special.burger": "Yummy!",
-  "figura.badges.special.shrimp": "As shrimple as that!",
-  "figura.badges.special.moon": "Kingdom Of The Moon ☽",
-  "figura.badges.special.shadow": "...",
   "figura.badges.special.translator": "Translator!",
   "figura.badges.special.donator": "Thank you for supporting the Figura mod!",
   "figura.badges.special.contest": "GG!",
@@ -298,7 +294,7 @@
   "figura.config.ui.tooltip": "UI Settings",
 
   "figura.config.background_scroll_speed": "Background Scroll Speed",
-  "figura.config.background_scroll_speed.tooltip": "Multiplier for scroll speed of the animated background.",
+  "figura.config.background_scroll_speed.tooltip": "Multiplier for scroll speed of the animated background",
 
   "figura.config.popup_scale": "Player Popup Scale",
   "figura.config.popup_scale.tooltip": "Scale multiplier for the player popup",
@@ -381,11 +377,14 @@
   "figura.config.update_channel.2": "Releases (Stable)",
   "figura.config.update_channel.3": "Pre-releases (Unstable)",
 
-  "figura.config.easter_eggs": "Enable Easter eggs",
-  "figura.config.easter_eggs.tooltip": "Toggles fun and unexpected aspects of Figura (boring!)",
-
   "figura.config.default_trust": "Default Trust Level",
   "figura.config.default_trust.tooltip": "Changes the default trust level that new players will be assigned into",
+
+  "figura.config.chat_emojis": "Chat Emojis",
+  "figura.config.chat_emojis.tooltip": "Toggles the emoji parsing on chat messages, that converts \":emoji_name:\" into emojis",
+
+  "figura.config.easter_eggs": "Enable Easter eggs",
+  "figura.config.easter_eggs.tooltip": "Toggles fun and unexpected aspects of Figura (boring!)",
 
 
   "figura.config.dev": "Dev",
@@ -403,7 +402,7 @@
   "figura.config.render_debug_parts_pivot.3": "Everything",
 
   "figura.config.first_person_matrices": "First Person Matrices",
-  "figura.config.first_person_matrices.tooltip": "Toggles if the model part matrices should be updated while in first person.",
+  "figura.config.first_person_matrices.tooltip": "Toggles if the model part matrices should be updated while in first person",
 
   "figura.config.log_others": "Log non-host scripts",
   "figura.config.log_others.tooltip": "Allows debug logging and errors of non-host scripts",
@@ -576,7 +575,8 @@
   "figura.docs.animation.play": "Initializes the animation. Resume the animation if it was paused.",
   "figura.docs.animation.pause": "Pause the animation's playback.",
   "figura.docs.animation.stop": "Stop the animation.",
-  "figura.docs.animation.restart": "Restarts the animation. Plays the animation if it was stopped. This behaviour can also be reproduced by stopping then playing the animation",
+  "figura.docs.animation.restart": "Restarts the animation. Plays the animation if it was stopped. This behaviour can also be reproduced by stopping then playing the animation.",
+  "figura.docs.animation.set_playing": "A function that merges \"play\" and \"stop\" together. Takes a boolean parameter, where if true, the animation will play, and when false, the animation will stop.",
   "figura.docs.animation.get_time": "Get the animation's playback current time.",
   "figura.docs.animation.set_time": "Sets the animation's playback current time.",
   "figura.docs.animation.get_play_state": "Get the animation's playback state.",
@@ -884,9 +884,9 @@
   "figura.docs.itemstack.to_stack_string": "Converts this ItemStack to a string, like you'd see in a command.",
 
 
-  "figura.docs.keybind_api": "A global API containing a function to create new Keybind instances.",
-  "figura.docs.keybind_api.new_keybind": "Creates and returns a new Keybind. The name is used in the keybind menu. The key parameter is an identifier for a key, such as \"key.keyboard.r\". The boolean gui indicates whether the keybind should always work, or if it should only work when you don't have a screen open. Check the docs list command for all key names.",
-  "figura.docs.keybind_api.get_vanilla_key": "Gets the id of the key bound to the given action, as a string. Check the docs list command for all key names and vanilla actions.",
+  "figura.docs.keybinds": "A global API containing a function to create new Keybind instances.",
+  "figura.docs.keybinds.new_keybind": "Creates and returns a new Keybind. The name is used in the keybind menu. The key parameter is an identifier for a key, such as \"key.keyboard.r\". The boolean gui indicates whether the keybind should always work, or if it should only work when you don't have a screen open. Check the docs list command for all key names.",
+  "figura.docs.keybinds.get_vanilla_key": "Gets the id of the key bound to the given action, as a string. Check the docs list command for all key names and vanilla actions.",
 
   "figura.docs.keybind": "Represents a key binding for your script. Instances are obtained using the KeybindAPI's create() function.",
   "figura.docs.keybind.set_key": "Sets the key for this keybind.",
@@ -998,6 +998,8 @@
   "figura.docs.model_part.get_opacity": "Gets the opacity multiplier of this part. Note that opacity settings will only take effect if the part has a suitable Render Type for them, mainly TRANSLUCENT. Check out modelPart.setPrimaryRenderType() for how to do this.",
   "figura.docs.model_part.set_light": "Sets the light level to be used when rendering this part. Values you give are 0 to 15, indicating the block light and sky light levels you want to use. Passing nil will reset the lighting override for this part.",
   "figura.docs.model_part.get_light": "Gets the light level you set earlier to this part. Does not interact with Minecraft's lighting system, only retrieving values you set earlier with setLight().",
+  "figura.docs.model_part.set_overlay": "Sets the overlay color to be used when rendering this part. Values you give are 0 to 15, indicating the white overlay and the damage overlay levels you want to use. Passing nil will reset the overlay override for this part.",
+  "figura.docs.model_part.get_overlay": "Gets the overlay color you set earlier to this part. Does not interact with Minecraft's overlay system, only retrieving values you set earlier with setOverlay().",
   "figura.docs.model_part.set_parent_type": "Sets the parent type of the part. See the ParentType parts in the list docs for legal types.",
   "figura.docs.model_part.get_parent_type": "Returns the current parent type of the part.",
   "figura.docs.model_part.get_type": "Returns whether this part is a \"GROUP\", a \"CUBE\", or a \"MESH\".",
@@ -1061,8 +1063,10 @@
   "figura.docs.render_task": "Represents a rendering task for Figura to complete each frame. An abstract superclass of ItemTask, BlockTask, and TextTask.",
   "figura.docs.render_task.is_enabled": "Checks if this task is enabled.",
   "figura.docs.render_task.enabled": "Whether or not this task should be rendered.",
-  "figura.docs.render_task.is_emissive": "Checks if this task is emissive.",
-  "figura.docs.render_task.emissive": "Whether or not this task should be rendered at full bright.",
+  "figura.docs.render_task.get_light": "Returns the light override value of this task.",
+  "figura.docs.render_task.light": "Sets the light override value of this task. Values are given from 0 to 15, indicating the block light and sky light levels you want to use. Passing nil will reset the lighting override for this task.",
+  "figura.docs.render_task.get_overlay": "Returns the overlay override value of this task.",
+  "figura.docs.render_task.overlay": "Sets the overlay override value of this task. Values you give are 0 to 15, indicating the white overlay and the damage overlay levels you want to use. Passing nil will reset the overlay override for this task.",
   "figura.docs.render_task.get_pos": "Gets this task position.",
   "figura.docs.render_task.pos": "The position of the task, relative with its attached part. Uses model coordinates.",
   "figura.docs.render_task.get_rot": "Gets this task rotation.",
