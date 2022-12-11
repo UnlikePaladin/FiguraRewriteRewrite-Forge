@@ -143,7 +143,7 @@ public class HostAPI {
     public void sendChatMessage(@LuaNotNil String message) {
         if (!isHost() || !Config.CHAT_MESSAGES.asBool()) return;
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player != null) player.chat(message.startsWith("/") ? message.substring(1) : message);
+        if (player != null) player.chat(message);
     }
 
     @LuaWhitelist
@@ -157,7 +157,7 @@ public class HostAPI {
     public void sendChatCommand(@LuaNotNil String command) {
         if (!isHost() || !Config.CHAT_MESSAGES.asBool()) return;
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player != null) player.chat(command.startsWith("/") ? command : "/" + command);
+        if (player != null) player.command(command.startsWith("/") ? command.substring(1) : command);
     }
 
     @LuaWhitelist
