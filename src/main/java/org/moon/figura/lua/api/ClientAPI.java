@@ -1,7 +1,7 @@
 package org.moon.figura.lua.api;
 
+import com.google.common.base.Suppliers;
 import com.mojang.blaze3d.platform.Window;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.multiplayer.ServerData;
@@ -10,6 +10,7 @@ import net.minecraft.core.SerializableUUID;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.fml.ModList;
 import org.luaj.vm2.LuaError;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.lua.LuaNotNil;
@@ -36,7 +37,20 @@ import java.util.*;
 public class ClientAPI {
 
     public static final ClientAPI INSTANCE = new ClientAPI();
-    private static final boolean hasIris = FabricLoader.getInstance().isModLoaded("iris");
+    private static final HashMap<String, Boolean> LOADED_MODS = new HashMap<>();
+    public static final Supplier<Boolean> OPTIFINE_LOADED = Suppliers.memoize(() ->
+    {
+        try
+        {
+            Class.forName("net.optifine.Config");
+            return true;
+        }
+        catch (ClassNotFoundException ignored)
+        {
+            return false;
+        }
+    });
+    private static final boolean hasIris = ( ModList.get().isLoaded("oculus") || OPTIFINE_LOADED.get()); //separated to avoid indexing the list every frame
 
     @LuaWhitelist
     @LuaMethodDoc("client.get_fps")
@@ -248,6 +262,19 @@ public class ClientAPI {
     }
 
     @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = String.class,
+                    argumentNames = "modID"
+            ),
+            value = "client.is_mod_loaded"
+    )
+    public static boolean isModLoaded(String id) {
+        LOADED_MODS.putIfAbsent(id, ModList.get().isLoaded(id));
+        return LOADED_MODS.get(id);
+    }
+
+    @LuaWhitelist
     @LuaMethodDoc("client.has_iris")
     public static boolean hasIris() {
         return hasIris;
@@ -256,7 +283,7 @@ public class ClientAPI {
     @LuaWhitelist
     @LuaMethodDoc("client.has_iris_shader")
     public static boolean hasIrisShader() {
-        return hasIris && net.irisshaders.iris.api.v0.IrisApi.getInstance().isShaderPackInUse();
+        return hasIris; //&& net.irisshaders.iris.api.v0.IrisApi.getInstance().isShaderPackInUse();
     }
 
     @LuaWhitelist
