@@ -4,20 +4,21 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
+import net.minecraftforge.client.event.RegisterClientCommandsEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.resources.FiguraRuntimeResources;
 
 public class BackendCommands {
-
-    public static LiteralArgumentBuilder<FabricClientCommandSource> getCommand() {
+    public static LiteralArgumentBuilder<CommandSourceStack> getCommand() {
         //root
-        LiteralArgumentBuilder<FabricClientCommandSource> backend = LiteralArgumentBuilder.literal("backend2");
+        LiteralArgumentBuilder<CommandSourceStack> backend = LiteralArgumentBuilder.literal("backend2");
 
         //force backend connection
-        LiteralArgumentBuilder<FabricClientCommandSource> connect = LiteralArgumentBuilder.literal("connect");
+        LiteralArgumentBuilder<CommandSourceStack> connect = LiteralArgumentBuilder.literal("connect");
         connect.executes(context -> {
             NetworkStuff.reAuth();
             return 1;
@@ -26,17 +27,17 @@ public class BackendCommands {
         backend.then(connect);
 
         //run
-        LiteralArgumentBuilder<FabricClientCommandSource> run = LiteralArgumentBuilder.literal("run");
+        LiteralArgumentBuilder<CommandSourceStack> run = LiteralArgumentBuilder.literal("run");
         run.executes(context -> runRequest(context, ""));
 
-        RequiredArgumentBuilder<FabricClientCommandSource, String> request = RequiredArgumentBuilder.argument("request", StringArgumentType.greedyString());
+        RequiredArgumentBuilder<CommandSourceStack, String> request = RequiredArgumentBuilder.argument("request", StringArgumentType.greedyString());
         request.executes(context -> runRequest(context, StringArgumentType.getString(context, "request")));
 
         run.then(request);
         backend.then(run);
 
         //debug mode
-        LiteralArgumentBuilder<FabricClientCommandSource> debug = LiteralArgumentBuilder.literal("debug");
+        LiteralArgumentBuilder<CommandSourceStack> debug = LiteralArgumentBuilder.literal("debug");
         debug.executes(context -> {
             NetworkStuff.debug = !NetworkStuff.debug;
             FiguraMod.sendChatMessage(Component.literal("Backend Debug Mode set to: " + NetworkStuff.debug).withStyle(NetworkStuff.debug ? ChatFormatting.GREEN : ChatFormatting.RED));
@@ -46,9 +47,9 @@ public class BackendCommands {
         backend.then(debug);
 
         //check resources
-        LiteralArgumentBuilder<FabricClientCommandSource> resources = LiteralArgumentBuilder.literal("checkResources");
+        LiteralArgumentBuilder<CommandSourceStack> resources = LiteralArgumentBuilder.literal("checkResources");
         resources.executes(context -> {
-            context.getSource().sendFeedback(Component.literal("Checking for resources..."));
+            context.getSource().sendSystemMessage(Component.literal("Checking for resources..."));
             FiguraRuntimeResources.init();
             return 1;
         });
@@ -59,7 +60,7 @@ public class BackendCommands {
         return backend;
     }
 
-    private static int runRequest(CommandContext<FabricClientCommandSource> context, String request) {
+    private static int runRequest(CommandContext<CommandSourceStack> context, String request) {
         try {
             HttpAPI.runString(
                     NetworkStuff.api.header(request).build(),
@@ -67,7 +68,7 @@ public class BackendCommands {
             );
             return 1;
         } catch (Exception e) {
-            context.getSource().sendError(Component.literal(e.getMessage()));
+            context.getSource().sendFailure(Component.literal(e.getMessage()));
             return 0;
         }
     }

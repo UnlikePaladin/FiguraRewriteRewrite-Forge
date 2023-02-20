@@ -1,8 +1,8 @@
 package org.moon.figura.commands;
 
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.*;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.utils.ColorUtils;
@@ -39,9 +39,9 @@ public class FiguraLinkCommand {
         }
     }
 
-    public static LiteralArgumentBuilder<FabricClientCommandSource> getCommand() {
+    public static LiteralArgumentBuilder<CommandSourceStack> getCommand() {
         //get links
-        LiteralArgumentBuilder<FabricClientCommandSource> links = LiteralArgumentBuilder.literal("links");
+        LiteralArgumentBuilder<CommandSourceStack> links = LiteralArgumentBuilder.literal("links");
         links.executes(context -> {
             //header
             MutableComponent message = Component.empty().withStyle(ColorUtils.Colors.FRAN_PINK.style)

@@ -1,7 +1,6 @@
 package org.moon.figura.config;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -387,8 +386,10 @@ public enum Config {
             super(translationKey, key.getType(), key.getValue(), FiguraMod.MOD_ID);
             this.config = config;
 
-            if (FiguraMod.DEBUG_MODE || !config.disabled)
-                KeyBindingHelper.registerKeyBinding(this);
+            if (FiguraMod.DEBUG_MODE || !config.disabled){
+
+            }
+              //  keyMappings.add(this);
         }
 
         @Override
@@ -403,4 +404,5 @@ public enum Config {
             KeyMapping.resetMapping();
         }
     }
+
 }
