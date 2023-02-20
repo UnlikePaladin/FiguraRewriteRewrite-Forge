@@ -28,6 +28,7 @@ import org.moon.figura.utils.Version;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.function.Supplier;
 
 @LuaWhitelist
 @LuaTypeDoc(
