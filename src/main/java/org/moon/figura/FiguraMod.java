@@ -1,18 +1,20 @@
 package org.moon.figura;
 
-import com.mojang.blaze3d.vertex.PoseStack;
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.players.GameProfileCache;
 import net.minecraft.world.entity.Entity;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
+import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLPaths;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.avatar.local.CacheAvatarLoader;
@@ -23,6 +25,9 @@ import org.moon.figura.commands.FiguraCommands;
 import org.moon.figura.config.Config;
 import org.moon.figura.config.ConfigManager;
 import org.moon.figura.gui.ActionWheel;
+import org.moon.figura.config.ModMenuConfig;
+import org.moon.figura.forge.GUIActionWheelOverlay;
+import org.moon.figura.forge.GUIOverlay;
 import org.moon.figura.gui.Emojis;
 import org.moon.figura.gui.PaperDoll;
 import org.moon.figura.gui.PopupMenu;
@@ -44,20 +49,27 @@ import java.nio.file.Path;
 import java.util.Calendar;
 import java.util.UUID;
 
-public class FiguraMod implements ClientModInitializer {
+@Mod("figura")
+public class FiguraMod {
 
     public static final String MOD_ID = "figura";
     public static final String MOD_NAME = "Figura";
-    public static final Version VERSION = new Version(FabricLoader.getInstance().getModContainer(FiguraMod.MOD_ID).get().getMetadata().getVersion().getFriendlyString());
+    public static final Version VERSION = new Version(ModList.get().getModContainerById("figura").get().getModInfo().getVersion().toString());
     public static final boolean DEBUG_MODE = Math.random() + 1 < 0;
     public static final Calendar CALENDAR = Calendar.getInstance();
-    public static final Path GAME_DIR = FabricLoader.getInstance().getGameDir().normalize();
+    public static final Path GAME_DIR = FMLPaths.GAMEDIR.relative().normalize();
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_NAME);
 
     public static int ticks = 0;
-
-    @Override
-    public void onInitializeClient() {
+    public static Entity extendedPickEntity;
+    public static Component splashText;
+    public FiguraMod() {
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onInitializeClient);
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerResourceListener);
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerOverlays);
+    }
+    public void onInitializeClient(FMLClientSetupEvent event) {
         //init managers
         ConfigManager.init();
         TrustManager.init();
@@ -66,15 +78,27 @@ public class FiguraMod implements ClientModInitializer {
         FiguraAPIManager.init();
         FiguraDocsManager.init();
         FiguraCommands.init();
-
-        //register events
-        WorldRenderEvents.START.register(levelRenderer -> AvatarManager.onWorldRender(levelRenderer.tickDelta()));
-        WorldRenderEvents.END.register(levelRenderer -> AvatarManager.afterWorldRender(levelRenderer.tickDelta()));
-        WorldRenderEvents.AFTER_ENTITIES.register(FiguraMod::renderFirstPersonWorldParts);
-        HudRenderCallback.EVENT.register(FiguraMod::hudRender);
-        registerResourceListener(ResourceManagerHelper.get(PackType.CLIENT_RESOURCES));
+        ModMenuConfig.registerConfigScreen();
     }
 
+    public void registerResourceListener(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener(LocalAvatarLoader.AVATAR_LISTENER);
+        event.registerReloadListener(Emojis.RESOURCE_LISTENER);
+        event.registerReloadListener(AvatarWizard.RESOURCE_LISTENER);
+    }
+
+    @SubscribeEvent
+    public void registerOverlays(RegisterGuiOverlaysEvent event) {
+        event.registerAboveAll("figura_overlay", new GUIOverlay());
+        event.registerBelowAll("action_wheel_overlay", new GUIActionWheelOverlay());
+    }
+    @SubscribeEvent
+    public void registerKeyBinding(RegisterKeyMappingsEvent event) {
+        for (Config value : Config.values()) {
+            if(value.keyBind != null)
+                event.register(value.keyBind);
+        }
+    }
     public static void tick() {
         pushProfiler("network");
         NetworkStuff.tick();
