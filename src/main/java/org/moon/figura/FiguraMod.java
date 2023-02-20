@@ -25,6 +25,8 @@ import org.moon.figura.commands.FiguraCommands;
 import org.moon.figura.config.Config;
 import org.moon.figura.config.ConfigManager;
 import org.moon.figura.config.ModMenuConfig;
+import org.moon.figura.forge.GUIActionWheelOverlay;
+import org.moon.figura.forge.GUIOverlay;
 import org.moon.figura.gui.Emojis;
 import org.moon.figura.lua.FiguraAPIManager;
 import org.moon.figura.lua.FiguraLuaPrinter;

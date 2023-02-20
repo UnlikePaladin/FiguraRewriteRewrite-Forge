@@ -23,60 +23,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Gui.class)
 public class GuiMixin {
 
-    @Shadow @Final private Minecraft minecraft;
+    @Shadow @Final
+    protected Minecraft minecraft;
     @Unique private FiguraVec2 crosshairOffset;
-
-    @Inject(at = @At("HEAD"), method = "render", cancellable = true)
-    private void onRender(PoseStack stack, float tickDelta, CallbackInfo ci) {
-        if (AvatarManager.panic)
-            return;
-
-        FiguraMod.pushProfiler(FiguraMod.MOD_ID);
-
-        FiguraMod.pushProfiler("popupMenu");
-        PopupMenu.render(stack);
-
-        FiguraMod.popPushProfiler("paperdoll");
-        PaperDoll.render(stack);
-
-        FiguraMod.popProfiler();
-
-        //get avatar
-        Entity entity = this.minecraft.getCameraEntity();
-        Avatar avatar = entity == null ? null : AvatarManager.getAvatar(entity);
-
-        if (avatar != null) {
-            //hud parent type
-            avatar.hudRender(stack, this.minecraft.renderBuffers().bufferSource(), entity, tickDelta);
-
-            //hud hidden by script
-            if (avatar.luaRuntime != null && !avatar.luaRuntime.renderer.renderHUD) {
-                //render wheel
-                FiguraMod.pushProfiler("actionWheel");
-                ActionWheel.render(stack);
-                FiguraMod.popProfiler();
-
-                //cancel this method
-                ci.cancel();
-            }
-        }
-
-        FiguraMod.popProfiler();
-    }
-
-    @Inject(at = @At("RETURN"), method = "render")
-    private void afterRender(PoseStack stack, float tickDelta, CallbackInfo ci) {
-        if (AvatarManager.panic)
-            return;
-
-        //render wheel last, on top of everything
-        FiguraMod.pushProfiler(FiguraMod.MOD_ID);
-        FiguraMod.pushProfiler("actionWheel");
-
-        ActionWheel.render(stack);
-
-        FiguraMod.popProfiler(2);
-    }
 
     @Inject(at = @At("HEAD"), method = "renderCrosshair", cancellable = true)
     private void renderCrosshair(PoseStack stack, CallbackInfo ci) {
