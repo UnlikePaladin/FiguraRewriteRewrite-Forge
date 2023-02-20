@@ -1,10 +1,10 @@
 package org.moon.figura.utils;
 
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.entrypoint.EntrypointContainer;
-import net.fabricmc.loader.api.metadata.ModMetadata;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
+import net.minecraftforge.fml.ModContainer;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.forgespi.language.IModInfo;
 import org.moon.figura.FiguraMod;
 
 import java.io.File;
@@ -98,7 +98,7 @@ public class IOUtils {
     public static <T> Set<T> loadEntryPoints(String name, Class<T> clazz) {
         Set<T> ret = new HashSet<>();
 
-        for (EntrypointContainer<T> entrypoint : FabricLoader.getInstance().getEntrypointContainers(name, clazz)) {
+        /*for (IModInfo entrypoint : ModList.get().getMods()) {
             ModMetadata metadata = entrypoint.getProvider().getMetadata();
             String modId = metadata.getId();
             try {
@@ -106,7 +106,8 @@ public class IOUtils {
             } catch (Exception e) {
                 FiguraMod.LOGGER.error("Failed to load entrypoint of mod {}", modId, e);
             }
-        }
+        }*/
+        //FIXME: How necessary could these be
 
         return ret;
     }
