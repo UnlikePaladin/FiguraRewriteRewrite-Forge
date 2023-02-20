@@ -1,7 +1,7 @@
 package org.moon.figura.lua.api;
 
+import com.google.common.base.Suppliers;
 import com.mojang.blaze3d.platform.Window;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.gui.Font;
@@ -12,6 +12,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.fml.ModList;
+import org.joml.Vector3f;
 import org.luaj.vm2.LuaError;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.lua.LuaNotNil;
@@ -39,7 +41,19 @@ public class ClientAPI {
 
     public static final ClientAPI INSTANCE = new ClientAPI();
     private static final HashMap<String, Boolean> LOADED_MODS = new HashMap<>();
-    private static final boolean HAS_IRIS = FabricLoader.getInstance().isModLoaded("iris"); //separated to avoid indexing the list every frame
+    public static final Supplier<Boolean> OPTIFINE_LOADED = Suppliers.memoize(() ->
+    {
+        try
+        {
+            Class.forName("net.optifine.Config");
+            return true;
+        }
+        catch (ClassNotFoundException ignored)
+        {
+            return false;
+        }
+    });
+    private static final boolean HAS_IRIS = ( ModList.get().isLoaded("oculus") || OPTIFINE_LOADED.get()); //separated to avoid indexing the list every frame
 
     @LuaWhitelist
     @LuaMethodDoc("client.get_fps")
@@ -283,7 +297,7 @@ public class ClientAPI {
             value = "client.is_mod_loaded"
     )
     public static boolean isModLoaded(String id) {
-        LOADED_MODS.putIfAbsent(id, FabricLoader.getInstance().isModLoaded(id));
+        LOADED_MODS.putIfAbsent(id, ModList.get().isLoaded(id));
         return LOADED_MODS.get(id);
     }
 
@@ -296,7 +310,8 @@ public class ClientAPI {
     @LuaWhitelist
     @LuaMethodDoc("client.has_iris_shader")
     public static boolean hasIrisShader() {
-        return HAS_IRIS && net.irisshaders.iris.api.v0.IrisApi.getInstance().isShaderPackInUse();
+        //Oculus 1.19.3 is nonexistent
+        return HAS_IRIS; //&& net.irisshaders.iris.api.v0.IrisApi.getInstance().isShaderPackInUse();
     }
 
     @LuaWhitelist
