@@ -4,9 +4,9 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.datafixers.util.Pair;
-import net.fabricmc.fabric.api.client.command.v1.FabricClientCommandSource;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.resources.ResourceLocation;
@@ -341,15 +341,15 @@ public class AvatarManager {
 
     // -- command -- //
 
-    public static LiteralArgumentBuilder<FabricClientCommandSource> getCommand() {
+    public static LiteralArgumentBuilder<CommandSourceStack> getCommand() {
         //root
-        LiteralArgumentBuilder<FabricClientCommandSource> root = LiteralArgumentBuilder.literal("setAvatar");
+        LiteralArgumentBuilder<CommandSourceStack> root = LiteralArgumentBuilder.literal("setAvatar");
 
         //source
-        RequiredArgumentBuilder<FabricClientCommandSource, String> target = RequiredArgumentBuilder.argument("target", StringArgumentType.word());
+        RequiredArgumentBuilder<CommandSourceStack, String> target = RequiredArgumentBuilder.argument("target", StringArgumentType.word());
 
         //target
-        RequiredArgumentBuilder<FabricClientCommandSource, String> source = RequiredArgumentBuilder.argument("source", StringArgumentType.word());
+        RequiredArgumentBuilder<CommandSourceStack, String> source = RequiredArgumentBuilder.argument("source", StringArgumentType.word());
         source.executes(context -> {
             String s = StringArgumentType.getString(context, "source");
             String t = StringArgumentType.getString(context, "target");
@@ -359,26 +359,26 @@ public class AvatarManager {
                 sourceUUID = UUID.fromString(s);
                 targetUUID = UUID.fromString(t);
             } catch (Exception e) {
-                context.getSource().sendError(new TextComponent("Failed to parse uuids"));
+                context.getSource().sendFailure(new TextComponent("Failed to parse uuids"));
                 return 0;
             }
 
             UserData user = LOADED_USERS.get(sourceUUID);
             Avatar avatar = user == null ? null : user.getMainAvatar();
             if (avatar == null || avatar.nbt == null) {
-                context.getSource().sendError(new TextComponent("No source Avatar found"));
+                context.getSource().sendFailure(new TextComponent("No source Avatar found"));
                 return 0;
             }
 
             if (LOADED_USERS.get(targetUUID) != null) {
                 setAvatar(targetUUID, avatar.nbt);
-                context.getSource().sendFeedback(new TextComponent("Set avatar for " + t));
+                context.getSource().sendSystemMessage(new TextComponent("Set avatar for " + t));
                 return 1;
             }
 
             Entity targetEntity = EntityUtils.getEntityByUUID(targetUUID);
             if (targetEntity == null) {
-                context.getSource().sendError(new TextComponent("Target entity not found"));
+                context.getSource().sendFailure(new TextComponent("Target entity not found"));
                 return 0;
             }
 

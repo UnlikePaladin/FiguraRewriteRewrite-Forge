@@ -4,7 +4,10 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import net.fabricmc.fabric.api.client.command.v1.FabricClientCommandSource;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraftforge.client.ClientCommandSourceStack;
+import net.minecraftforge.client.event.RegisterClientCommandsEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
@@ -14,23 +17,23 @@ import org.moon.figura.utils.FiguraText;
 
 public class FiguraRunCommand {
 
-    public static LiteralArgumentBuilder<FabricClientCommandSource> getCommand() {
-        LiteralArgumentBuilder<FabricClientCommandSource> run = LiteralArgumentBuilder.literal("run");
-        RequiredArgumentBuilder<FabricClientCommandSource, String> arg = RequiredArgumentBuilder.argument("code", StringArgumentType.greedyString());
+    public static LiteralArgumentBuilder<CommandSourceStack> getCommand() {
+        LiteralArgumentBuilder<CommandSourceStack> run = LiteralArgumentBuilder.literal("run");
+        RequiredArgumentBuilder<CommandSourceStack, String> arg = RequiredArgumentBuilder.argument("code", StringArgumentType.greedyString());
         arg.executes(FiguraRunCommand::executeCode);
         run.then(arg);
         return run;
     }
 
-    private static int executeCode(CommandContext<FabricClientCommandSource> context) {
+    private static int executeCode(CommandContext<CommandSourceStack> context) {
         String lua = StringArgumentType.getString(context, "code");
         Avatar localAvatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
         if (localAvatar == null) {
-            context.getSource().sendError(new FiguraText("command.run.not_local_error"));
+            context.getSource().sendFailure(new FiguraText("command.run.not_local_error"));
             return 0;
         }
         if (localAvatar.luaRuntime == null || localAvatar.scriptError) {
-            context.getSource().sendError(new FiguraText("command.run.no_script_error"));
+            context.getSource().sendFailure(new FiguraText("command.run.no_script_error"));
             return 0;
         }
 
