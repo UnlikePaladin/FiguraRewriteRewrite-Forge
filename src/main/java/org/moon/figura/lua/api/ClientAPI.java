@@ -1,6 +1,5 @@
 package org.moon.figura.lua.api;
 
-import com.google.common.base.Suppliers;
 import com.mojang.blaze3d.platform.Window;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
@@ -30,7 +29,6 @@ import org.moon.figura.utils.Version;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.function.Supplier;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -41,19 +39,7 @@ public class ClientAPI {
 
     public static final ClientAPI INSTANCE = new ClientAPI();
     private static final HashMap<String, Boolean> LOADED_MODS = new HashMap<>();
-    public static final Supplier<Boolean> OPTIFINE_LOADED = Suppliers.memoize(() ->
-    {
-        try
-        {
-            Class.forName("net.optifine.Config");
-            return true;
-        }
-        catch (ClassNotFoundException ignored)
-        {
-            return false;
-        }
-    });
-    private static final boolean HAS_IRIS = ( ModList.get().isLoaded("oculus") || OPTIFINE_LOADED.get()); //separated to avoid indexing the list every frame
+    private static final boolean HAS_IRIS = ModList.get().isLoaded("oculus"); //separated to avoid indexing the list every frame
 
     @LuaWhitelist
     @LuaMethodDoc("client.get_fps")
@@ -313,7 +299,7 @@ public class ClientAPI {
     @LuaWhitelist
     @LuaMethodDoc("client.has_iris_shader")
     public static boolean hasIrisShader() {
-        //TODO: Oculus 1.19.3 is nonexistent
+        //Oculus 1.19.3 is nonexistent
         return HAS_IRIS; //&& net.irisshaders.iris.api.v0.IrisApi.getInstance().isShaderPackInUse();
     }
 
