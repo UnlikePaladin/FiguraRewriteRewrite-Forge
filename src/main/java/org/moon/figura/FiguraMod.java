@@ -61,41 +61,9 @@ public class FiguraMod {
     public static Entity extendedPickEntity;
     public static Component splashText;
     public FiguraMod() {
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onInitializeClient);
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerResourceListener);
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerOverlays);
-    }
-    public void onInitializeClient(FMLClientSetupEvent event) {
-        //init managers
-        ConfigManager.init();
-        PermissionManager.init();
-        LocalAvatarFetcher.init();
-        CacheAvatarLoader.init();
-        FiguraAPIManager.init();
-        FiguraDocsManager.init();
-        FiguraRuntimeResources.init();
-        ModMenuConfig.registerConfigScreen();
+
     }
 
-    public void registerResourceListener(RegisterClientReloadListenersEvent event) {
-        event.registerReloadListener(LocalAvatarLoader.AVATAR_LISTENER);
-        event.registerReloadListener(Emojis.RESOURCE_LISTENER);
-        event.registerReloadListener(AvatarWizard.RESOURCE_LISTENER);
-    }
-
-    @SubscribeEvent
-    public void registerOverlays(RegisterGuiOverlaysEvent event) {
-        event.registerAboveAll("figura_overlay", new GUIOverlay());
-        event.registerBelowAll("action_wheel_overlay", new GUIActionWheelOverlay());
-    }
-    @SubscribeEvent
-    public void registerKeyBinding(RegisterKeyMappingsEvent event) {
-        for (Config value : Config.values()) {
-            if(value.keyBind != null)
-                event.register(value.keyBind);
-        }
-    }
     public static void tick() {
         pushProfiler("network");
         NetworkStuff.tick();
