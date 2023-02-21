@@ -8,6 +8,6 @@ public class ModMenuConfig {
 
     public static void registerConfigScreen() {
         ModLoadingContext.get().registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class, () -> new ConfigScreenHandler.ConfigScreenFactory(
-                (client, parent) -> new ConfigScreen(parent)));
+                (client, parent) -> new ConfigScreen(parent, false)));
     }
 }
