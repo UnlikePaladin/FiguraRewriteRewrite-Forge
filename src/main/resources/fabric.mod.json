@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "figura",
+  "version": "${version}",
+
+  "name": "Figura",
+  "description": "Figura is a client-side mod that allows players to change their player model and customize it, extensively",
+  "authors": [
+    "Francy-Chan",
+    "Moonlight-Maya",
+    "skyrina",
+    "0xf24"
+  ],
+  "contact": {
+    "homepage": "https://github.com/Kingdom-Of-The-Moon/FiguraRewriteRewrite/",
+    "issues": "https://github.com/Kingdom-Of-The-Moon/FiguraRewriteRewrite/issues"
+  },
+
+  "license": "LGPL-2.1",
+  "icon": "assets/figura/icon.png",
+
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "org.moon.figura.FiguraMod"
+    ],
+    "preLaunch": [
+      "org.moon.figura.FiguraModPreLaunch"
+    ],
+    "modmenu": [
+      "org.moon.figura.config.ModMenuConfig"
+    ]
+  },
+  "mixins": [
+    "figura.mixins.json"
+  ],
+
+  "depends": {
+    "java": ">=${java_version}",
+    "minecraft": "${minecraft_version}",
+    "fabricloader": ">=${loader_version}",
+    "fabric": ">=${fabric_api}"
+  },
+  "conflicts": {
+    "immersive_portals": "*",
+    "canvas": "*"
+  },
+  "breaks": {
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "Discord": "https://discord.gg/ekHGHcH8Af",
+        "Ko-fi": "https://ko-fi.com/francy_chan"
+      }
+    }
+  }
+}
