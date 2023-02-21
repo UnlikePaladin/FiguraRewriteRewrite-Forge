@@ -1,6 +1,6 @@
-# This is an unofficial Forge Fork, please do not open any issues on the offical repository, open them here instead. 
+# This is an unofficial Forge Fork, please do not open any issues on the offical repository, open them here instead. Kingdom-of-The-Moon is not responsible for any issues you find with this port.
 
-# Figura
+# Figura for Forge
 
 Figura is a Minecraft Java mod that allows you to change your player _extensively_
 
@@ -23,7 +23,7 @@ Social:
 [ ![reddit][] ](https://www.reddit.com/r/Figura)
 
 Download:
-[Downloads available here, through Github Actions and Github Releases](https://github.com/UnlikePaladin/FiguraRewriteRewrite-Forge/tags)
+Downloads available here, through [Github Actions](https://github.com/UnlikePaladin/FiguraRewriteRewrite-Forge/actions) and [Github Releases](https://github.com/UnlikePaladin/FiguraRewriteRewrite-Forge/tags)
 
 Donate:
 [ ![kofi][] ](https://ko-fi.com/francy_chan)
