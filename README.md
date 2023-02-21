@@ -1,3 +1,5 @@
+# This is an unofficial Forge Fork, please do not open any issues on the offical repository, open them here instead. 
+
 # Figura
 
 Figura is a Minecraft Java mod that allows you to change your player _extensively_
@@ -14,8 +16,6 @@ you can filter those people and tweak their avatar available resources using a s
 ## Links
 [discord]: https://discord.com/api/guilds/125227483518861312/widget.png
 [reddit]: https://img.shields.io/badge/Reddit-ff4500?logo=reddit&logoColor=ffffff&labelColor=ff4500
-[modrinth]: https://img.shields.io/badge/Modrinth-1bd96a?logo=modrinth&logoColor=ffffff&labelColor=1bd96a
-[curseforge]: https://img.shields.io/badge/CurseForge-f16436?logo=curseforge&logoColor=ffffff&labelColor=f16436
 [kofi]: https://img.shields.io/badge/Ko--fi-00b9fe?logo=kofi&logoColor=ffffff&labelColor=00b9fe
 
 Social:
@@ -23,8 +23,7 @@ Social:
 [ ![reddit][] ](https://www.reddit.com/r/Figura)
 
 Download:
-[ ![modrinth] ](https://modrinth.com/mod/figura)
-[ ![curseforge][] ](https://curseforge.com/minecraft/mc-mods/figura)
+[Downloads available here, through Github Actions and Github Releases](https://github.com/UnlikePaladin/FiguraRewriteRewrite-Forge/tags)
 
 Donate:
 [ ![kofi][] ](https://ko-fi.com/francy_chan)
@@ -90,10 +89,13 @@ Donate:
 > Alternatively, still renaming the texture the same as its non-emissive however without the `_e`, in blockbench, you could set the texture render type to `emissive`
 
 ### • How can I use Figura with OptiFine?
-> You can't, OptiFine closed source nature and invasive code are a really high difficulty for mod compatibility. Check those [alternatives](https://lambdaurora.dev/optifine_alternatives/) instead
+> This unofficial Forge Port works with Optifine and the CaffeineMC Forge Ports
 
 ### • Forge port?
-> No, however if you want to develop it yourself, feel free to do so
+> You are looking at it
+
+### • Fabric port?
+> The original version is built for and around fabric, you can [find it here](https://github.com/Kingdom-of-The-Moon/FiguraRewriteRewrite)
 
 ### • Where can I find avatars to download?
 > For now, you can find avatars in the showcase channels on the official Discord server
