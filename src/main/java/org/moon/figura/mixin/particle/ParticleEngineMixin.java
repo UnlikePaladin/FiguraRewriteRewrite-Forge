@@ -14,7 +14,6 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
-
 import java.util.*;
 
 @Mixin(ParticleEngine.class)
@@ -26,7 +25,7 @@ public abstract class ParticleEngineMixin implements ParticleEngineAccessor {
 
     @Unique private final HashMap<Particle, UUID> particleMap = new HashMap<>();
 
-    @ModifyVariable(at = @At(value = "INVOKE", target = "Lnet/minecraft/client/particle/ParticleEngine;tickParticle(Lnet/minecraft/client/particle/Particle;)V"), method = "tickParticleList", index = 3)
+    @ModifyVariable(at = @At(value = "INVOKE", target = "Lnet/minecraft/client/particle/ParticleEngine;tickParticle(Lnet/minecraft/client/particle/Particle;)V"), method = "tickParticleList", ordinal = 0)
     private Particle tickParticleList(Particle particle) {
         particleMap.remove(particle);
         return particle;
@@ -57,3 +56,4 @@ public abstract class ParticleEngineMixin implements ParticleEngineAccessor {
         }
     }
 }
+
