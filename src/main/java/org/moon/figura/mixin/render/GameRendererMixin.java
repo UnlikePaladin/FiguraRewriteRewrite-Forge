@@ -96,12 +96,26 @@ public abstract class GameRendererMixin implements GameRendererAccessor {
             ci.cancel();
     }
 
-    @Inject(method = "renderItemInHand", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Options;getCameraType()Lnet/minecraft/client/CameraType;", shift = At.Shift.BEFORE),
+    @Inject(method = "renderItemInHand", remap = false, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Options;getCameraType()Lnet/minecraft/client/CameraType;", shift = At.Shift.BEFORE),
             slice = @Slice(
                     from = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;pushPose()V"),
                     to = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;popPose()V")
-            ))
-    private void preRenderItemInHand(PoseStack matrices, Camera camera, float tickDelta, CallbackInfo ci) {
+            ), require = 0)
+    public void preRenderItemInHand(PoseStack matrices, Camera camera, float tickDelta, CallbackInfo ci) {
+        preRenderFiguraItemInHand(matrices, camera, tickDelta);
+    }
+
+    @Inject(method = "renderHand", remap = false, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Options;getCameraType()Lnet/minecraft/client/CameraType;", shift = At.Shift.BEFORE),
+            slice = @Slice(
+                    from = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;pushPose()V"),
+                    to = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;popPose()V")
+            ), require = 0)
+    public void preRenderItemInHand(PoseStack matrices, Camera camera, float tickDelta, boolean renderItem, boolean renderOverlay, boolean renderTranslucent, CallbackInfo ci) {
+        preRenderFiguraItemInHand(matrices, camera, tickDelta);
+    }
+
+    @Unique
+    private void preRenderFiguraItemInHand(PoseStack matrices, Camera camera, float tickDelta) {
         if (this.minecraft.player == null || !this.minecraft.options.getCameraType().isFirstPerson()) {
             avatar = null;
             return;
@@ -118,8 +132,18 @@ public abstract class GameRendererMixin implements GameRendererAccessor {
         }
     }
 
-    @Inject(method = "renderItemInHand", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;popPose()V", shift = At.Shift.BEFORE))
+    @Inject(method = "renderItemInHand", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;popPose()V", shift = At.Shift.BEFORE), require = 0)
     private void posRenderItemInHand(PoseStack matrices, Camera camera, float tickDelta, CallbackInfo ci) {
+        posRenderFiguraItemInHand(matrices, camera, tickDelta);
+    }
+
+    @Inject(method = "renderHand", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;popPose()V", shift = At.Shift.BEFORE), require = 0)
+    private void posRenderItemInHand(PoseStack matrices, Camera camera, float tickDelta, boolean renderItem, boolean renderOverlay, boolean renderTranslucent, CallbackInfo ci) {
+        posRenderFiguraItemInHand(matrices, camera, tickDelta);
+    }
+
+    @Unique
+    private void posRenderFiguraItemInHand(PoseStack matrices, Camera camera, float tickDelta) {
         if (avatar != null) {
             FiguraMod.pushProfiler(FiguraMod.MOD_ID);
             FiguraMod.pushProfiler(avatar);

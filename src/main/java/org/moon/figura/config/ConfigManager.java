@@ -5,7 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.InputConstants;
-import net.fabricmc.loader.api.FabricLoader;
+import net.minecraftforge.fml.loading.FMLPaths;
 import org.moon.figura.FiguraMod;
 
 import java.io.BufferedReader;
@@ -18,7 +18,7 @@ import java.util.Map;
 
 public final class ConfigManager {
 
-    private static final File FILE = new File(FabricLoader.getInstance().getConfigDir().resolve(FiguraMod.MOD_ID + ".json").toString());
+    private static final File FILE = new File(FMLPaths.CONFIGDIR.relative().resolve(FiguraMod.MOD_ID + ".json").toString());
     private static final List<Config> CONFIG_ENTRIES = new ArrayList<>() {{
         for (Config value : Config.values()) {
             if (value.type != Config.ConfigType.CATEGORY)
@@ -138,10 +138,10 @@ public final class ConfigManager {
 
     //returns true if modmenu shifts other buttons on the game menu screen
     public static boolean modmenuShift() {
-        if (FabricLoader.getInstance().isModLoaded("modmenu")) {
+        /*if (FabricLoader.getInstance().isModLoaded("modmenu")) {
             String buttonStyle = com.terraformersmc.modmenu.config.ModMenuConfig.MODS_BUTTON_STYLE.getValue().toString();
             return !buttonStyle.equals("SHRINK") && !buttonStyle.equals("ICON");
-        }
+        }*/
 
         return false;
     }
