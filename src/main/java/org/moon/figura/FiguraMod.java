@@ -26,8 +26,6 @@ import org.moon.figura.config.Config;
 import org.moon.figura.config.ConfigManager;
 import org.moon.figura.gui.ActionWheel;
 import org.moon.figura.config.ModMenuConfig;
-import org.moon.figura.forge.GUIActionWheelOverlay;
-import org.moon.figura.forge.GUIOverlay;
 import org.moon.figura.gui.Emojis;
 import org.moon.figura.gui.PaperDoll;
 import org.moon.figura.gui.PopupMenu;
