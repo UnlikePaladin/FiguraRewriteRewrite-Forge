@@ -88,7 +88,7 @@ minecraft {
             property 'forge.enabledGameTestNamespaces', 'figura'
 
             mods {
-                examplemod {
+                figura {
                     source sourceSets.main
                 }
             }
@@ -224,7 +224,6 @@ mixin {
     debug.verbose = true
     debug.export = true
 }
-//TODO: Add refmap
 
 // Example for how to get properties into the manifest for reading at runtime.
 jar {
