@@ -46,8 +46,6 @@
     "canvas": "*"
   },
   "breaks": {
-    "optifine": "*",
-    "optifabric": "*"
   },
   "custom": {
     "modmenu": {
