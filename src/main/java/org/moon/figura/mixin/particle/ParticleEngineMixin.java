@@ -56,4 +56,3 @@ public abstract class ParticleEngineMixin implements ParticleEngineAccessor {
         }
     }
 }
-
