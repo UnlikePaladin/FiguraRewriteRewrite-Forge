@@ -39,7 +39,7 @@ public class GUIOverlay implements IGuiOverlay {
             avatar.hudRender(stack, Minecraft.getInstance().renderBuffers().bufferSource(), entity, partialTick);
 
             //hud hidden by script
-            if (avatar.luaRuntime != null && !avatar.luaRuntime.renderer.renderHUD) {
+            if (avatar.luaRuntime != null) {
                 //render wheel
                 FiguraMod.pushProfiler("actionWheel");
                 ActionWheel.render(stack);

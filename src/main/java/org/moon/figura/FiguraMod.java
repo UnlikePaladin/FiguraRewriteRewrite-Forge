@@ -64,41 +64,9 @@ public class FiguraMod {
     public static Entity extendedPickEntity;
     public static Component splashText;
     public FiguraMod() {
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onInitializeClient);
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerResourceListener);
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerOverlays);
-    }
-    public void onInitializeClient(FMLClientSetupEvent event) {
-        //init managers
-        ConfigManager.init();
-        TrustManager.init();
-        LocalAvatarFetcher.init();
-        CacheAvatarLoader.init();
-        FiguraAPIManager.init();
-        FiguraDocsManager.init();
-        FiguraCommands.init();
-        ModMenuConfig.registerConfigScreen();
+
     }
 
-    public void registerResourceListener(RegisterClientReloadListenersEvent event) {
-        event.registerReloadListener(LocalAvatarLoader.AVATAR_LISTENER);
-        event.registerReloadListener(Emojis.RESOURCE_LISTENER);
-        event.registerReloadListener(AvatarWizard.RESOURCE_LISTENER);
-    }
-
-    @SubscribeEvent
-    public void registerOverlays(RegisterGuiOverlaysEvent event) {
-        event.registerAboveAll("figura_overlay", new GUIOverlay());
-        event.registerBelowAll("action_wheel_overlay", new GUIActionWheelOverlay());
-    }
-    @SubscribeEvent
-    public void registerKeyBinding(RegisterKeyMappingsEvent event) {
-        for (Config value : Config.values()) {
-            if(value.keyBind != null)
-                event.register(value.keyBind);
-        }
-    }
     public static void tick() {
         pushProfiler("network");
         NetworkStuff.tick();
@@ -119,30 +87,6 @@ public class FiguraMod {
             if (avatar != null)
                 avatar.firstPersonWorldRender(watcher, context.consumers(), context.matrixStack(), context.camera(), context.tickDelta());
         }
-    }
-
-    private static void hudRender(PoseStack stack, float delta) {
-        if (AvatarManager.panic)
-            return;
-
-        pushProfiler(MOD_ID);
-
-        pushProfiler("paperdoll");
-        PaperDoll.render(stack);
-
-        popPushProfiler("actionWheel");
-        ActionWheel.render(stack);
-
-        popPushProfiler("popupMenu");
-        PopupMenu.render(stack);
-
-        popProfiler(2);
-    }
-
-    private static void registerResourceListener(ResourceManagerHelper managerHelper) {
-        managerHelper.registerReloadListener(LocalAvatarLoader.AVATAR_LISTENER);
-        managerHelper.registerReloadListener(Emojis.RESOURCE_LISTENER);
-        managerHelper.registerReloadListener(AvatarWizard.RESOURCE_LISTENER);
     }
 
     // -- Helper Functions -- //

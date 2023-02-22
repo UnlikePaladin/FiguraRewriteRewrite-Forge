@@ -337,12 +337,12 @@ public class FiguraDocsManager {
             fs.close();
 
             //feedback
-            context.getSource().sendSystemMessage(
+            context.getSource().sendSuccess(
                     FiguraText.of("command.docs_export.success")
                             .append(" ")
                             .append(FiguraText.of("command.click_to_open")
                                     .setStyle(Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_FILE, targetPath.toFile().toString())).withUnderlined(true))
-                            )
+                            ), false
             );
             return 1;
         } catch (Exception e) {

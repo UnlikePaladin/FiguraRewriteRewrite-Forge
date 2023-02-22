@@ -18,8 +18,7 @@ import org.moon.figura.forge.GUIOverlay;
 import org.moon.figura.gui.Emojis;
 import org.moon.figura.lua.FiguraAPIManager;
 import org.moon.figura.lua.docs.FiguraDocsManager;
-import org.moon.figura.permissions.PermissionManager;
-import org.moon.figura.resources.FiguraRuntimeResources;
+import org.moon.figura.trust.TrustManager;
 import org.moon.figura.wizards.AvatarWizard;
 
 @Mod.EventBusSubscriber(modid = FiguraMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
@@ -29,12 +28,11 @@ public class FiguraModClient {
     public static void onInitializeClient(FMLClientSetupEvent event) {
         //init managers
         ConfigManager.init();
-        PermissionManager.init();
+        TrustManager.init();
         LocalAvatarFetcher.init();
         CacheAvatarLoader.init();
         FiguraAPIManager.init();
         FiguraDocsManager.init();
-        FiguraRuntimeResources.init();
         ModMenuConfig.registerConfigScreen();
     }
 

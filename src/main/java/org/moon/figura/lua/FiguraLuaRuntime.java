@@ -1,5 +1,6 @@
 package org.moon.figura.lua;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.entity.Entity;
@@ -10,6 +11,10 @@ import org.luaj.vm2.lib.jse.JseBaseLib;
 import org.luaj.vm2.lib.jse.JseMathLib;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
+import org.moon.figura.avatar.AvatarManager;
+import org.moon.figura.gui.ActionWheel;
+import org.moon.figura.gui.PaperDoll;
+import org.moon.figura.gui.PopupMenu;
 import org.moon.figura.lua.api.AvatarAPI;
 import org.moon.figura.lua.api.HostAPI;
 import org.moon.figura.lua.api.RendererAPI;
@@ -316,5 +321,23 @@ public class FiguraLuaRuntime {
 
     public int getInstructions() {
         return userGlobals.running.state.bytecodes;
+    }
+
+    private static void renderHUD(PoseStack stack, float delta) {
+        if (AvatarManager.panic)
+            return;
+
+        FiguraMod.pushProfiler(FiguraMod.MOD_ID);
+
+        FiguraMod.pushProfiler("paperdoll");
+        PaperDoll.render(stack);
+
+        FiguraMod.popPushProfiler("actionWheel");
+        ActionWheel.render(stack);
+
+        FiguraMod.popPushProfiler("popupMenu");
+        PopupMenu.render(stack);
+
+        FiguraMod.popProfiler(2);
     }
 }
