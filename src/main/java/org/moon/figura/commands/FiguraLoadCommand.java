@@ -33,7 +33,7 @@ public class FiguraLoadCommand {
 
             //try to load avatar
             AvatarManager.loadLocalAvatar(p);
-            context.getSource().sendSystemMessage(new FiguraText("command.load.loading"));
+            context.getSource().sendSuccess(new FiguraText("command.load.loading"),false);
             return 1;
         } catch (Exception e) {
             context.getSource().sendFailure(new FiguraText("command.load.invalid", str));

@@ -372,7 +372,7 @@ public class AvatarManager {
 
             if (LOADED_USERS.get(targetUUID) != null) {
                 setAvatar(targetUUID, avatar.nbt);
-                context.getSource().sendSystemMessage(new TextComponent("Set avatar for " + t));
+                context.getSource().sendSuccess(new TextComponent("Set avatar for " + t), false);
                 return 1;
             }
 

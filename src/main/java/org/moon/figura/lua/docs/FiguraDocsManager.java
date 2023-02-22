@@ -290,7 +290,7 @@ public class FiguraDocsManager {
 
     // -- commands -- //
 
-    public static LiteralArgumentBuilder<FabricClientCommandSource> getCommand() {
+    public static LiteralArgumentBuilder<CommandSourceStack> getCommand() {
         //root
         LiteralArgumentBuilder<CommandSourceStack> root = LiteralArgumentBuilder.literal("docs");
         root.executes(context -> FiguraDoc.printRoot());
@@ -337,12 +337,12 @@ public class FiguraDocsManager {
             fs.close();
 
             //feedback
-            context.getSource().sendSystemMessage(
+            context.getSource().sendSuccess(
                     new FiguraText("command.docs_export.success")
                             .append(" ")
                             .append(new FiguraText("command.click_to_open")
                                     .setStyle(Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_FILE, targetPath.toFile().toString())).withUnderlined(true))
-                            )
+                            ), false
             );
             return 1;
         } catch (Exception e) {

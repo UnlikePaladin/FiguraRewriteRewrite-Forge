@@ -48,8 +48,8 @@ public class BackendCommands {
         //check resources
         LiteralArgumentBuilder<CommandSourceStack> resources = LiteralArgumentBuilder.literal("checkResources");
         resources.executes(context -> {
-            context.getSource().sendSystemMessage(new TextComponent("Checking for resources..."));
-            FiguraRuntimeResources.init();
+            context.getSource().sendSuccess(new TextComponent("Checking for resources..."), false);
+//            FiguraRuntimeResources.init();
             return 1;
         });
 
