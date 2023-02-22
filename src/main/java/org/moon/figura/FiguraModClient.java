@@ -1,9 +1,9 @@
 package org.moon.figura;
 
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.ClientRegistry;
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
-import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
-import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.gui.OverlayRegistry;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
@@ -44,15 +44,15 @@ public class FiguraModClient {
     }
 
     @SubscribeEvent
-    public static void registerOverlays(RegisterGuiOverlaysEvent event) {
-        event.registerAboveAll("figura_overlay", new GUIOverlay());
-        event.registerBelowAll("action_wheel_overlay", new GUIActionWheelOverlay());
+    public static void registerOverlays(FMLClientSetupEvent event) {
+        OverlayRegistry.registerOverlayTop("figura_overlay", new GUIOverlay());
+        OverlayRegistry.registerOverlayBottom("action_wheel_overlay", new GUIActionWheelOverlay());
     }
     @SubscribeEvent
-    public static void registerKeyBinding(RegisterKeyMappingsEvent event) {
+    public static void registerKeyBinding(FMLClientSetupEvent event) {
         for (Config value : Config.values()) {
             if(value.keyBind != null)
-                event.register(value.keyBind);
+                ClientRegistry.registerKeyBinding(value.keyBind);
         }
     }
 }

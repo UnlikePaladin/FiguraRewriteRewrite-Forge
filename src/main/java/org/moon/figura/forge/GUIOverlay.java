@@ -4,8 +4,8 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
-import net.minecraftforge.client.gui.overlay.ForgeGui;
-import net.minecraftforge.client.gui.overlay.IGuiOverlay;
+import net.minecraftforge.client.gui.ForgeIngameGui;
+import net.minecraftforge.client.gui.IIngameOverlay;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
@@ -13,10 +13,10 @@ import org.moon.figura.gui.ActionWheel;
 import org.moon.figura.gui.PaperDoll;
 import org.moon.figura.gui.PopupMenu;
 
-public class GUIOverlay implements IGuiOverlay {
+public class GUIOverlay implements IIngameOverlay {
 
     @Override
-    public void render(ForgeGui gui, PoseStack stack, float partialTick, int screenWidth, int screenHeight) {
+    public void render(ForgeIngameGui gui, PoseStack stack, float partialTick, int screenWidth, int screenHeight) {
         if (AvatarManager.panic)
             return;
 
