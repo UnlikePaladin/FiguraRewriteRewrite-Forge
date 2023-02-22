@@ -80,15 +80,6 @@ public class FiguraMod {
         ticks++;
     }
 
-    private static void renderFirstPersonWorldParts(WorldRenderContext context) {
-        if (!context.camera().isDetached()) {
-            Entity watcher = context.camera().getEntity();
-            Avatar avatar = AvatarManager.getAvatar(watcher);
-            if (avatar != null)
-                avatar.firstPersonWorldRender(watcher, context.consumers(), context.matrixStack(), context.camera(), context.tickDelta());
-        }
-    }
-
     // -- Helper Functions -- //
 
     //debug print
