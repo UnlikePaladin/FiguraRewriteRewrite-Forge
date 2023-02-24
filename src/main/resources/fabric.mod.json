@@ -47,6 +47,7 @@
   "breaks": {
   },
   "custom": {
+    "assets_version": "${assets_version}",
     "modmenu": {
       "links": {
         "Discord": "https://discord.gg/ekHGHcH8Af",
