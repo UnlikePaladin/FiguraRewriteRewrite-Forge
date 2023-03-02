@@ -1,6 +1,7 @@
 package org.moon.figura.config;
 
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.network.chat.Component;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.AvatarManager;
@@ -19,6 +20,8 @@ import java.util.HashMap;
 import java.util.List;
 
 public class Configs {
+
+    public static ArrayList<KeyMapping> KEY_MAPPINGS = new ArrayList<>();
 
     //mod config version
     //only change this if you rename old configs

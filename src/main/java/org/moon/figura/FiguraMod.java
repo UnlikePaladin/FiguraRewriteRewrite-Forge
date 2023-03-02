@@ -15,6 +15,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraftforge.fml.loading.ModSorter;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.avatar.local.CacheAvatarLoader;
@@ -44,6 +45,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.Calendar;
+import java.util.Map;
 import java.util.UUID;
 
 @Mod("figura")
@@ -51,8 +53,8 @@ public class FiguraMod {
 
     public static final String MOD_ID = "figura";
     public static final String MOD_NAME = "Figura";
-    public static final Version VERSION = new Version(ModList.get().getModContainerById("figura").get().getModInfo().getVersion().toString());
-    public static final ModMetadata METADATA = FabricLoader.getInstance().getModContainer(MOD_ID).get().getMetadata();
+    public static final Version VERSION = new Version(ModList.get().getModContainerById(MOD_ID).get().getModInfo().getVersion().toString());
+    public static final Map<String,Object> METADATA = ModList.get().getModContainerById("figura").get().getModInfo().getModProperties(); //FabricLoader.getInstance().getModContainer(MOD_ID).get().getMetadata();
     public static final boolean DEBUG_MODE = Math.random() + 1 < 0;
     public static final Calendar CALENDAR = Calendar.getInstance();
     public static final Path GAME_DIR = FMLPaths.GAMEDIR.relative().normalize();
@@ -62,41 +64,8 @@ public class FiguraMod {
     public static Entity extendedPickEntity;
     public static Component splashText;
     public FiguraMod() {
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onInitializeClient);
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerKeyBinding);
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerResourceListener);
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::registerOverlays);
-    }
-    public void onInitializeClient(FMLClientSetupEvent event) {
-        //init managers
-        ConfigManager.init();
-        PermissionManager.init();
-        LocalAvatarFetcher.init();
-        CacheAvatarLoader.init();
-        FiguraAPIManager.init();
-        FiguraDocsManager.init();
-        FiguraRuntimeResources.init();
-        ModMenuConfig.registerConfigScreen();
     }
 
-    public void registerResourceListener(RegisterClientReloadListenersEvent event) {
-        event.registerReloadListener(LocalAvatarLoader.AVATAR_LISTENER);
-        event.registerReloadListener(Emojis.RESOURCE_LISTENER);
-        event.registerReloadListener(AvatarWizard.RESOURCE_LISTENER);
-    }
-
-    @SubscribeEvent
-    public void registerOverlays(RegisterGuiOverlaysEvent event) {
-        event.registerAboveAll("figura_overlay", new GUIOverlay());
-        event.registerBelowAll("action_wheel_overlay", new GUIActionWheelOverlay());
-    }
-    @SubscribeEvent
-    public void registerKeyBinding(RegisterKeyMappingsEvent event) {
-        for (Config value : Config.values()) {
-            if(value.keyBind != null)
-                event.register(value.keyBind);
-        }
-    }
     public static void tick() {
         pushProfiler("network");
         NetworkStuff.tick();

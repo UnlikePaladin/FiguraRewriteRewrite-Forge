@@ -20,7 +20,6 @@ modId="figura" #mandatory
 # ${file.jarVersion} will substitute the value of the Implementation-Version as read from the mod's JAR file metadata
 # see the associated build.gradle script for how to populate this completely automatically during a build
 version="${file.jarVersion}" #mandatory
-# TODO: Fix versioning
  # A display name for the mod
 displayName="Figura" #mandatory
 # A URL to query for updates for this mod. See the JSON update specification https://docs.minecraftforge.net/en/latest/misc/updatechecker/
@@ -45,6 +44,9 @@ credits="Ported to Forge by UnlikePaladin" #optional
 description='''
 Figura is a client-side mod that allows players to change their player model and customize it, extensively
 '''
+
+[modproperties.figura]
+    assets_version="v1"
 # A dependency - use the . to indicate dependency for a specific modid. Dependencies are optional.
 [[dependencies.figura]] #optional
     # the modid of the dependency

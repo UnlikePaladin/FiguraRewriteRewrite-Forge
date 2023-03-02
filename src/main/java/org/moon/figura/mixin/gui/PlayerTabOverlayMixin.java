@@ -73,12 +73,12 @@ public class PlayerTabOverlayMixin {
     }
 
     @ModifyArg(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/components/PlayerFaceRenderer;draw(Lcom/mojang/blaze3d/vertex/PoseStack;IIIZZ)V"), index = 3)
-    private int doNotDrawFace(PoseStack p_240133_, int p_240134_, int p_240135_, int p_240136_, boolean p_240137_, boolean p_240138_) {
+    private int doNotDrawFace(PoseStack poseStack, int x, int y, int size, boolean p_240137_, boolean p_240138_) {
         if (uuid != null) {
             Avatar avatar = AvatarManager.getAvatarForPlayer(uuid);
-            if (avatar != null && avatar.renderPortrait(p_240133_, p_240134_, p_240135_, p_240136_, 16, false))
+            if (avatar != null && avatar.renderPortrait(poseStack, x, y, size, 16))
                 return 0;
         }
-        return p_240136_;
+        return size;
     }
 }

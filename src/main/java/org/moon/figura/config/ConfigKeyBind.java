@@ -1,14 +1,12 @@
 package org.moon.figura.config;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import org.moon.figura.FiguraMod;
 
 public class ConfigKeyBind extends KeyMapping {
-
     private final ConfigType.KeybindConfig config;
 
     public ConfigKeyBind(String translationKey, InputConstants.Key key, ConfigType.KeybindConfig config) {
@@ -16,7 +14,7 @@ public class ConfigKeyBind extends KeyMapping {
         this.config = config;
 
         if (FiguraMod.DEBUG_MODE || !config.disabled)
-            KeyBindingHelper.registerKeyBinding(this);
+            Configs.KEY_MAPPINGS.add(this);
     }
 
     @Override

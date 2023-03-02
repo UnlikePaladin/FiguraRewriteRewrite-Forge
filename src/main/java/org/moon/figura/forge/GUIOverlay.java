@@ -26,7 +26,7 @@ public class GUIOverlay implements IGuiOverlay {
         PopupMenu.render(stack);
 
         FiguraMod.popPushProfiler("paperdoll");
-        PaperDoll.render(stack);
+        PaperDoll.render(stack, false);
 
         FiguraMod.popProfiler();
 
