@@ -23,8 +23,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Gui.class)
 public class GuiMixin {
 
-    @Shadow @Final
-    protected Minecraft minecraft;
+    @Shadow @Final private Minecraft minecraft;
     @Unique private FiguraVec2 crosshairOffset;
 
     @Inject(at = @At("HEAD"), method = "renderCrosshair", cancellable = true)

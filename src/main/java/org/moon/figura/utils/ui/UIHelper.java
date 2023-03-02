@@ -29,7 +29,7 @@ import org.lwjgl.opengl.GL30;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.gui.screens.AbstractPanelScreen;
 import org.moon.figura.gui.widgets.AbstractContainerElement;
 import org.moon.figura.gui.widgets.ContextMenu;
@@ -39,6 +39,7 @@ import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.TextUtils;
 
 import java.util.List;
+import java.util.Stack;
 
 public class UIHelper extends GuiComponent {
 
@@ -58,7 +59,7 @@ public class UIHelper extends GuiComponent {
     public static boolean paperdoll = false;
     public static float fireRot = 0f;
     public static float dollScale = 1f;
-    public static FiguraVec4 scissors = FiguraVec4.of();
+    private static final Stack<FiguraVec4> SCISSORS_STACK = new Stack<>();
 
     // -- Functions -- //
 
@@ -107,6 +108,7 @@ public class UIHelper extends GuiComponent {
         RenderSystem.enableBlend();
     }
 
+    @SuppressWarnings("deprecation")
     public static void drawEntity(float x, float y, float scale, float pitch, float yaw, LivingEntity entity, PoseStack stack, EntityRenderMode renderMode) {
         //backup entity variables
         float headX = entity.getXRot();
@@ -145,7 +147,7 @@ public class UIHelper extends GuiComponent {
                 Lighting.setupForEntityInInventory();
 
                 //invisibility
-                if (Config.PAPERDOLL_INVISIBLE.asBool())
+                if (Configs.PAPERDOLL_INVISIBLE.value)
                     entity.setInvisible(false);
             }
             case FIGURA_GUI -> {
@@ -153,7 +155,7 @@ public class UIHelper extends GuiComponent {
                 xRot = pitch;
                 yRot = yaw + bodyY + 180;
 
-                if (!Config.PREVIEW_HEAD_ROTATION.asBool()) {
+                if (!Configs.PREVIEW_HEAD_ROTATION.value) {
                     entity.setXRot(0f);
                     entity.yHeadRot = bodyY;
                 }
@@ -217,7 +219,6 @@ public class UIHelper extends GuiComponent {
 
         double finalXPos = xPos;
         double finalYPos = yPos;
-        //noinspection deprecation
         RenderSystem.runAsFancy(() -> dispatcher.render(entity, finalXPos, finalYPos, 0d, 0f, 1f, stack, immediate, LightTexture.FULL_BRIGHT));
         immediate.endBatch();
 
@@ -352,14 +353,44 @@ public class UIHelper extends GuiComponent {
     }
 
     public static void setupScissor(int x, int y, int width, int height) {
-        scissors.set(x, y, width, height);
+        FiguraVec4 vec = FiguraVec4.of(x, y, width, height);
+        if (!SCISSORS_STACK.isEmpty()) {
+            FiguraVec4 old = SCISSORS_STACK.peek();
+            double newX = Math.max(x, old.x());
+            double newY = Math.max(y, old.y());
+            double newWidth = Math.min(x + width, old.x() + old.z()) - newX;
+            double newHeight = Math.min(y + height, old.y() + old.w()) - newY;
+            vec.set(newX, newY, newWidth, newHeight);
+        }
 
+        SCISSORS_STACK.push(vec);
+        setupScissor(vec);
+    }
+
+    private static void setupScissor(FiguraVec4 dimensions) {
         double scale = Minecraft.getInstance().getWindow().getGuiScale();
         int screenY = Minecraft.getInstance().getWindow().getHeight();
 
-        int scaledWidth = (int) Math.max(width * scale, 0);
-        int scaledHeight = (int) Math.max(height * scale, 0);
-        RenderSystem.enableScissor((int) (x * scale), (int) (screenY - y * scale - scaledHeight), scaledWidth, scaledHeight);
+        int scaledWidth = (int) Math.max(dimensions.z * scale, 0);
+        int scaledHeight = (int) Math.max(dimensions.w * scale, 0);
+        RenderSystem.enableScissor((int) (dimensions.x * scale), (int) (screenY - dimensions.y * scale - scaledHeight), scaledWidth, scaledHeight);
+    }
+
+    public static void disableScissor() {
+        SCISSORS_STACK.pop();
+        if (!SCISSORS_STACK.isEmpty()) {
+            setupScissor(SCISSORS_STACK.peek());
+        } else {
+            RenderSystem.disableScissor();
+        }
+    }
+
+    public static void renderWithoutScissors(Runnable toRun) {
+        RenderSystem.disableScissor();
+        toRun.run();
+        if (!SCISSORS_STACK.isEmpty()) {
+            setupScissor(SCISSORS_STACK.peek());
+        }
     }
 
     public static void highlight(PoseStack stack, Object component, Component text) {
@@ -453,6 +484,38 @@ public class UIHelper extends GuiComponent {
         }
 
         stack.popPose();
+    }
+
+    public static void renderScrollingText(PoseStack stack, Component text, int x, int y, int width, int height, int color) {
+        Font font = Minecraft.getInstance().font;
+        int textWidth = font.width(text);
+        int textX = x + width / 2;
+        int textY = y + height / 2 - font.lineHeight / 2;
+
+        //the text fit :D
+        if (textWidth <= width - 2) {
+            drawCenteredString(stack, font, text, textX, textY, color);
+            return;
+        }
+
+        //oh, no it doesn't fit
+
+        float speed = Configs.TEXT_SCROLL_SPEED.value;
+        int scrollLen = textWidth - (width - 4);
+        int startingOffset = scrollLen / 2;
+        int stopDelay = (int) (Configs.TEXT_SCROLL_DELAY.value * speed);
+        int time = scrollLen + stopDelay;
+        int totalTime = time * 2;
+        int ticks = (int) (FiguraMod.ticks * speed);
+        int currentTime = ticks % time;
+        int dir = (ticks % totalTime) > time - 1 ? 1 : -1;
+
+        int clamp = Math.min(Math.max(currentTime - stopDelay, 0), scrollLen);
+        textX += (startingOffset - clamp) * dir;
+
+        setupScissor(x + 1, y, width - 2, height);
+        drawCenteredString(stack, font, text, textX, textY, color);
+        disableScissor();
     }
 
     public static void setContext(ContextMenu context) {

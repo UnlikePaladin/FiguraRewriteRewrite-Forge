@@ -135,11 +135,13 @@
   "figura.gui.panic.1": "Panic mode active! Figura features are disabled!",
   "figura.gui.panic.2": "toggle panic mode with [%s] key",
   "figura.gui.help.tooltip": "Help",
+  "figura.gui.duplicate_keybind": "This key is also used for:\n%s",
 
   "figura.gui.text_hint.any": "Text",
   "figura.gui.text_hint.int": "Integer",
   "figura.gui.text_hint.positive_int": "Integer",
   "figura.gui.text_hint.float": "Number",
+  "figura.gui.text_hint.positive_float": "Number",
   "figura.gui.text_hint.hex_color": "Color",
   "figura.gui.text_hint.folder_path": "Path",
   "figura.gui.text_hint.ip": "IP Address",
@@ -339,8 +341,8 @@
   "figura.config.first_person_matrices.tooltip": "Toggles if the model part matrices should be updated while in first person",
 
 
-  "figura.config.actionwheel": "Action Wheel",
-  "figura.config.actionwheel.tooltip": "Action Wheel settings",
+  "figura.config.action_wheel": "Action Wheel",
+  "figura.config.action_wheel.tooltip": "Action Wheel settings",
 
   "figura.config.action_wheel_button": "Action Wheel Button",
   "figura.config.action_wheel_button.tooltip": "Button to open the Action Wheel",
@@ -408,6 +410,12 @@
 
   "figura.config.preview_head_rotation": "GUI Head Rotation",
   "figura.config.preview_head_rotation.tooltip": "Toggles if the player head rotation should be applied in avatar previews through the GUI\nWhen off, the avatar will always be rendered looking forwards",
+
+  "figura.config.text_scroll_speed": "Text Scroll Speed",
+  "figura.config.text_scroll_speed.tooltip": "Changes how fast the Text should scroll",
+
+  "figura.config.text_scroll_delay": "Text Scroll Delay",
+  "figura.config.text_scroll_delay.tooltip": "Changes the delay (in ticks) that the Text should wait before scrolling",
 
 
   "figura.config.paperdoll": "Paperdoll",
@@ -514,6 +522,9 @@
 
   "figura.config.server_ip": "Figura Server IP",
   "figura.config.server_ip.tooltip": "Sets the IP of the server used for Figura's multiplayer features",
+
+  "figura.config.clear_cache": "Clear Cache",
+  "figura.config.clear_cache.tooltip": "Clears the cache files\nRemoves things like cached Avatars and UI states\nWill not clear settings nor saved permissions",
 
 
   "figura.command.click_to_open": "Click here to open",
@@ -865,9 +876,7 @@
   "figura.docs.entity.is_hamburger": "\"Refused to elaborate\"",
   "figura.docs.entity.get_velocity": "Gets the current velocity of this entity in world coordinates, calculated as its position this tick minus its position last tick",
   "figura.docs.entity.get_look_dir": "Returns a unit vector pointing in the direction that this entity is looking\nSee the blue line in the F3+B screen for an example",
-  "figura.docs.entity.get_fire_ticks": "Returns the remaining number of ticks this entity will be on fire for",
   "figura.docs.entity.get_frozen_ticks": "Gets the number of ticks this entity has been freezing in powder snow for",
-  "figura.docs.entity.get_air": "Gets the current amount of air this entity has remaining",
   "figura.docs.entity.get_max_air": "Gets the maximum amount of air this entity can have",
   "figura.docs.entity.get_dimension_name": "Gets the Minecraft identifier of the dimension this entity is in",
   "figura.docs.entity.get_pose": "Returns the current pose of the player\nThis can be one of: \"STANDING\", \"FALL_FLYING\", \"SLEEPING\", \"SWIMMING\", \"SPIN_ATTACK\", \"CROUCHING\", \"LONG_JUMPING\", or \"DYING\"",
@@ -960,6 +969,7 @@
   "figura.docs.events.mouse_press": "The MOUSE_PRESS event runs every time a mouse button is pressed\nTakes three number parameters, a \"button\", which is the number id of the button that was been pressed, the \"action\", which is the status of the press event (0 for release, 1 for press, 2 for hold), and the \"modifier\", which is a bitmask number detecting if you have any modifier keys being pressed (like shift or alt, for example)\nIf returned true, the event cancels its vanilla function",
   "figura.docs.events.key_press": "The KEY_PRESS event runs every time a keyboard key is pressed\nTakes three number parameters, a \"key\", which is the number id of the key that was been pressed, the \"action\", which is the status of the press event (0 for release, 1 for press, 2 for hold), and the \"modifier\", which is a bitmask number detecting if you have any modifier keys being pressed (like shift or alt, for example)\nIf returned true, the event cancels its vanilla function",
   "figura.docs.events.use_item": "The USE_ITEM event is run every time the entity uses an item\nThe item, action and amount of particles this item would produce is given as argument\nIf returned true, the event cancels its vanilla function",
+  "figura.docs.events.arrow_render": "The ARROW_RENDER event is run for every arrow entity shot by the Avatar owner\nIt takes two arguments, the tick delta, and the arrow entity\nReturning \"true\" stops this arrow from rendering, including the Arrow parent parts\nRequires the \"Vanilla Model Change\" permission",
   "figura.docs.events.get_events": "Returns a table with all events types",
 
   "figura.docs.event": "A hook for a certain event in Minecraft\nYou may register functions to one, and those functions will be called when the event occurs",
@@ -1003,6 +1013,7 @@
   "figura.docs.host.is_jumping": "Checks if the player is jumping\nNote this is only true during the first tick the player started jumping",
   "figura.docs.host.is_flying": "Checks if the player is currently flying",
   "figura.docs.host.get_reach_distance": "Returns the current reach distance of the player",
+  "figura.docs.host.get_air": "Gets the remaining amount of air of the player",
 
 
   "figura.docs.itemstack": "A proxy for an item stack from Minecraft",
@@ -1041,15 +1052,16 @@
   "figura.docs.keybinds.get_keybinds": "Returns a table with all registered keybinds",
 
   "figura.docs.keybind": "Represents a key binding for your script\nInstances are obtained using the KeybindAPI's create() function",
-  "figura.docs.keybind.press": "A function that runs when the key is pressed down",
-  "figura.docs.keybind.release": "A function that runs when the key is released",
-  "figura.docs.keybind.set_on_press": "Sets the function that is executed when this key is pressed",
-  "figura.docs.keybind.set_on_release": "Sets the function that is executed when this key is released",
+  "figura.docs.keybind.press": "A function that runs when the key is pressed down\nThe function have two arguments\nThe first argument is a number, meaning the modifiers bitmask\nShift = 1, Ctrl = 2, Alt = 4\nThe second argument is this keybind itself",
+  "figura.docs.keybind.release": "A function that runs when the key is released\nThe function have two arguments\nThe first argument is a number, meaning the modifiers bitmask\nShift = 1, Ctrl = 2, Alt = 4\nThe second argument is this keybind itself",
+  "figura.docs.keybind.set_on_press": "Sets the function that is executed when this key is pressed\nThe function have two arguments\nThe first argument is a number, meaning the modifiers bitmask\nShift = 1, Ctrl = 2, Alt = 4\nThe second argument is this keybind itself",
+  "figura.docs.keybind.set_on_release": "Sets the function that is executed when this key is released\nThe function have two arguments\nThe first argument is a number, meaning the modifiers bitmask\nShift = 1, Ctrl = 2, Alt = 4\nThe second argument is this keybind itself",
   "figura.docs.keybind.set_key": "Sets the key for this keybind",
   "figura.docs.keybind.is_default": "Checks whether this key is currently set to its default state (not been changed using the keybind menu)",
   "figura.docs.keybind.get_key": "Gets the current key for this keybind",
   "figura.docs.keybind.get_key_name": "Gets the name of the current key for this keybind",
   "figura.docs.keybind.get_name": "Gets the name of the keybind, which you set when you created the keybind",
+  "figura.docs.keybind.get_id": "Returns the numeric ID of this keybind",
   "figura.docs.keybind.is_pressed": "Gets whether this keybind is currently pressed down",
   "figura.docs.keybind.is_enabled": "Returns if this keybind is enabled or not",
   "figura.docs.keybind.set_enabled": "Toggles if this keybind should be processed or not",
@@ -1530,7 +1542,8 @@
 
   "figura.docs.world": "A global API dedicated to reading information from the Minecraft world\nAccessed using the name \"world\"",
   "figura.docs.world.get_biome": "Gets the Biome located at the given position",
-  "figura.docs.world.get_blockstate": "Gets the BlockState of the block at the given position",
+  "figura.docs.world.get_block_state": "Gets the BlockState of the block at the given position",
+  "figura.docs.world.get_blocks": "Gets a list of all BlockStates in the specified area\nThe maximum area size is 8 x 8 x 8",
   "figura.docs.world.get_redstone_power": "Gets the redstone power level of the block at the given position",
   "figura.docs.world.get_strong_redstone_power": "Gets the direct redstone power level of the block at the given position",
   "figura.docs.world.get_time": "Gets the current game time of the world\nIf delta is passed in, then it adds delta to the time\nThe default value of delta is zero",

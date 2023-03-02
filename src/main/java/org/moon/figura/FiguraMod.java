@@ -22,7 +22,7 @@ import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.avatar.local.LocalAvatarLoader;
 import org.moon.figura.backend2.NetworkStuff;
 import org.moon.figura.commands.FiguraCommands;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.config.ConfigManager;
 import org.moon.figura.config.ModMenuConfig;
 import org.moon.figura.forge.GUIActionWheelOverlay;
@@ -52,6 +52,7 @@ public class FiguraMod {
     public static final String MOD_ID = "figura";
     public static final String MOD_NAME = "Figura";
     public static final Version VERSION = new Version(ModList.get().getModContainerById("figura").get().getModInfo().getVersion().toString());
+    public static final ModMetadata METADATA = FabricLoader.getInstance().getModContainer(MOD_ID).get().getMetadata();
     public static final boolean DEBUG_MODE = Math.random() + 1 < 0;
     public static final Calendar CALENDAR = Calendar.getInstance();
     public static final Path GAME_DIR = FMLPaths.GAMEDIR.relative().normalize();
@@ -119,7 +120,7 @@ public class FiguraMod {
 
     //mod root directory
     public static Path getFiguraDirectory() {
-        String config = Config.MAIN_DIR.asString();
+        String config = Configs.MAIN_DIR.value;
         Path p = config.isBlank() ? GAME_DIR.resolve(MOD_ID) : Path.of(config);
         return IOUtils.createDirIfNeeded(p);
     }

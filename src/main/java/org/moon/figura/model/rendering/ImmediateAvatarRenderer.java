@@ -13,7 +13,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.lua.api.ClientAPI;
 import org.moon.figura.math.matrix.FiguraMat3;
 import org.moon.figura.math.matrix.FiguraMat4;
@@ -121,7 +121,7 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         customization.free();
 
         //iris fix
-        int irisConfig = UIHelper.paperdoll || !ClientAPI.hasIris() ? 0 : Config.IRIS_COMPATIBILITY_FIX.asInt();
+        int irisConfig = UIHelper.paperdoll || !ClientAPI.hasIris() ? 0 : Configs.IRIS_COMPATIBILITY_FIX.value;
         doIrisEmissiveFix = irisConfig >= 2 && (ClientAPI.hasIrisShader() || (avatar.renderMode != EntityRenderMode.RENDER && avatar.renderMode != EntityRenderMode.WORLD));
         offsetRenderLayers = irisConfig >= 1;
 
@@ -138,7 +138,7 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
             texture.uploadIfDirty();
 
         //Set shouldRenderPivots
-        int config = Config.RENDER_DEBUG_PARTS_PIVOT.asInt();
+        int config = Configs.RENDER_DEBUG_PARTS_PIVOT.value;
         if (!Minecraft.getInstance().getEntityRenderDispatcher().shouldRenderHitBoxes() || (!avatar.isHost && config < 3))
             shouldRenderPivots = 0;
         else
@@ -193,9 +193,6 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
 
         customization.positionMatrix.multiply(posMat);
         customization.normalMatrix.multiply(normalMat);
-
-        posMat.free();
-        normalMat.free();
 
         customization.render = true;
         customization.light = light;
@@ -270,8 +267,6 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
             FiguraMod.popPushProfiler("restoreMatrices");
             custom.positionMatrix.set(positionCopy);
             custom.normalMatrix.set(normalCopy);
-            positionCopy.free();
-            normalCopy.free();
         }
 
         FiguraMod.popProfiler();
@@ -282,7 +277,6 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
             if (allowMatrixUpdate) {
                 FiguraMat4 mat = partToWorldMatrices(custom);
                 part.savedPartToWorldMat.set(mat);
-                mat.free();
             }
 
             //recalculate light
@@ -295,7 +289,6 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
                 int block = l.getBrightness(LightLayer.BLOCK, pos.asBlockPos());
                 int sky = l.getBrightness(LightLayer.SKY, pos.asBlockPos());
                 customizationStack.peek().light = LightTexture.pack(block, sky);
-                pos.free();
             }
             FiguraMod.popProfiler();
         }
@@ -325,7 +318,6 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
                 pivotOffsetter.setPos(pivot);
                 pivotOffsetter.recalculate();
                 customizationStack.push(pivotOffsetter);
-                pivot.free();
 
                 //render pivot indicators
                 if (renderPivot) {
@@ -413,9 +405,6 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         translation.translate(piv);
         customizePeek.rightMultiply(translation);
 
-        piv.free();
-        translation.free();
-
         return customizePeek;
     }
 
@@ -451,7 +440,6 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
             FiguraMod.popPushProfiler("worldMatrices");
             FiguraMat4 mat = partToWorldMatrices(custom);
             part.savedPartToWorldMat.set(mat);
-            mat.free();
         }
 
         //render children

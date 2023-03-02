@@ -1,11 +1,13 @@
 package org.moon.figura.gui.widgets.lists;
 
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.util.Mth;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.ConfigManager;
+import org.moon.figura.config.ConfigType;
+import org.moon.figura.gui.screens.ConfigScreen;
 import org.moon.figura.gui.widgets.TextField;
 import org.moon.figura.gui.widgets.config.ConfigWidget;
 import org.moon.figura.gui.widgets.config.InputElement;
@@ -17,12 +19,14 @@ import java.util.List;
 public class ConfigList extends AbstractList {
 
     private final List<ConfigWidget> configs = new ArrayList<>();
+    public final ConfigScreen parentScreen;
     public KeyMapping focusedBinding;
 
     private int totalHeight = 0;
 
-    public ConfigList(int x, int y, int width, int height) {
+    public ConfigList(int x, int y, int width, int height, ConfigScreen parentScreen) {
         super(x, y, width, height);
+        this.parentScreen = parentScreen;
         updateList();
     }
 
@@ -53,7 +57,7 @@ public class ConfigList extends AbstractList {
         super.render(stack, mouseX, mouseY, delta);
 
         //reset scissor
-        RenderSystem.disableScissor();
+        UIHelper.disableScissor();
     }
 
     @Override
@@ -78,29 +82,14 @@ public class ConfigList extends AbstractList {
         configs.clear();
 
         //add configs
-        ConfigWidget lastCategory = null;
-        for (Config config : Config.values()) {
-            //add new config entry into the category
-            if (config.type != Config.ConfigType.CATEGORY) {
-                //create dummy category if empty
-                if (lastCategory == null) {
-                    ConfigWidget widget = new ConfigWidget(width - 22, null, this);
+        for (ConfigType.Category category : ConfigManager.CATEGORIES_REGISTRY.values()) {
+            ConfigWidget widget = new ConfigWidget(width - 22, category, this);
 
-                    lastCategory = widget;
-                    configs.add(widget);
-                    children.add(widget);
-                }
+            for (ConfigType<?> config : category.children)
+                widget.addConfig(config);
 
-                //add entry
-                lastCategory.addConfig(config);
-            //add new config category
-            } else {
-                ConfigWidget widget = new ConfigWidget(width - 22, config, this);
-
-                lastCategory = widget;
-                configs.add(widget);
-                children.add(widget);
-            }
+            configs.add(widget);
+            children.add(widget);
         }
 
         //fix expanded status
@@ -126,5 +115,21 @@ public class ConfigList extends AbstractList {
             if (config.isChanged())
                 return true;
         return false;
+    }
+
+    public boolean updateKey(InputConstants.Key key) {
+        if (focusedBinding == null)
+            return false;
+
+        focusedBinding.setKey(key);
+        focusedBinding = null;
+
+        updateKeybinds();
+        return true;
+    }
+
+    public void updateKeybinds() {
+        for (ConfigWidget widget : configs)
+            widget.updateKeybinds();
     }
 }

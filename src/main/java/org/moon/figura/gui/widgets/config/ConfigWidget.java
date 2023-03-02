@@ -2,7 +2,8 @@ package org.moon.figura.gui.widgets.config;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.network.chat.Component;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.ConfigType;
+import org.moon.figura.config.Configs;
 import org.moon.figura.gui.screens.ConfigScreen;
 import org.moon.figura.gui.widgets.AbstractContainerElement;
 import org.moon.figura.gui.widgets.ContainerButton;
@@ -15,11 +16,13 @@ import java.util.List;
 public class ConfigWidget extends AbstractContainerElement {
 
     protected final List<AbstractConfigElement> entries = new ArrayList<>();
+    private final ConfigType.Category config;
     private final ConfigList parent;
     private ContainerButton parentConfig;
 
-    public ConfigWidget(int width, Config config, ConfigList parent) {
+    public ConfigWidget(int width, ConfigType.Category config, ConfigList parent) {
         super(0, 0, width, 20);
+        this.config = config;
         this.parent = parent;
 
         this.parentConfig = new ContainerButton(parent, x, y, width, 20, config == null ? Component.empty() : config.name, config == null ? null : config.tooltip, button -> {
@@ -41,21 +44,28 @@ public class ConfigWidget extends AbstractContainerElement {
         if (parentConfig.isToggled() && entries.size() > 0)
             UIHelper.fill(stack, x, y + 21, x + width, y + height, 0x11FFFFFF);
 
+        if (config == Configs.PAPERDOLL)
+            parent.parentScreen.renderPaperdoll = parent.isMouseOver(mouseX, mouseY) && isMouseOver(mouseX, mouseY);
+
         //children
         super.render(stack, mouseX, mouseY, delta);
     }
 
-    public void addConfig(Config config) {
-        AbstractConfigElement element = switch (config.type) {
-            case BOOLEAN -> new BooleanElement(width, config, parent);
-            case ENUM -> new EnumElement(width, config, parent);
-            case INPUT -> new InputElement(width, config, parent);
-            case KEYBIND -> new KeybindElement(width, config, parent);
-            default -> null;
-        };
-
-        if (element == null)
+    public void addConfig(ConfigType<?> config) {
+        AbstractConfigElement element;
+        if (config instanceof ConfigType.BoolConfig boolConfig) {
+            element = new BooleanElement(width, boolConfig, parent);
+        } else if (config instanceof ConfigType.EnumConfig enumConfig) {
+            element = new EnumElement(width, enumConfig, parent);
+        } else if (config instanceof ConfigType.InputConfig<?> inputConfig) {
+            element = new InputElement(width, inputConfig, parent);
+        } else if (config instanceof ConfigType.KeybindConfig keybindConfig) {
+            element = new KeybindElement(width, keybindConfig, parent);
+        } else if (config instanceof ConfigType.ButtonConfig buttonConfig) {
+            element = new ButtonElement(width, buttonConfig, parent);
+        } else {
             return;
+        }
 
         this.height += 22;
         this.children.add(element);
@@ -92,5 +102,12 @@ public class ConfigWidget extends AbstractContainerElement {
 
     public boolean isShowingChildren() {
         return parentConfig.isToggled();
+    }
+
+    public void updateKeybinds() {
+        for (AbstractConfigElement element : entries) {
+            if (element instanceof KeybindElement keybind)
+                keybind.updateText();
+        }
     }
 }

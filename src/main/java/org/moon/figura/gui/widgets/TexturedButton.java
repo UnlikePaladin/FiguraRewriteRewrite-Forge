@@ -2,8 +2,6 @@ package org.moon.figura.gui.widgets;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -56,11 +54,11 @@ public class TexturedButton extends Button {
         if (!this.visible)
             return;
 
-         //render button
-        this.renderButton(stack, mouseX, mouseY, delta);
-
         //update hovered
         this.setHovered(this.isMouseOver(mouseX, mouseY));
+
+         //render button
+        this.renderButton(stack, mouseX, mouseY, delta);
     }
 
     @Override
@@ -85,7 +83,8 @@ public class TexturedButton extends Button {
     @Override
     public boolean isMouseOver(double mouseX, double mouseY) {
         boolean over = UIHelper.isMouseOver(getX(), getY(), width, height, mouseX, mouseY);
-        if (over) UIHelper.setTooltip(this.tooltip);
+        if (over && this.tooltip != null)
+            UIHelper.setTooltip(this.tooltip);
         return over;
     }
 
@@ -102,14 +101,8 @@ public class TexturedButton extends Button {
     }
 
     protected void renderText(PoseStack stack) {
-        //draw text
-        Font font = Minecraft.getInstance().font;
-        drawCenteredString(
-                stack, font,
-                this.getMessage(),
-                this.getX() + this.width / 2, this.getY() + this.height / 2 - font.lineHeight / 2,
-                (!this.active ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE).getColor()
-        );
+        int color = (!this.active ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE).getColor();
+        UIHelper.renderScrollingText(stack, getMessage(), getX(), getY(), getWidth(), getHeight(), color);
     }
 
     protected int getUVStatus() {

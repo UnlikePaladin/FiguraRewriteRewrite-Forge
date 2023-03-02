@@ -6,7 +6,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.gui.widgets.ContextMenu;
 import org.moon.figura.gui.widgets.FiguraTickable;
 import org.moon.figura.gui.widgets.PanelSelectorWidget;
@@ -45,6 +45,10 @@ public abstract class AbstractPanelScreen extends Screen {
 
         //add panel selector
         this.addRenderableWidget(panels = new PanelSelectorWidget(parentScreen, 0, 0, width, index));
+
+        //clear overlays
+        contextMenu = null;
+        tooltip = null;
     }
 
     @Override
@@ -63,7 +67,7 @@ public abstract class AbstractPanelScreen extends Screen {
         //UIHelper.useFiguraGuiFramebuffer();
 
         //render background
-        this.renderBackground(delta);
+        this.renderBackground(stack, delta);
 
         //render contents
         super.render(stack, mouseX, mouseY, delta);
@@ -75,11 +79,11 @@ public abstract class AbstractPanelScreen extends Screen {
         //UIHelper.useVanillaFramebuffer();
     }
 
-    public void renderBackground(float delta) {
+    public void renderBackground(PoseStack stack, float delta) {
         //render
         double scale = this.minecraft.getWindow().getGuiScale();
         float textureSize = (float) (64f / scale);
-        double speed = 1d / 0.5 * scale / Config.BACKGROUND_SCROLL_SPEED.asFloat();
+        double speed = 1d / 0.5 * scale / Configs.BACKGROUND_SCROLL_SPEED.value;
         UIHelper.renderAnimatedBackground(BACKGROUND, 0, 0, this.width, this.height, textureSize, textureSize, speed, delta);
     }
 
@@ -111,7 +115,6 @@ public abstract class AbstractPanelScreen extends Screen {
             if (listener instanceof TextField field)
                 field.getField().setFocus(field.isEnabled() && field.isMouseOver(mouseX, mouseY));
         }
-
         return this.contextMenuClick(mouseX, mouseY, button) || super.mouseClicked(mouseX, mouseY, button);
     }
 

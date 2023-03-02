@@ -26,6 +26,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Quaternionf;
 import org.luaj.vm2.LuaFunction;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -33,7 +34,7 @@ import org.moon.figura.FiguraMod;
 import org.moon.figura.animation.Animation;
 import org.moon.figura.animation.AnimationPlayer;
 import org.moon.figura.backend2.NetworkStuff;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.lua.FiguraLuaPrinter;
 import org.moon.figura.lua.FiguraLuaRuntime;
 import org.moon.figura.lua.api.entity.EntityAPI;
@@ -47,7 +48,6 @@ import org.moon.figura.lua.api.world.ItemStackAPI;
 import org.moon.figura.math.matrix.FiguraMat3;
 import org.moon.figura.math.matrix.FiguraMat4;
 import org.moon.figura.math.vector.FiguraVec3;
-import org.moon.figura.math.vector.FiguraVec4;
 import org.moon.figura.model.ParentType;
 import org.moon.figura.model.PartCustomization;
 import org.moon.figura.model.rendering.AvatarRenderer;
@@ -379,11 +379,17 @@ public class Avatar {
         return result != null && result.arg(1).isboolean() && result.arg(1).checkboolean();
     }
 
+    public boolean arrowRenderEvent(float delta, EntityAPI<?> arrow) {
+        Varargs result = null;
+        if (loaded) result = run("ARROW_RENDER", render, delta, arrow);
+        return result != null && result.arg(1).isboolean() && result.arg(1).checkboolean();
+    }
+
     // -- host only events -- //
 
     public String chatSendMessageEvent(String message) {
         Varargs val = loaded ? run("CHAT_SEND_MESSAGE", tick, message) : null;
-        return val == null || (!val.isnil(1) && !Config.CHAT_MESSAGES.asBool()) ? message : val.isnil(1) ? "" : val.arg(1).tojstring();
+        return val == null || (!val.isnil(1) && !Configs.CHAT_MESSAGES.value) ? message : val.isnil(1) ? "" : val.arg(1).tojstring();
     }
 
     public void chatReceivedMessageEvent(Component message) {
@@ -445,20 +451,16 @@ public class Avatar {
         render();
     }
 
-    public synchronized void worldRender(Entity entity, double camX, double camY, double camZ, PoseStack matrices, MultiBufferSource bufferSource, int lightFallback, float tickDelta) {
+    public synchronized void worldRender(Entity entity, double camX, double camY, double camZ, PoseStack matrices, MultiBufferSource bufferSource, int lightFallback, float tickDelta, EntityRenderMode mode) {
         if (renderer == null || !loaded)
             return;
 
-        for (Queue<Pair<FiguraMat4, FiguraMat3>> queue : renderer.pivotCustomizations.values()) {
-            while (!queue.isEmpty()) {
-                Pair<FiguraMat4, FiguraMat3> pair = queue.poll();
-                pair.getFirst().free();
-                pair.getSecond().free();
-            }
-        }
+        EntityRenderMode prevRenderMode = renderMode;
+        renderMode = mode;
+        boolean update = prevRenderMode != EntityRenderMode.OTHER || renderMode == EntityRenderMode.FIRST_PERSON_WORLD;
 
-        renderer.allowMatrixUpdate = true;
-        renderer.updateLight = renderMode != EntityRenderMode.OTHER;
+        renderer.pivotCustomizations.values().clear();
+        renderer.allowMatrixUpdate = renderer.updateLight = update;
         renderer.entity = entity;
         renderer.currentFilterScheme = PartFilterScheme.WORLD;
         renderer.bufferSource = bufferSource;
@@ -476,6 +478,7 @@ public class Avatar {
         complexity.use(renderer.renderSpecialParts());
         matrices.popPose();
 
+        renderMode = prevRenderMode;
         renderer.updateLight = false;
     }
 
@@ -544,12 +547,7 @@ public class Avatar {
         int light = Minecraft.getInstance().getEntityRenderDispatcher().getPackedLightCoords(watcher, tickDelta);
         Vec3 camPos = camera.getPosition();
 
-        EntityRenderMode oldMode = renderMode;
-        renderMode = EntityRenderMode.FIRST_PERSON_WORLD;
-
-        worldRender(watcher, camPos.x, camPos.y, camPos.z, matrices, bufferSource, light, tickDelta);
-
-        renderMode = oldMode;
+        worldRender(watcher, camPos.x, camPos.y, camPos.z, matrices, bufferSource, light, tickDelta, EntityRenderMode.FIRST_PERSON_WORLD);
 
         FiguraMod.popProfiler(3);
     }
@@ -563,8 +561,9 @@ public class Avatar {
         FiguraMod.pushProfiler("firstPersonRender");
 
         PartFilterScheme filter = arm == playerRenderer.getModel().leftArm ? PartFilterScheme.LEFT_ARM : PartFilterScheme.RIGHT_ARM;
-        boolean config = Config.ALLOW_FP_HANDS.asBool();
+        boolean config = Configs.ALLOW_FP_HANDS.value;
         renderer.allowHiddenTransforms = config;
+        renderer.allowMatrixUpdate = false;
 
         stack.pushPose();
         if (!config) {
@@ -661,7 +660,6 @@ public class Avatar {
             return false;
 
         stack.pushPose();
-        stack.translate(0d, 24d / 16d, 0d);
         boolean oldMat = renderer.allowMatrixUpdate;
 
         //pre render
@@ -680,7 +678,7 @@ public class Avatar {
         renderer.allowMatrixUpdate = false;
 
         //render
-        int comp = renderer.renderSpecialParts();
+        int comp = renderer.render();
 
         //pos render
         renderer.allowMatrixUpdate = oldMat;
@@ -692,8 +690,8 @@ public class Avatar {
         return comp > 0 && luaRuntime != null && !luaRuntime.vanilla_model.HEAD.checkVisible();
     }
 
-    public boolean renderPortrait(PoseStack stack, int x, int y, int screenSize, float modelScale, boolean scissors) {
-        if (!Config.AVATAR_PORTRAITS.asBool() || renderer == null || !loaded)
+    public boolean renderPortrait(PoseStack stack, int x, int y, int size, float modelScale) {
+        if (!Configs.AVATAR_PORTRAITS.value || renderer == null || !loaded)
             return false;
 
         //matrices
@@ -703,20 +701,12 @@ public class Avatar {
         stack.mulPose(Axis.XP.rotationDegrees(180f));
 
         //scissors
-        FiguraVec4 oldScissors = UIHelper.scissors.copy();
         FiguraVec3 pos = FiguraMat4.fromMatrix4f(stack.last().pose()).apply(0d, 0d, 0d);
 
         int x1 = (int) pos.x;
         int y1 = (int) pos.y;
-        int x2 = (int) pos.x + screenSize;
-        int y2 = (int) pos.y + screenSize;
-
-        if (scissors) {
-            x1 = (int) Math.round(Math.max(x1, oldScissors.x));
-            y1 = (int) Math.round(Math.max(y1, oldScissors.y));
-            x2 = (int) Math.round(Math.min(x2, oldScissors.x + oldScissors.z));
-            y2 = (int) Math.round(Math.min(y2, oldScissors.y + oldScissors.w));
-        }
+        int x2 = (int) pos.x + size;
+        int y2 = (int) pos.y + size;
 
         UIHelper.setupScissor(x1, y1, x2 - x1, y2 - y1);
         UIHelper.paperdoll = true;
@@ -745,16 +735,39 @@ public class Avatar {
         boolean ret = comp > 0 || headRender(stack, buffer, light);
 
         //return
-        if (scissors)
-            UIHelper.setupScissor((int) oldScissors.x, (int) oldScissors.y, (int) oldScissors.z, (int) oldScissors.w);
-        else
-            RenderSystem.disableScissor();
-
+        UIHelper.disableScissor();
         UIHelper.paperdoll = false;
         renderer.allowPivotParts = true;
         renderer.allowRenderTasks = true;
         stack.popPose();
         return ret;
+    }
+    public boolean renderArrow(PoseStack stack, MultiBufferSource bufferSource, float delta, int light) {
+        if (renderer == null || !loaded)
+            return false;
+
+        renderer.allowPivotParts = false;
+        renderer.allowRenderTasks = false;
+        renderer.currentFilterScheme = PartFilterScheme.ARROW;
+        renderer.tickDelta = delta;
+        renderer.overlay = OverlayTexture.NO_OVERLAY;
+        renderer.light = light;
+        renderer.alpha = 1f;
+        renderer.matrices = stack;
+        renderer.bufferSource = bufferSource;
+        renderer.translucent = false;
+        renderer.glowing = false;
+
+        stack.pushPose();
+        Quaternionf quaternionf = Axis.XP.rotationDegrees(135f);
+        Quaternionf quaternionf2 = Axis.YP.rotationDegrees(-90f);
+        quaternionf.mul(quaternionf2);
+        stack.mulPose(quaternionf);
+
+        int comp = renderer.renderSpecialParts();
+
+        stack.popPose();
+        return comp > 0;
     }
 
     private static final PartCustomization PIVOT_PART_RENDERING_CUSTOMIZATION = PartCustomization.of();
@@ -775,8 +788,6 @@ public class Avatar {
             PIVOT_PART_RENDERING_CUSTOMIZATION.needsMatrixRecalculation = false;
             PoseStack stack = PIVOT_PART_RENDERING_CUSTOMIZATION.copyIntoGlobalPoseStack();
             consumer.accept(stack);
-            matrixPair.getFirst().free();
-            matrixPair.getSecond().free();
         }
 
         queue.clear();
