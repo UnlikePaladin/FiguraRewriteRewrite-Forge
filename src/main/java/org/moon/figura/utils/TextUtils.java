@@ -4,10 +4,7 @@ import com.google.gson.JsonParser;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
 import net.minecraft.locale.Language;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.FormattedText;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.*;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
@@ -333,6 +330,14 @@ public class TextUtils {
 
         public int apply(Font font, FormattedText component) {
             return function.apply(font, component);
+        }
+    }
+
+    public static class FiguraClickEvent extends ClickEvent {
+        public final Runnable onClick;
+        public FiguraClickEvent(Runnable onClick) {
+            super(Action.SUGGEST_COMMAND, "");
+            this.onClick = onClick;
         }
     }
 }
