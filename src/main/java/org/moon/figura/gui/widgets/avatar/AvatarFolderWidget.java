@@ -1,9 +1,11 @@
 package org.moon.figura.gui.widgets.avatar;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.network.chat.Component;
 import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.gui.widgets.ContainerButton;
 import org.moon.figura.gui.widgets.lists.AvatarList;
+import org.moon.figura.utils.ui.UIHelper;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,10 +17,10 @@ public class AvatarFolderWidget extends AbstractAvatarWidget {
     private final ArrayList<AbstractAvatarWidget> sortedEntires = new ArrayList<>();
 
     public AvatarFolderWidget(int depth, int width, LocalAvatarFetcher.FolderPath avatar, AvatarList parent) {
-        super(depth, width, avatar, parent);
+        super(depth, width, 20, avatar, parent);
 
         AvatarFolderWidget instance = this;
-        this.button = new ContainerButton(parent, x, y, width, 20, null, null, button -> {
+        this.button = new ContainerButton(parent, x, y, width, 20, Component.empty(), null, button -> {
             toggleEntries(((ContainerButton) this.button).isToggled());
             parent.updateScroll();
         }) {
@@ -29,6 +31,14 @@ public class AvatarFolderWidget extends AbstractAvatarWidget {
                 //fix tooltip
                 if (getTooltip() == getMessage())
                     setTooltip(instance.getName());
+            }
+
+            @Override
+            public void setHovered(boolean hovered) {
+                if (!hovered && UIHelper.getContext() == context && context.isVisible())
+                    hovered = true;
+
+                super.setHovered(hovered);
             }
         };
 
@@ -102,7 +112,7 @@ public class AvatarFolderWidget extends AbstractAvatarWidget {
 
     public void toggleEntries(boolean toggle) {
         toggle = toggle && ((ContainerButton) this.button).isToggled();
-        ((LocalAvatarFetcher.FolderPath) avatar).setExpanded(toggle);
+        avatar.setExpanded(toggle);
 
         for (AbstractAvatarWidget widget : entries.values()) {
             widget.setVisible(toggle);

@@ -6,6 +6,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
@@ -18,6 +21,8 @@ import org.moon.figura.gui.widgets.*;
 import org.moon.figura.gui.widgets.lists.AvatarList;
 import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.FiguraText;
+import org.moon.figura.utils.TextUtils;
+import org.moon.figura.utils.ui.UIHelper;
 
 public class WardrobeScreen extends AbstractPanelScreen {
 
@@ -44,6 +49,7 @@ public class WardrobeScreen extends AbstractPanelScreen {
         super.init();
 
         //screen
+        Minecraft minecraft = Minecraft.getInstance();
         int middle = width / 2;
         int panels = Math.min(width / 3, 256) - 8;
 
@@ -62,7 +68,7 @@ public class WardrobeScreen extends AbstractPanelScreen {
         int entityX = middle - modelBgSize / 2;
         int entityY = this.height / 2 - modelBgSize / 2;
 
-        InteractableEntity entity = new InteractableEntity(entityX, entityY, modelBgSize, modelBgSize, entitySize, -15f, 30f, Minecraft.getInstance().player, this);
+        EntityPreview entity = new EntityPreview(entityX, entityY, modelBgSize, modelBgSize, entitySize, -15f, 30f, minecraft.player, this);
         addRenderableWidget(entity);
 
         int buttX = entity.x + entity.width / 2;
@@ -104,9 +110,26 @@ public class WardrobeScreen extends AbstractPanelScreen {
         // -- bottom -- //
 
         //version
-        Label version = new Label(FiguraText.of().append(" " + FiguraMod.VERSION.noBuildString()).withStyle(ChatFormatting.ITALIC), middle, this.height - 5, true);
-        addRenderableOnly(version);
-        version.setColor(0x33FFFFFF);
+        MutableComponent versionText = FiguraText.of().append(" " + FiguraMod.VERSION.noBuildString()).withStyle(ChatFormatting.ITALIC);
+        boolean oldVersion = NetworkStuff.latestVersion != null && NetworkStuff.latestVersion.compareTo(FiguraMod.VERSION) > 0;
+        if (oldVersion) {
+            versionText
+                    .append(Component.literal(" =")
+                            .withStyle(Style.EMPTY
+                                    .withFont(UIHelper.UI_FONT)
+                                    .withItalic(false)
+                                    .applyLegacyFormat(ChatFormatting.WHITE)
+                            ))
+                    .withStyle(Style.EMPTY
+                            .applyFormat(ChatFormatting.AQUA)
+                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, FiguraText.of("gui.new_version.tooltip", NetworkStuff.latestVersion)))
+                    );
+        }
+
+        Label version = new Label(versionText, middle, this.height, TextUtils.Alignment.CENTER);
+        addRenderableWidget(version);
+        if (!oldVersion) version.alpha = 0x33;
+        version.y -= version.getHeight() / 2 + 1;
 
         int rightSide = Math.min(panels, 134);
 
@@ -149,9 +172,11 @@ public class WardrobeScreen extends AbstractPanelScreen {
         addRenderableOnly(avatarInfo = new AvatarInfoWidget(this.width - panels - 4, 56, panels, back.getY() - 60));
 
         //panic warning - always added last, on top
-        addRenderableOnly(panic = new Label(FiguraText.of("gui.panic.1").withStyle(ChatFormatting.YELLOW).append("\n").append(FiguraText.of("gui.panic.2", Configs.PANIC_BUTTON.keyBind.getTranslatedKeyMessage())),
-                middle, this.height - 23, true, 0)
+        addRenderableWidget(panic = new Label(
+                FiguraText.of("gui.panic", Configs.PANIC_BUTTON.keyBind.getTranslatedKeyMessage()).withStyle(ChatFormatting.YELLOW),
+                middle, this.height - version.getHeight(), TextUtils.Alignment.CENTER, 0)
         );
+        panic.y -= panic.getHeight() / 2;
         panic.setVisible(false);
     }
 

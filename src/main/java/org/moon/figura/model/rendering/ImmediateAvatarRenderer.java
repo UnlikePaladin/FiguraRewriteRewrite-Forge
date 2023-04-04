@@ -9,6 +9,7 @@ import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
 import org.moon.figura.FiguraMod;
@@ -18,6 +19,7 @@ import org.moon.figura.lua.api.ClientAPI;
 import org.moon.figura.math.matrix.FiguraMat3;
 import org.moon.figura.math.matrix.FiguraMat4;
 import org.moon.figura.math.vector.FiguraVec3;
+import org.moon.figura.math.vector.FiguraVec4;
 import org.moon.figura.model.FiguraModelPart;
 import org.moon.figura.model.FiguraModelPartReader;
 import org.moon.figura.model.ParentType;
@@ -29,7 +31,6 @@ import org.moon.figura.model.rendertasks.RenderTask;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.ui.UIHelper;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,32 +38,19 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class ImmediateAvatarRenderer extends AvatarRenderer {
 
-    protected final List<FiguraImmediateBuffer> buffers = new ArrayList<>(0);
-    protected final PartCustomization.Stack customizationStack = new PartCustomization.Stack();
+    protected final PartCustomization.PartCustomizationStack customizationStack = new PartCustomization.PartCustomizationStack();
 
     public static final FiguraMat4 VIEW_TO_WORLD_MATRIX = FiguraMat4.of();
-    private static final PartCustomization pivotOffsetter = PartCustomization.of();
+    private static final PartCustomization pivotOffsetter = new PartCustomization();
     protected static final VertexBuffer VERTEX_BUFFER = new VertexBuffer();
 
     public ImmediateAvatarRenderer(Avatar avatar) {
         super(avatar);
 
         //Vertex data, read model parts
-        List<FiguraImmediateBuffer.Builder> builders = new ArrayList<>();
-        root = FiguraModelPartReader.read(avatar, avatar.nbt.getCompound("models"), builders, textureSets);
-
-        for (int i = 0; i < textureSets.size() && i < builders.size(); i++)
-            buffers.add(builders.get(i).build(textureSets.get(i), customizationStack));
+        root = FiguraModelPartReader.read(avatar, avatar.nbt.getCompound("models"), textureSets);
 
         sortParts();
-    }
-
-    @Override
-    protected void clean() {
-        super.clean();
-        customizationStack.fullClear();
-        for (FiguraImmediateBuffer buffer : buffers)
-            buffer.clean();
     }
 
     public void checkEmpty() {
@@ -91,9 +79,6 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         //Push transform
         customizationStack.push(customization);
 
-        //Free customization after use
-        customization.free();
-
         //world matrices
         VIEW_TO_WORLD_MATRIX.set(AvatarRenderer.worldToViewMatrix().invert());
 
@@ -103,7 +88,7 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         //finish rendering
         customizationStack.pop();
         checkEmpty();
-        customizationStack.fullClear();
+
         this.isRendering = false;
     }
 
@@ -111,29 +96,14 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         //flag rendering state
         this.isRendering = true;
 
-        //setup root customizations
-        PartCustomization customization = setupRootCustomization(vertOffset);
-
-        //Push transform
-        customizationStack.push(customization);
-
-        //Free customization after use
-        customization.free();
-
         //iris fix
         int irisConfig = UIHelper.paperdoll || !ClientAPI.hasIris() ? 0 : Configs.IRIS_COMPATIBILITY_FIX.value;
         doIrisEmissiveFix = irisConfig >= 2 && (ClientAPI.hasIrisShader() || (avatar.renderMode != EntityRenderMode.RENDER && avatar.renderMode != EntityRenderMode.WORLD));
         offsetRenderLayers = irisConfig >= 1;
 
-        //Iterate and setup each buffer
-        for (FiguraImmediateBuffer buffer : buffers) {
-            //Reset buffers
-            buffer.clearBuffers();
-            //Upload texture if necessary
-            buffer.uploadTexIfNeeded();
-        }
-
         //custom textures
+        for (FiguraTextureSet set : textureSets)
+            set.uploadIfNeeded();
         for (FiguraTexture texture : customTextures.values())
             texture.uploadIfDirty();
 
@@ -153,9 +123,41 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         int[] remainingComplexity = new int[] {prev};
 
         //render all model parts
-        Boolean initialValue = currentFilterScheme.initialValue(root);
-        if (initialValue != null)
-            renderPart(root, remainingComplexity, initialValue);
+        if (currentFilterScheme.parentType.isSeparate) {
+            List<FiguraModelPart> parts = separatedParts.get(currentFilterScheme.parentType);
+            if (parts != null) {
+                boolean renderLayer = currentFilterScheme.parentType.isRenderLayer;
+                if (!renderLayer) {
+                    PartCustomization customization = setupRootCustomization(vertOffset);
+                    customizationStack.push(customization); //push root
+                    customizationStack.push(root.customization); //push "models"
+                }
+
+                for (FiguraModelPart part : parts) {
+                    if (part.savedCustomization != null)
+                        customizationStack.push(part.savedCustomization);
+
+                    renderPart(part, remainingComplexity, true);
+
+                    if (part.savedCustomization != null)
+                        customizationStack.pop();
+                }
+
+                if (!renderLayer) {
+                    customizationStack.pop(); //pop "models"
+                    customizationStack.pop(); //pop root
+                }
+            }
+        } else {
+            PartCustomization customization = setupRootCustomization(vertOffset);
+            customizationStack.push(customization);
+
+            Boolean initialValue = currentFilterScheme.initialValueForPart(root);
+            if (initialValue != null)
+                renderPart(root, remainingComplexity, initialValue);
+
+            customizationStack.pop();
+        }
 
         //push vertices to vertex consumer
         FiguraMod.pushProfiler("draw");
@@ -166,7 +168,6 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         FiguraMod.popProfiler(2);
 
         //finish rendering
-        customizationStack.pop();
         checkEmpty();
 
         this.isRendering = false;
@@ -177,7 +178,7 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
     }
 
     protected PartCustomization setupRootCustomization(double vertOffset) {
-        PartCustomization customization = PartCustomization.of();
+        PartCustomization customization = new PartCustomization();
 
         customization.setPrimaryRenderType(RenderTypes.TRANSLUCENT);
         customization.setSecondaryRenderType(RenderTypes.EMISSIVE);
@@ -214,7 +215,8 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         FiguraMod.pushProfiler("predicate");
         Boolean thisPassedPredicate = currentFilterScheme.test(part.parentType, prevPredicate);
         if (thisPassedPredicate == null) {
-            part.advanceVerticesImmediate(this); //stinky
+            if (part.parentType.isRenderLayer)
+                part.savedCustomization = customizationStack.peek();
             FiguraMod.popProfiler(2);
             return true;
         }
@@ -231,11 +233,11 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
 
         if (thisPassedPredicate) {
             Boolean vanillaVisible = custom.vanillaVisible == null ? customizationStack.peek().vanillaVisible : custom.vanillaVisible;
-            if (!currentFilterScheme.ignoreVanillaVisible && vanillaVisible != null && !vanillaVisible) {
+            if (currentFilterScheme.initialValue && vanillaVisible != null && !vanillaVisible) {
                 custom.render = false;
             } else {
                 Boolean visible = custom.visible == null ? customizationStack.peek().visible : custom.visible;
-                custom.render = (visible == null || visible) && (currentFilterScheme.ignoreVanillaVisible || vanillaVisible == null || vanillaVisible);
+                custom.render = (visible == null || visible) && (!currentFilterScheme.initialValue || vanillaVisible == null || vanillaVisible);
             }
         } else {
             custom.render = false;
@@ -304,11 +306,10 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         //render extras
         FiguraMod.popPushProfiler("extras");
         if (thisPassedPredicate) {
-            PartCustomization peek = customizationStack.peek();
-
-            boolean renderPivot = shouldRenderPivots > 0 && (shouldRenderPivots % 2 == 0 || peek.render);
-            boolean renderTasks = peek.render && allowRenderTasks && !part.renderTasks.isEmpty();
-            boolean renderPivotParts = peek.render && part.parentType.isPivot && allowPivotParts;
+            boolean render = customizationStack.peek().render;
+            boolean renderPivot = shouldRenderPivots > 0 && (shouldRenderPivots % 2 == 0 || render);
+            boolean renderTasks = render && allowRenderTasks && !part.renderTasks.isEmpty();
+            boolean renderPivotParts = render && part.parentType.isPivot && allowPivotParts;
 
             if (renderPivot || renderTasks || renderPivotParts) {
                 //fix pivots
@@ -319,10 +320,12 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
                 pivotOffsetter.recalculate();
                 customizationStack.push(pivotOffsetter);
 
+                PartCustomization peek = customizationStack.peek();
+
                 //render pivot indicators
                 if (renderPivot) {
                     FiguraMod.popPushProfiler("renderPivotCube");
-                    renderPivot(part);
+                    renderPivot(part, peek);
                 }
 
                 //render tasks
@@ -347,7 +350,7 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
                 if (renderPivotParts) {
                     FiguraMod.popPushProfiler("savePivotParts");
                     if (part.parentType.isPivot && allowPivotParts)
-                        savePivotTransform(part.parentType);
+                        savePivotTransform(part.parentType, peek);
                 }
 
                 customizationStack.pop();
@@ -375,13 +378,13 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         return true;
     }
 
-    protected void renderPivot(FiguraModelPart part) {
+    protected void renderPivot(FiguraModelPart part, PartCustomization customization) {
         boolean group = part.customization.partType == PartCustomization.PartType.GROUP;
         FiguraVec3 color = group ? ColorUtils.Colors.MAYA_BLUE.vec : ColorUtils.Colors.FRAN_PINK.vec;
         double boxSize = group ? 1 / 16d : 1 / 32d;
         boxSize /= Math.max(Math.cbrt(part.savedPartToWorldMat.det()), 0.02);
 
-        PoseStack stack = customizationStack.peek().copyIntoGlobalPoseStack();
+        PoseStack stack = customization.copyIntoGlobalPoseStack();
 
         LevelRenderer.renderLineBox(stack, bufferSource.getBuffer(RenderType.LINES),
                 -boxSize, -boxSize, -boxSize,
@@ -389,9 +392,9 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
                 (float) color.x, (float) color.y, (float) color.z, 1f);
     }
 
-    protected void savePivotTransform(ParentType parentType) {
-        FiguraMat4 currentPosMat = customizationStack.peek().getPositionMatrix();
-        FiguraMat3 currentNormalMat = customizationStack.peek().getNormalMatrix();
+    protected void savePivotTransform(ParentType parentType, PartCustomization customization) {
+        FiguraMat4 currentPosMat = customization.getPositionMatrix();
+        FiguraMat3 currentNormalMat = customization.getNormalMatrix();
         ConcurrentLinkedQueue<Pair<FiguraMat4, FiguraMat3>> queue = pivotCustomizations.computeIfAbsent(parentType, p -> new ConcurrentLinkedQueue<>());
         queue.add(new Pair<>(currentPosMat, currentNormalMat)); //These are COPIES, so ok to add
     }
@@ -455,12 +458,129 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         FiguraMod.popProfiler(2);
     }
 
-    public void pushFaces(int texIndex, int faceCount, int[] remainingComplexity) {
-        buffers.get(texIndex).pushVertices(this, faceCount, remainingComplexity);
+    public void pushFaces(int faceCount, int[] remainingComplexity, FiguraTextureSet textureSet, List<Vertex> vertices) {
+        //Handle cases that we can quickly
+        if (faceCount == 0 || vertices.isEmpty())
+            return;
+
+        PartCustomization customization = customizationStack.peek();
+        if (!customization.render) {
+            //Refund complexity for invisible parts
+            remainingComplexity[0] += faceCount;
+            return;
+        }
+
+        VertexData primary = getTexture(customization, textureSet, true);
+        VertexData secondary = getTexture(customization, textureSet, false);
+
+        if (primary.renderType == null && secondary.renderType == null) {
+            remainingComplexity[0] += faceCount;
+            return;
+        }
+
+        if (primary.renderType != null)
+            pushToBuffer(faceCount, primary, customization, textureSet, vertices);
+        if (secondary.renderType != null)
+            pushToBuffer(faceCount, secondary, customization, textureSet, vertices);
     }
 
-    public void advanceFaces(int texIndex, int faceCount) {
-        buffers.get(texIndex).advanceBuffers(faceCount);
+    private VertexData getTexture(PartCustomization customization, FiguraTextureSet textureSet, boolean primary) {
+        RenderTypes types = primary ? customization.getPrimaryRenderType() : customization.getSecondaryRenderType();
+        Pair<FiguraTextureSet.OverrideType, Object> texture = primary ? customization.primaryTexture : customization.secondaryTexture;
+        VertexData ret = new VertexData();
+
+        if (types == RenderTypes.NONE)
+            return ret;
+
+        //get texture
+        ResourceLocation id = textureSet.getOverrideTexture(avatar.owner, texture);
+
+        //color
+        ret.color = primary ? customization.color : customization.color2;
+
+        //primary
+        ret.primary = primary;
+
+        //get render type
+        if (id != null) {
+            if (translucent) {
+                ret.renderType = RenderType.itemEntityTranslucentCull(id);
+                return ret;
+            }
+            if (glowing) {
+                ret.renderType = RenderType.outline(id);
+                return ret;
+            }
+        }
+
+        if (types == null)
+            return ret;
+
+        if (offsetRenderLayers && !primary && types.isOffset())
+            ret.vertexOffset = -0.005f;
+
+        //Switch to cutout with fullbright if the iris emissive fix is enabled
+        if (doIrisEmissiveFix && types == RenderTypes.EMISSIVE) {
+            ret.fullBright = true;
+            ret.renderType = RenderTypes.TRANSLUCENT_CULL.get(id);
+        } else {
+            ret.renderType = types.get(id);
+        }
+
+        return ret;
+    }
+
+    private static final FiguraVec4 pos = FiguraVec4.of();
+    private static final FiguraVec3 normal = FiguraVec3.of();
+    private static final FiguraVec3 uv = FiguraVec3.of(0, 0, 1);
+    private void pushToBuffer(int faceCount, VertexData vertexData, PartCustomization customization, FiguraTextureSet textureSet, List<Vertex> vertices) {
+        FloatArrayList buffer = VERTEX_BUFFER.getBufferFor(vertexData.renderType, vertexData.primary);
+
+        FiguraVec3 uvFixer = FiguraVec3.of();
+        uvFixer.set(textureSet.getWidth(), textureSet.getHeight(), 1); //Dividing by this makes uv 0 to 1
+
+        double overlay = customization.overlay;
+        double light = vertexData.fullBright ? LightTexture.FULL_BRIGHT : customization.light;
+
+        for (int i = 0; i < faceCount * 4; i++) {
+            Vertex vertex = vertices.get(i);
+
+            pos.set(vertex.x, vertex.y, vertex.z, 1);
+            pos.transform(customization.positionMatrix);
+            pos.add(pos.normalized().scale(vertexData.vertexOffset));
+            normal.set(vertex.nx, vertex.ny, vertex.nz);
+            normal.transform(customization.normalMatrix);
+            uv.set(vertex.u, vertex.v, 1);
+            uv.divide(uvFixer);
+            uv.transform(customization.uvMatrix);
+
+            buffer.add((float) pos.x);
+            buffer.add((float) pos.y);
+            buffer.add((float) pos.z);
+
+            buffer.add((float) vertexData.color.x);
+            buffer.add((float) vertexData.color.y);
+            buffer.add((float) vertexData.color.z);
+            buffer.add((float) customization.alpha);
+
+            buffer.add((float) uv.x);
+            buffer.add((float) uv.y);
+
+            buffer.add((float) overlay);
+            buffer.add((float) light);
+
+            buffer.add((float) normal.x);
+            buffer.add((float) normal.y);
+            buffer.add((float) normal.z);
+        }
+    }
+
+    private static class VertexData {
+        public RenderType renderType;
+        public boolean fullBright;
+        public float vertexOffset;
+        public FiguraVec3 color;
+        public boolean primary;
     }
 
     protected static class VertexBuffer {

@@ -15,6 +15,7 @@ import org.moon.figura.math.matrix.FiguraMat4;
 import org.moon.figura.math.vector.FiguraVec2;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.model.rendering.ImmediateAvatarRenderer;
+import org.moon.figura.model.rendering.Vertex;
 import org.moon.figura.model.rendering.texture.FiguraTexture;
 import org.moon.figura.model.rendering.texture.FiguraTextureSet;
 import org.moon.figura.model.rendering.texture.RenderTypes;
@@ -40,6 +41,7 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
     public FiguraModelPart parent;
 
     public final PartCustomization customization;
+    public PartCustomization savedCustomization;
     public ParentType parentType = ParentType.None;
 
     private final Map<String, FiguraModelPart> childCache = new HashMap<>();
@@ -58,10 +60,13 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
 
     public final FiguraMat4 savedPartToWorldMat = FiguraMat4.of().scale(1 / 16d, 1 / 16d, 1 / 16d);
 
-    public FiguraModelPart(Avatar owner, String name, PartCustomization customization, List<FiguraModelPart> children) {
+    public final Map<Integer, List<Vertex>> vertices;
+
+    public FiguraModelPart(Avatar owner, String name, PartCustomization customization, Map<Integer, List<Vertex>> vertices, List<FiguraModelPart> children) {
         this.owner = owner;
         this.name = name;
         this.customization = customization;
+        this.vertices = vertices;
         this.children = children;
         for (FiguraModelPart child : children)
             child.parent = this;
@@ -72,17 +77,20 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
             if (remainingComplexity[0] <= 0)
                 return false;
             remainingComplexity[0] -= facesByTexture.get(i);
-            avatarRenderer.pushFaces(i, facesByTexture.get(i) + Math.min(remainingComplexity[0], 0), remainingComplexity);
+            avatarRenderer.pushFaces(facesByTexture.get(i) + Math.min(remainingComplexity[0], 0), remainingComplexity, textures.get(i), vertices.get(i));
         }
         return true;
     }
 
-    public void advanceVerticesImmediate(ImmediateAvatarRenderer avatarRenderer) {
-        for (int i = 0; i < facesByTexture.size(); i++)
-            avatarRenderer.advanceFaces(i, facesByTexture.get(i));
-
-        for (FiguraModelPart child : this.children)
-            child.advanceVerticesImmediate(avatarRenderer);
+    private Map<Integer, List<Vertex>> copyVertices() {
+        Map<Integer, List<Vertex>> map = new HashMap<>();
+        for (Map.Entry<Integer, List<Vertex>> entry : vertices.entrySet()) {
+            List<Vertex> list = new ArrayList<>();
+            for (Vertex vertex : entry.getValue())
+                list.add(vertex.copy());
+            map.put(entry.getKey(), list);
+        }
+        return map;
     }
 
     public void applyVanillaTransforms(VanillaModelData vanillaModelData) {
@@ -150,12 +158,6 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
         prevPartToView.translateFirst(-piv2.x, -piv2.y, -piv2.z);
         prevPartToView.translate(piv2.x, piv2.y, piv2.z);
         customization.setMatrix(prevPartToView);
-    }
-
-    public void clean() {
-        customization.free();
-        for (FiguraModelPart child : children)
-            child.clean();
     }
 
     // -- animations -- //
@@ -786,9 +788,11 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
             value = "model_part.set_uv_pixels")
     public FiguraModelPart setUVPixels(Object x, Double y) {
         if (this.textureWidth == -1 || this.textureHeight == -1) {
-            if (this.customization.partType == PartCustomization.PartType.GROUP)
-                throw new LuaError("Cannot call setUVPixels on groups!");
-            else
+            if (this.customization.partType == PartCustomization.PartType.GROUP) {
+                for (FiguraModelPart child : children)
+                    child.setUVPixels(x, y);
+                return this;
+            } else
                 throw new LuaError("Cannot call setUVPixels on parts with multiple texture sizes!");
         }
 
@@ -857,7 +861,9 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
             aliases = "color",
             value = "model_part.set_color")
     public FiguraModelPart setColor(Object r, Double g, Double b) {
-        this.customization.color = this.customization.color2 = LuaUtils.parseVec3("setColor", r, g, b, 1, 1, 1);
+        FiguraVec3 vec = LuaUtils.parseVec3("setColor", r, g, b, 1, 1, 1);
+        this.customization.color.set(vec);
+        this.customization.color2.set(vec);
         return this;
     }
 
@@ -887,7 +893,7 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
             aliases = "primaryColor",
             value = "model_part.set_primary_color")
     public FiguraModelPart setPrimaryColor(Object r, Double g, Double b) {
-        this.customization.color = LuaUtils.parseVec3("setPrimaryColor", r, g, b, 1, 1, 1);
+        this.customization.color.set(LuaUtils.parseVec3("setPrimaryColor", r, g, b, 1, 1, 1));
         return this;
     }
 
@@ -917,7 +923,7 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
             aliases = "secondaryColor",
             value = "model_part.set_secondary_color")
     public FiguraModelPart setSecondaryColor(Object r, Double g, Double b) {
-        this.customization.color2 = LuaUtils.parseVec3("setSecondaryColor", r, g, b, 1, 1, 1);
+        this.customization.color2.set(LuaUtils.parseVec3("setSecondaryColor", r, g, b, 1, 1, 1));
         return this;
     }
 
@@ -1039,11 +1045,12 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
             aliases = "parentType",
             value = "model_part.set_parent_type")
     public FiguraModelPart setParentType(@LuaNotNil String parent) {
-        ParentType newParent = ParentType.get(parent);
-        if ((newParent.isSeparate || this.parentType.isSeparate) && newParent != this.parentType)
+        ParentType oldParent = this.parentType;
+        this.parentType = ParentType.get(parent);
+
+        if ((oldParent.isSeparate || this.parentType.isSeparate) && oldParent != this.parentType)
             owner.renderer.sortParts();
 
-        this.parentType = newParent;
         this.customization.vanillaVisible = null;
         this.customization.needsMatrixRecalculation = true;
         return this;
@@ -1170,6 +1177,97 @@ public class FiguraModelPart implements Comparable<FiguraModelPart> {
         else
             this.renderTasks.clear();
         return this;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = String.class,
+                    argumentNames = "textureID"
+            ),
+            value = "model_part.get_vertices"
+    )
+    public List<Vertex> getVertices(@LuaNotNil String textureID) {
+        int index = -1;
+        for (int i = 0; i < textures.size(); i++) {
+            if (textureID.equals(textures.get(i).name)) {
+                index = i;
+                break;
+            }
+        }
+        return vertices.get(index);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("model_part.get_all_vertices")
+    public Map<String, List<Vertex>> getAllVertices() {
+        Map<String, List<Vertex>> map = new HashMap<>();
+        for (int i = 0; i < textures.size(); i++) {
+            List<Vertex> list = vertices.get(i);
+            if (list != null) map.put(textures.get(i).name, list);
+        }
+        return map;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = FiguraModelPart.class,
+                    argumentNames = "part"
+            ),
+            value = "model_part.move_to"
+    )
+    public FiguraModelPart moveTo(@LuaNotNil FiguraModelPart part) {
+        parent.children.remove(this);
+        part.children.add(this);
+        this.parent = part;
+        return this;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = FiguraModelPart.class,
+                    argumentNames = "part"
+            ),
+            value = "model_part.add_child"
+    )
+    public FiguraModelPart addChild(@LuaNotNil FiguraModelPart part) {
+        this.children.add(part);
+        return this;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = FiguraModelPart.class,
+                    argumentNames = "part"
+            ),
+            value = "model_part.remove_child"
+    )
+    public FiguraModelPart removeChild(@LuaNotNil FiguraModelPart part) {
+        this.children.remove(part);
+        return this;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = String.class,
+                    argumentNames = "name"
+            ),
+            value = "model_part.copy"
+    )
+    public FiguraModelPart copy(@LuaNotNil String name) {
+        PartCustomization customization = new PartCustomization();
+        this.customization.copyTo(customization);
+        FiguraModelPart result = new FiguraModelPart(owner, name, customization, copyVertices(), new ArrayList<>(children));
+        result.facesByTexture = new ArrayList<>(facesByTexture);
+        result.textures = new ArrayList<>(textures);
+        result.parentType = parentType;
+        result.textureHeight = textureHeight;
+        result.textureWidth = textureWidth;
+        return result;
     }
 
     //-- METAMETHODS --//

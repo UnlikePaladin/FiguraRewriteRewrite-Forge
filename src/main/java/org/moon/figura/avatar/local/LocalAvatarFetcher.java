@@ -7,6 +7,7 @@ import org.moon.figura.FiguraMod;
 import org.moon.figura.config.Configs;
 import org.moon.figura.gui.cards.CardBackground;
 import org.moon.figura.parsers.AvatarMetadataParser;
+import org.moon.figura.utils.FileTexture;
 import org.moon.figura.utils.IOUtils;
 
 import java.io.File;
@@ -28,7 +29,7 @@ public class LocalAvatarFetcher {
      * the whole filesystem of avatars.
      */
     public static final List<AvatarPath> ALL_AVATARS = new ArrayList<>();
-    private static final Map<String, Boolean> FOLDER_DATA = new HashMap<>();
+    private static final Map<String, Properties> SAVED_DATA = new HashMap<>();
 
     /**
      * Clears out the root AvatarFolder, and regenerates it from the
@@ -51,15 +52,18 @@ public class LocalAvatarFetcher {
      * the folder data contains information about the avatar folders
      */
     public static void init() {
-        IOUtils.readCacheFile("folders", nbt -> {
+        IOUtils.readCacheFile("avatars", nbt -> {
             //loading
-            ListTag groupList = nbt.getList("folders", Tag.TAG_COMPOUND);
-            for (Tag tag : groupList) {
+            ListTag list = nbt.getList("properties", Tag.TAG_COMPOUND);
+            for (Tag tag : list) {
                 CompoundTag compound = (CompoundTag) tag;
 
                 String path = compound.getString("path");
-                boolean expanded = compound.getBoolean("expanded");
-                FOLDER_DATA.put(path, expanded);
+                Properties properties = new Properties();
+                properties.expanded = compound.getBoolean("expanded");
+                properties.favourite = compound.getBoolean("favourite");
+
+                SAVED_DATA.put(path, properties);
             }
         });
     }
@@ -68,18 +72,30 @@ public class LocalAvatarFetcher {
      * Saves the folder data to disk
      */
     public static void save() {
-        IOUtils.saveCacheFile("folders", nbt -> {
-            ListTag list = new ListTag();
+        IOUtils.saveCacheFile("avatars", nbt -> {
+            ListTag properties = new ListTag();
 
-            for (Map.Entry<String, Boolean> entry : FOLDER_DATA.entrySet()) {
+            for (Map.Entry<String, Properties> entry : SAVED_DATA.entrySet()) {
                 CompoundTag compound = new CompoundTag();
-                compound.putString("path", entry.getKey());
-                compound.putBoolean("expanded", entry.getValue());
-                list.add(compound);
+
+                Properties prop = entry.getValue();
+                if (!prop.expanded)
+                    compound.putBoolean("expanded", false);
+                if (prop.favourite)
+                    compound.putBoolean("favourite", true);
+
+                if (!compound.isEmpty()) {
+                    compound.putString("path", entry.getKey());
+                    properties.add(compound);
+                }
             }
 
-            nbt.put("folders", list);
+            nbt.put("properties", properties);
         });
+    }
+
+    public static void clearCache() {
+        IOUtils.deleteCacheFile("avatars");
     }
 
     /**
@@ -96,34 +112,53 @@ public class LocalAvatarFetcher {
     public static class AvatarPath {
 
         protected final Path path;
-        protected final String name;
+        protected final String name, description;
         protected final CardBackground background;
+        protected final FileTexture iconTexture;
+
+        protected Properties properties;
 
         public AvatarPath(Path path) {
             this.path = path;
+
+            Properties properties = SAVED_DATA.get(this.path.toFile().getAbsolutePath());
+            if (properties != null) {
+                this.properties = properties;
+            } else {
+                this.properties = new Properties();
+                saveProperties();
+            }
+
             String filename = path.getFileName().toString();
 
-            String name;
-            CardBackground bg;
+            String name = filename;
+            String description = "";
+            CardBackground bg = CardBackground.DEFAULT;
+            FileTexture iconTexture = null;
 
-            if (path.toString().toLowerCase().endsWith(".moon") || this instanceof FolderPath) {
-                name = filename;
-                bg = CardBackground.DEFAULT;
-            } else {
+            if (!path.toString().toLowerCase().endsWith(".moon") && !(this instanceof FolderPath)) {
+                //metadata
                 try {
                     String str = IOUtils.readFile(path.resolve("avatar.json").toFile());
                     AvatarMetadataParser.Metadata metadata = AvatarMetadataParser.read(str);
 
                     name = Configs.WARDROBE_FILE_NAMES.value || metadata.name == null || metadata.name.isBlank() ? filename : metadata.name;
+                    description = metadata.description == null ? "" : metadata.description;
                     bg = CardBackground.parse(metadata.background);
-                } catch (Exception ignored) {
-                    name = filename;
-                    bg = CardBackground.DEFAULT;
-                }
+                } catch (Exception ignored) {}
+
+                //icon
+                try {
+                    Path p = path.resolve("avatar.png");
+                    if (p.toFile().exists())
+                        iconTexture = FileTexture.of(p);
+                } catch (Exception ignored) {}
             }
 
             this.name = name;
+            this.description = description;
             this.background = bg;
+            this.iconTexture = iconTexture;
         }
 
         public boolean search(String query) {
@@ -139,8 +174,39 @@ public class LocalAvatarFetcher {
             return name;
         }
 
+        public String getDescription() {
+            return description;
+        }
+
         public CardBackground getBackground() {
             return background;
+        }
+
+        public FileTexture getIcon() {
+            return iconTexture;
+        }
+
+        public boolean isExpanded() {
+            return properties.expanded;
+        }
+
+        public void setExpanded(boolean expanded) {
+            properties.expanded = expanded;
+            saveProperties();
+        }
+
+        public boolean isFavourite() {
+            return properties.favourite;
+        }
+
+        public void setFavourite(boolean favourite) {
+            properties.favourite = favourite;
+            saveProperties();
+        }
+
+        private void saveProperties() {
+            String key = this.path.toFile().getAbsolutePath();
+            SAVED_DATA.put(key, properties);
         }
     }
 
@@ -150,14 +216,9 @@ public class LocalAvatarFetcher {
     public static class FolderPath extends AvatarPath {
 
         protected final List<AvatarPath> children = new ArrayList<>();
-        protected boolean expanded = true;
 
         public FolderPath(Path path) {
             super(path);
-
-            Boolean expanded = FOLDER_DATA.get(this.path.toFile().getAbsolutePath());
-            if (expanded != null)
-                this.expanded = expanded;
         }
 
         /**
@@ -214,17 +275,10 @@ public class LocalAvatarFetcher {
         public List<AvatarPath> getChildren() {
             return children;
         }
+    }
 
-        public boolean isExpanded() {
-            return expanded;
-        }
-
-        public void setExpanded(boolean expanded) {
-            this.expanded = expanded;
-
-            String key = this.path.toFile().getAbsolutePath();
-            if (!this.expanded) FOLDER_DATA.put(key, false);
-            else FOLDER_DATA.remove(key);
-        }
+    private static class Properties {
+        public boolean expanded = true;
+        public boolean favourite;
     }
 }

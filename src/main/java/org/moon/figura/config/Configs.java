@@ -1,16 +1,21 @@
 package org.moon.figura.config;
 
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.network.chat.Component;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.avatar.local.CacheAvatarLoader;
+import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.backend2.NetworkStuff;
 import org.moon.figura.config.ConfigType.*;
+import org.moon.figura.gui.screens.ConfigScreen;
 import org.moon.figura.lua.FiguraLuaPrinter;
+import org.moon.figura.model.rendering.texture.FiguraTexture;
 import org.moon.figura.permissions.PermissionManager;
 import org.moon.figura.permissions.Permissions;
+import org.moon.figura.resources.FiguraRuntimeResources;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.FiguraText;
 import org.moon.figura.utils.IOUtils;
@@ -31,7 +36,15 @@ public class Configs {
     public static final HashMap<Integer, HashMap<ConfigType<?>, String>> CONFIG_UPDATES = new HashMap<>();
 
     //code to run when the config is initialized
-    public static void init() {}
+    public static void init() {
+        //test for unused configs
+        if (FiguraMod.DEBUG_MODE) {
+            Category debug = new Category("debug");
+            new ColorConfig("color_test", debug, 0xFF72AD);
+            new StringConfig("string_test", debug, "text");
+            new IntConfig("int_test", debug, 2147483647);
+        }
+    }
 
 
     // -- categories -- //
@@ -55,7 +68,7 @@ public class Configs {
 
     public static final BoolConfig
             SELF_NAMEPLATE = new BoolConfig("self_nameplate", NAMEPLATE, false),
-            PREVIEW_NAMEPLATE = new BoolConfig("preview_nameplate", NAMEPLATE, true);
+            PREVIEW_NAMEPLATE = new BoolConfig("preview_nameplate", NAMEPLATE, false);
     public static final EnumConfig
             NAMEPLATE_RENDER = new EnumConfig("nameplate_render", NAMEPLATE, 0, 3),
             CHAT_NAMEPLATE = new EnumConfig("chat_nameplate", NAMEPLATE, 2, 3) {{
@@ -256,9 +269,17 @@ public class Configs {
                     NetworkStuff.reAuth();
                 }
             };
+    @SuppressWarnings("unused")
     public static final ButtonConfig
             CLEAR_CACHE = new ButtonConfig("clear_cache", DEV, () -> {
                 CacheAvatarLoader.clearCache();
-                IOUtils.deleteCacheFiles("folders.nbt", "settings.nbt", "saved_texture.png");
+                LocalAvatarFetcher.clearCache();
+                ConfigScreen.clearCache();
+                FiguraTexture.deleteCache();
+                FiguraRuntimeResources.clearCache();
+            }),
+            REDOWNLOAD_ASSETS = new ButtonConfig("redownload_assets", DEV, () -> {
+                FiguraRuntimeResources.init();
+                Minecraft.getInstance().reloadResourcePacks();
             });
 }

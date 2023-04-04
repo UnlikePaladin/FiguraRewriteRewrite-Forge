@@ -525,13 +525,13 @@ public class Avatar {
         FiguraMod.pushProfiler("leftWing");
         renderer.vanillaModelData.update(ParentType.LeftElytra, model);
         renderer.currentFilterScheme = PartFilterScheme.LEFT_ELYTRA;
-        render();
+        renderer.renderSpecialParts();
 
         //right
         FiguraMod.popPushProfiler("rightWing");
         renderer.vanillaModelData.update(ParentType.RightElytra, model);
         renderer.currentFilterScheme = PartFilterScheme.RIGHT_ELYTRA;
-        render();
+        renderer.renderSpecialParts();
 
         FiguraMod.popProfiler(4);
     }
@@ -552,7 +552,7 @@ public class Avatar {
         FiguraMod.popProfiler(3);
     }
 
-    public void firstPersonRender(PoseStack stack, MultiBufferSource bufferSource, Player player, PlayerRenderer playerRenderer, ModelPart arm, int light, int overlay, float tickDelta) {
+    public void firstPersonRender(PoseStack stack, MultiBufferSource bufferSource, Player player, PlayerRenderer playerRenderer, ModelPart arm, int light, float tickDelta) {
         if (renderer == null || !loaded)
             return;
 
@@ -571,7 +571,7 @@ public class Avatar {
             stack.mulPose(Axis.YP.rotation(arm.yRot));
             stack.mulPose(Axis.XP.rotation(arm.xRot));
         }
-        render(player, 0f, tickDelta, 1f, stack, bufferSource, light, overlay, playerRenderer, filter, false, false);
+        render(player, 0f, tickDelta, 1f, stack, bufferSource, light, OverlayTexture.NO_OVERLAY, playerRenderer, filter, false, false);
         stack.popPose();
 
         renderer.allowHiddenTransforms = true;
@@ -746,8 +746,6 @@ public class Avatar {
         if (renderer == null || !loaded)
             return false;
 
-        renderer.allowPivotParts = false;
-        renderer.allowRenderTasks = false;
         renderer.currentFilterScheme = PartFilterScheme.ARROW;
         renderer.tickDelta = delta;
         renderer.overlay = OverlayTexture.NO_OVERLAY;
@@ -770,7 +768,7 @@ public class Avatar {
         return comp > 0;
     }
 
-    private static final PartCustomization PIVOT_PART_RENDERING_CUSTOMIZATION = PartCustomization.of();
+    private static final PartCustomization PIVOT_PART_RENDERING_CUSTOMIZATION = new PartCustomization();
     public synchronized boolean pivotPartRender(ParentType parent, Consumer<PoseStack> consumer) {
         if (renderer == null || !loaded || !parent.isPivot)
             return false;
@@ -813,7 +811,7 @@ public class Avatar {
     // -- animations -- //
 
     public void applyAnimations() {
-        if (!loaded)
+        if (!loaded || scriptError)
             return;
 
         int animationsLimit = permissions.get(Permissions.BB_ANIMATIONS);
@@ -830,7 +828,7 @@ public class Avatar {
     }
 
     public void clearAnimations() {
-        if (!loaded)
+        if (!loaded || scriptError)
             return;
 
         for (Animation animation : animations.values())

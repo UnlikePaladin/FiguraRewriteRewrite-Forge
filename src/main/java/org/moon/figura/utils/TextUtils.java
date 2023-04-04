@@ -4,10 +4,7 @@ import com.google.gson.JsonParser;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
 import net.minecraft.locale.Language;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.FormattedText;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.*;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
@@ -190,6 +187,22 @@ public class TextUtils {
         return ret;
     }
 
+    public static Component setStyleAtWidth(FormattedText text, int width, Font font, Style newStyle) {
+        MutableComponent ret = Component.empty();
+        text.visit((style, string) -> {
+            MutableComponent current = Component.literal(string).withStyle(style);
+
+            int prevWidth = font.width(ret);
+            int currentWidth = font.width(current);
+            if (prevWidth <= width && prevWidth + currentWidth > width)
+                current.withStyle(newStyle);
+
+            ret.append(current);
+            return Optional.empty();
+        }, Style.EMPTY);
+        return ret;
+    }
+
     public static List<FormattedCharSequence> wrapText(FormattedText text, int width, Font font) {
         List<FormattedCharSequence> warp = new ArrayList<>();
         font.getSplitter().splitLines(text, width, Style.EMPTY, (formattedText, aBoolean) -> warp.add(Language.getInstance().getVisualOrder(formattedText)));
@@ -198,14 +211,32 @@ public class TextUtils {
 
     public static Component charSequenceToText(FormattedCharSequence charSequence) {
         MutableComponent builder = Component.empty();
+        StringBuilder buffer = new StringBuilder();
+        Style[] lastStyle = new Style[1];
+
         charSequence.accept((index, style, codePoint) -> {
-            builder.append(Component.literal(String.valueOf(Character.toChars(codePoint))).withStyle(style));
+            if (!style.equals(lastStyle[0])) {
+                if (buffer.length() > 0) {
+                    builder.append(Component.literal(buffer.toString()).withStyle(lastStyle[0]));
+                    buffer.setLength(0);
+                }
+                lastStyle[0] = style;
+            }
+
+            buffer.append(Character.toChars(codePoint));
             return true;
         });
+
+        if (buffer.length() > 0)
+            builder.append(Component.literal(buffer.toString()).withStyle(lastStyle[0]));
+
         return builder;
     }
 
     public static Component formattedTextToText(FormattedText formattedText) {
+        if (formattedText instanceof Component c)
+            return c;
+
         MutableComponent builder = Component.empty();
         formattedText.visit((style, string) -> {
             builder.append(Component.literal(string).withStyle(style));
@@ -333,6 +364,14 @@ public class TextUtils {
 
         public int apply(Font font, FormattedText component) {
             return function.apply(font, component);
+        }
+    }
+
+    public static class FiguraClickEvent extends ClickEvent {
+        public final Runnable onClick;
+        public FiguraClickEvent(Runnable onClick) {
+            super(Action.SUGGEST_COMMAND, "");
+            this.onClick = onClick;
         }
     }
 }

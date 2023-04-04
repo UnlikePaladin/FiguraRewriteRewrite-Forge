@@ -55,6 +55,14 @@ public class EnumElement extends AbstractConfigElement {
                 //draw arrow
                 font.drawShadow(stack, arrow, getX() + getWidth() - arrowWidth - 3, getY() + getHeight() / 2 - font.lineHeight / 2, color);
             }
+
+            @Override
+            public void setHovered(boolean hovered) {
+                if (!hovered && UIHelper.getContext() == context && context.isVisible())
+                    hovered = true;
+
+                super.setHovered(hovered);
+            }
         });
         button.active = FiguraMod.DEBUG_MODE || !config.disabled;
 
@@ -101,16 +109,6 @@ public class EnumElement extends AbstractConfigElement {
     }
 
     @Override
-    public boolean isMouseOver(double mouseX, double mouseY) {
-        if (UIHelper.getContext() == this.context && this.context.isVisible()) {
-            this.button.setHovered(true);
-            return true;
-        }
-
-        return super.isMouseOver(mouseX, mouseY);
-    }
-
-    @Override
     public MutableComponent getTooltip() {
         MutableComponent tooltip = super.getTooltip();
         if (enumTooltip != null) {
@@ -123,7 +121,7 @@ public class EnumElement extends AbstractConfigElement {
 
     private void updateContextText() {
         //cache entries
-        List<AbstractWidget> entries = context.getEntries();
+        List<? extends AbstractWidget> entries = context.getEntries();
 
         //entries should have the same size as names
         //otherwise something went really wrong
