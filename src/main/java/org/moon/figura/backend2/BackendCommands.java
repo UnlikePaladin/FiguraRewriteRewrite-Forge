@@ -51,7 +51,7 @@ public class BackendCommands {
         LiteralArgumentBuilder<CommandSourceStack> resources = LiteralArgumentBuilder.literal("checkResources");
         resources.executes(context -> {
             context.getSource().sendSuccess(new TextComponent("Checking for resources..."), false);
-            FiguraRuntimeResources.init().thenRun(() -> context.getSource().sendFeedback(new TextComponent("Resources checked!")));
+            FiguraRuntimeResources.init().thenRun(() -> context.getSource().sendSuccess(new TextComponent("Resources checked!"), false));
             return 1;
         });
 

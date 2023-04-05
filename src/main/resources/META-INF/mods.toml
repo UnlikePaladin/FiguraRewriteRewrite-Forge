@@ -44,6 +44,8 @@ credits="Ported to Forge by UnlikePaladin" #optional
 description='''
 Figura is a client-side mod that allows players to change their player model and customize it, extensively
 '''
+[modproperties.figura]
+    assets_version="v1"
 # A dependency - use the . to indicate dependency for a specific modid. Dependencies are optional.
 [[dependencies.figura]] #optional
     # the modid of the dependency

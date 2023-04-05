@@ -367,22 +367,4 @@ public class FiguraLuaRuntime {
     public int getInstructions() {
         return userGlobals.running.state.bytecodes;
     }
-
-    private static void renderHUD(PoseStack stack, float delta) {
-        if (AvatarManager.panic)
-            return;
-
-        FiguraMod.pushProfiler(FiguraMod.MOD_ID);
-
-        FiguraMod.pushProfiler("paperdoll");
-        PaperDoll.render(stack);
-
-        FiguraMod.popPushProfiler("actionWheel");
-        ActionWheel.render(stack);
-
-        FiguraMod.popPushProfiler("popupMenu");
-        PopupMenu.render(stack);
-
-        FiguraMod.popProfiler(2);
-    }
 }
