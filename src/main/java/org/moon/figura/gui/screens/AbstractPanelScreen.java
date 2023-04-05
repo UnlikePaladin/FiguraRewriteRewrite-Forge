@@ -6,7 +6,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.gui.widgets.ContextMenu;
 import org.moon.figura.gui.widgets.FiguraTickable;
 import org.moon.figura.gui.widgets.PanelSelectorWidget;
@@ -45,6 +45,10 @@ public abstract class AbstractPanelScreen extends Screen {
 
         //add panel selector
         this.addRenderableWidget(panels = new PanelSelectorWidget(parentScreen, 0, 0, width, index));
+
+        //clear overlays
+        contextMenu = null;
+        tooltip = null;
     }
 
     @Override
@@ -60,10 +64,10 @@ public abstract class AbstractPanelScreen extends Screen {
     @Override
     public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
         //setup figura framebuffer
-        UIHelper.useFiguraGuiFramebuffer();
+        //UIHelper.useFiguraGuiFramebuffer();
 
         //render background
-        this.renderBackground(delta);
+        this.renderBackground(stack, delta);
 
         //render contents
         super.render(stack, mouseX, mouseY, delta);
@@ -72,14 +76,14 @@ public abstract class AbstractPanelScreen extends Screen {
         this.renderOverlays(stack, mouseX, mouseY, delta);
 
         //restore vanilla framebuffer
-        UIHelper.useVanillaFramebuffer();
+        //UIHelper.useVanillaFramebuffer();
     }
 
-    public void renderBackground(float delta) {
+    public void renderBackground(PoseStack stack, float delta) {
         //render
         double scale = this.minecraft.getWindow().getGuiScale();
         float textureSize = (float) (64f / scale);
-        double speed = 1d / 0.5 * scale / Config.BACKGROUND_SCROLL_SPEED.asFloat();
+        double speed = 1d / 0.5 * scale / Configs.BACKGROUND_SCROLL_SPEED.value;
         UIHelper.renderAnimatedBackground(BACKGROUND, 0, 0, this.width, this.height, textureSize, textureSize, speed, delta);
     }
 
@@ -111,7 +115,6 @@ public abstract class AbstractPanelScreen extends Screen {
             if (listener instanceof TextField field)
                 field.getField().setFocus(field.isEnabled() && field.isMouseOver(mouseX, mouseY));
         }
-
         return this.contextMenuClick(mouseX, mouseY, button) || super.mouseClicked(mouseX, mouseY, button);
     }
 
@@ -121,8 +124,8 @@ public abstract class AbstractPanelScreen extends Screen {
             //attempt to click on the context menu
             boolean clicked = contextMenu.mouseClicked(mouseX, mouseY, button);
 
-            //then try to click on the parent container and suppress it
-            //let the parent handle the context menu visibility
+            //then try to click on the category container and suppress it
+            //let the category handle the context menu visibility
             if (!clicked && contextMenu.parent != null && contextMenu.parent.mouseClicked(mouseX, mouseY, button))
                 return true;
 
@@ -169,8 +172,11 @@ public abstract class AbstractPanelScreen extends Screen {
         if (EGG.equals(egg)) {
             Minecraft.getInstance().setScreen(new GameScreen(this, index));
             return true;
-        } else {
-            return super.keyPressed(keyCode, scanCode, modifiers);
         }
+
+        if (children().contains(panels) && panels.cycleTab(keyCode))
+            return true;
+
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 }

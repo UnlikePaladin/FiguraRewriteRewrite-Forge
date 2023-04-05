@@ -6,13 +6,14 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.TextComponent;
 import org.moon.figura.FiguraMod;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.ConfigType;
 import org.moon.figura.gui.widgets.ContextMenu;
 import org.moon.figura.gui.widgets.ParentedButton;
 import org.moon.figura.gui.widgets.lists.ConfigList;
+import org.moon.figura.utils.TextUtils;
 import org.moon.figura.utils.ui.UIHelper;
 
 import java.util.List;
@@ -21,12 +22,14 @@ public class EnumElement extends AbstractConfigElement {
 
     private final List<Component> names;
     private final ParentedButton button;
+    private final Component enumTooltip;
     private ContextMenu context;
 
-    public EnumElement(int width, Config config, ConfigList parent) {
+    public EnumElement(int width, ConfigType.EnumConfig config, ConfigList parent) {
         super(width, config, parent);
 
         names = config.enumList;
+        enumTooltip = config.enumTooltip;
 
         //toggle button
         children.add(0, button = new ParentedButton(0, 0, 90, 20, names.get((int) this.config.tempValue % this.names.size()), this, button -> {
@@ -38,18 +41,28 @@ public class EnumElement extends AbstractConfigElement {
             }
         }) {
             @Override
-            public void renderButton(PoseStack stack, int mouseX, int mouseY, float delta) {
-                //super
-                super.renderButton(stack, mouseX, mouseY, delta);
+            protected void renderText(PoseStack stack) {
+                Font font = Minecraft.getInstance().font;
+                Component arrow = context.isVisible() ? UIHelper.DOWN_ARROW : UIHelper.UP_ARROW;
+                int arrowWidth = font.width(arrow);
+
+                Component message = getMessage();
+                int textWidth = font.width(message);
+
+                //draw text
+                int color = (!this.active ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE).getColor();
+                UIHelper.renderScrollingText(stack, message, x, y, getWidth() - (textWidth <= width - arrowWidth - 9 ? 0 : arrowWidth + 1), getHeight(), color);
 
                 //draw arrow
-                Font font = Minecraft.getInstance().font;
-                Component arrow = new TextComponent(context.isVisible() ? "V" : "^").setStyle(Style.EMPTY.withFont(UIHelper.UI_FONT));
-                font.drawShadow(
-                        stack, arrow,
-                        this.x + this.width - font.width(arrow) - 3, this.y + this.height / 2 - font.lineHeight / 2,
-                        (!this.active ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE).getColor()
-                );
+                font.drawShadow(stack, arrow, x + getWidth() - arrowWidth - 3, y + getHeight() / 2 - font.lineHeight / 2, color);
+            }
+
+            @Override
+            public void setHovered(boolean hovered) {
+                if (!hovered && UIHelper.getContext() == context && context.isVisible())
+                    hovered = true;
+
+                super.setHovered(hovered);
             }
         });
         button.active = FiguraMod.DEBUG_MODE || !config.disabled;
@@ -67,7 +80,7 @@ public class EnumElement extends AbstractConfigElement {
         if (!this.isVisible()) return;
 
         //reset enabled
-        this.resetButton.active = this.isDefault();
+        this.resetButton.active = !this.isDefault();
 
         //button text
         Component text = names.get((int) this.config.tempValue % this.names.size());
@@ -97,18 +110,19 @@ public class EnumElement extends AbstractConfigElement {
     }
 
     @Override
-    public boolean isMouseOver(double mouseX, double mouseY) {
-        if (UIHelper.getContext() == this.context && this.context.isVisible()) {
-            this.button.setHovered(true);
-            return true;
+    public MutableComponent getTooltip() {
+        MutableComponent tooltip = super.getTooltip();
+        if (enumTooltip != null) {
+            tooltip.append("\n");
+            for (Component component : TextUtils.splitText(enumTooltip, "\n"))
+                tooltip.append("\n• ").append(component);
         }
-
-        return super.isMouseOver(mouseX, mouseY);
+        return tooltip;
     }
 
     private void updateContextText() {
         //cache entries
-        List<AbstractWidget> entries = context.getEntries();
+        List<? extends AbstractWidget> entries = context.getEntries();
 
         //entries should have the same size as names
         //otherwise something went really wrong

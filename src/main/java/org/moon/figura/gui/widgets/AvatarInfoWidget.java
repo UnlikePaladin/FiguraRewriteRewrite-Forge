@@ -18,7 +18,7 @@ import org.moon.figura.utils.MathUtils;
 import org.moon.figura.utils.TextUtils;
 import org.moon.figura.utils.ui.UIHelper;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -39,7 +39,10 @@ public class AvatarInfoWidget implements FiguraWidget, FiguraTickable, GuiEventL
     private final int maxSize;
 
     private final Font font;
-    private final List<Component> values = Arrays.asList(new Component[TITLES.size()]);
+    private final List<Component> values = new ArrayList<>() {{
+        for (Component ignored : TITLES)
+            this.add(UNKNOWN);
+    }};
 
     public AvatarInfoWidget(int x, int y, int width, int maxSize) {
         this.x = x;
@@ -62,7 +65,7 @@ public class AvatarInfoWidget implements FiguraWidget, FiguraTickable, GuiEventL
         //update values
         Avatar avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
         if (avatar != null && avatar.nbt != null) {
-            values.set(0, new TextComponent(avatar.name).setStyle(accent)); //name
+            values.set(0, avatar.name == null || avatar.name.isBlank() ? UNKNOWN : new TextComponent(avatar.name).setStyle(accent)); //name
             values.set(1, avatar.authors == null || avatar.authors.isBlank() ? UNKNOWN : new TextComponent(avatar.authors).setStyle(accent)); //authors
             values.set(2, new TextComponent(MathUtils.asFileSize(avatar.fileSize)).setStyle(accent)); //size
             values.set(3, new TextComponent(String.valueOf(avatar.complexity.pre)).setStyle(accent)); //complexity
@@ -88,10 +91,14 @@ public class AvatarInfoWidget implements FiguraWidget, FiguraTickable, GuiEventL
         Component authors = values.get(1);
         List<Component> authorLines = authors == null ? Collections.emptyList() : TextUtils.splitText(authors, "\n");
         int authorUsedLines = Math.min(authorLines.size(), authorFreeLines);
-        this.height = height * TITLES.size() * 2 + 4 + height * (authorUsedLines - 1);
+
+        //set new widget height
+        int newHeight = height * TITLES.size() * 2 + 4 + height * (authorUsedLines - 1);
+        this.height = Math.min(newHeight + height, maxSize);
+        y += (this.height - newHeight) / 2;
 
         //render background
-        UIHelper.renderSliced(stack, this.x, this.y, this.width, this.height, UIHelper.OUTLINE);
+        UIHelper.renderSliced(stack, this.x, this.y, this.width, this.height, UIHelper.OUTLINE_FILL);
 
         //render texts
         for (int i = 0; i < TITLES.size(); i++) {

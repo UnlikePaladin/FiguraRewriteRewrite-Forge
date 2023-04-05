@@ -19,6 +19,7 @@ import org.moon.figura.lua.api.action_wheel.Page;
 import org.moon.figura.lua.api.entity.EntityAPI;
 import org.moon.figura.lua.api.entity.LivingEntityAPI;
 import org.moon.figura.lua.api.entity.PlayerAPI;
+import org.moon.figura.lua.api.entity.ViewerAPI;
 import org.moon.figura.lua.api.event.EventsAPI;
 import org.moon.figura.lua.api.event.LuaEvent;
 import org.moon.figura.lua.api.keybind.FiguraKeybind;
@@ -38,6 +39,7 @@ import org.moon.figura.lua.api.sound.SoundAPI;
 import org.moon.figura.lua.api.vanilla_model.VanillaGroupPart;
 import org.moon.figura.lua.api.vanilla_model.VanillaModelAPI;
 import org.moon.figura.lua.api.vanilla_model.VanillaModelPart;
+import org.moon.figura.lua.api.vanilla_model.VanillaPart;
 import org.moon.figura.lua.api.world.BiomeAPI;
 import org.moon.figura.lua.api.world.BlockStateAPI;
 import org.moon.figura.lua.api.world.ItemStackAPI;
@@ -46,13 +48,14 @@ import org.moon.figura.math.matrix.FiguraMat2;
 import org.moon.figura.math.matrix.FiguraMat3;
 import org.moon.figura.math.matrix.FiguraMat4;
 import org.moon.figura.math.matrix.FiguraMatrix;
-import org.moon.figura.math.vector.*;
+import org.moon.figura.math.vector.FiguraVec2;
+import org.moon.figura.math.vector.FiguraVec3;
+import org.moon.figura.math.vector.FiguraVec4;
+import org.moon.figura.math.vector.FiguraVector;
 import org.moon.figura.model.FiguraModelPart;
+import org.moon.figura.model.rendering.Vertex;
 import org.moon.figura.model.rendering.texture.FiguraTexture;
-import org.moon.figura.model.rendertasks.BlockTask;
-import org.moon.figura.model.rendertasks.ItemTask;
-import org.moon.figura.model.rendertasks.RenderTask;
-import org.moon.figura.model.rendertasks.TextTask;
+import org.moon.figura.model.rendertasks.*;
 import org.moon.figura.utils.FiguraText;
 
 import java.io.FileOutputStream;
@@ -137,22 +140,26 @@ public class FiguraDocsManager {
 
         put("vanilla_model", List.of(
                 VanillaModelAPI.class,
+                VanillaPart.class,
                 VanillaModelPart.class,
                 VanillaGroupPart.class
         ));
 
         put("models", List.of(
+                Vertex.class,
                 FiguraModelPart.class,
                 RenderTask.class,
                 BlockTask.class,
                 ItemTask.class,
-                TextTask.class
+                TextTask.class,
+                SpriteTask.class
         ));
 
         put("player", List.of(
                 EntityAPI.class,
                 LivingEntityAPI.class,
-                PlayerAPI.class
+                PlayerAPI.class,
+                ViewerAPI.class
         ));
 
         put("events", List.of(
@@ -169,9 +176,7 @@ public class FiguraDocsManager {
                 VectorsAPI.class,
                 FiguraVec2.class,
                 FiguraVec3.class,
-                FiguraVec4.class,
-                FiguraVec5.class,
-                FiguraVec6.class
+                FiguraVec4.class
         ));
 
         put("matrices", List.of(

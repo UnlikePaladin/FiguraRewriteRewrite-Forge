@@ -56,7 +56,6 @@ public abstract class AbstractContainerElement extends AbstractContainerEventHan
             if (listener instanceof TextField field)
                 field.getField().setFocus(field.isEnabled() && field.isMouseOver(mouseX, mouseY));
         }
-
         return super.mouseClicked(mouseX, mouseY, button);
     }
 

@@ -1,6 +1,8 @@
 package org.moon.figura.lua.api.event;
 
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaFunction;
+import org.moon.figura.lua.LuaNotNil;
 import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.docs.LuaFieldDoc;
 import org.moon.figura.lua.docs.LuaMetamethodDoc;
@@ -66,6 +68,9 @@ public class EventsAPI {
     @LuaWhitelist
     @LuaFieldDoc("events.use_item")
     public final LuaEvent USE_ITEM = new LuaEvent();
+    @LuaWhitelist
+    @LuaFieldDoc("events.arrow_render")
+    public final LuaEvent ARROW_RENDER = new LuaEvent();
 
     @LuaWhitelist
     @LuaMethodDoc("events.get_events")
@@ -85,7 +90,8 @@ public class EventsAPI {
                 MOUSE_MOVE,
                 MOUSE_PRESS,
                 KEY_PRESS,
-                USE_ITEM
+                USE_ITEM,
+                ARROW_RENDER
         );
     }
 
@@ -96,7 +102,7 @@ public class EventsAPI {
     ))
     public LuaEvent __index(String key) {
         if (key == null) return null;
-        return switch (key) {
+        return switch (key.toUpperCase()) {
             case "ENTITY_INIT" -> ENTITY_INIT;
             case "TICK" -> TICK;
             case "WORLD_TICK" -> WORLD_TICK;
@@ -112,18 +118,17 @@ public class EventsAPI {
             case "MOUSE_PRESS" -> MOUSE_PRESS;
             case "KEY_PRESS" -> KEY_PRESS;
             case "USE_ITEM" -> USE_ITEM;
+            case "ARROW_RENDER" -> ARROW_RENDER;
             default -> null;
         };
     }
 
     @LuaWhitelist
-    public void __newindex(String key, LuaFunction func) {
-        if (key == null)
-            return;
-
+    public void __newindex(@LuaNotNil String key, LuaFunction func) {
         LuaEvent event = __index(key.toUpperCase());
         if (event != null)
             event.register(func, null);
+        else throw new LuaError("Cannot assign value on key \"" + key + "\"");
     }
 
     @Override

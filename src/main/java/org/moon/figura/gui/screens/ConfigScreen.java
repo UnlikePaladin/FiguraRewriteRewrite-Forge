@@ -1,19 +1,22 @@
 package org.moon.figura.gui.screens;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import net.minecraft.client.KeyMapping;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
-import org.moon.figura.config.Config;
 import org.moon.figura.config.ConfigManager;
+import org.moon.figura.config.ConfigType;
+import org.moon.figura.gui.PaperDoll;
 import org.moon.figura.gui.widgets.Label;
 import org.moon.figura.gui.widgets.TexturedButton;
 import org.moon.figura.gui.widgets.lists.ConfigList;
 import org.moon.figura.utils.FiguraText;
 import org.moon.figura.utils.IOUtils;
+import org.moon.figura.utils.TextUtils;
+import org.moon.figura.utils.ui.UIHelper;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,11 +25,12 @@ public class ConfigScreen extends AbstractPanelScreen {
 
     public static final Component TITLE = new FiguraText("gui.panels.title.settings");
 
-    public static final Map<Config, Boolean> CATEGORY_DATA = new HashMap<>();
+    public static final Map<ConfigType.Category, Boolean> CATEGORY_DATA = new HashMap<>();
 
     private ConfigList list;
     private TexturedButton cancel;
     private final boolean hasPanels;
+    public boolean renderPaperdoll;
 
     public ConfigScreen(Screen parentScreen) {
         this(parentScreen, true);
@@ -49,7 +53,7 @@ public class ConfigScreen extends AbstractPanelScreen {
 
         if (!hasPanels) {
             this.removeWidget(panels);
-            this.addRenderableOnly(new Label(TITLE, this.width / 2, 14, true));
+            this.addRenderableWidget(new Label(TITLE, this.width / 2, 14, TextUtils.Alignment.CENTER));
         }
 
         // -- bottom buttons -- //
@@ -68,7 +72,7 @@ public class ConfigScreen extends AbstractPanelScreen {
         // -- config list -- //
 
         int width = Math.min(this.width - 8, 420);
-        this.addRenderableWidget(list = new ConfigList((this.width - width) / 2, 28, width, height - 56));
+        this.addRenderableWidget(list = new ConfigList((this.width - width) / 2, 28, width, height - 56, this));
     }
 
     @Override
@@ -86,32 +90,23 @@ public class ConfigScreen extends AbstractPanelScreen {
     }
 
     @Override
+    public void renderBackground(PoseStack stack, float delta) {
+        super.renderBackground(stack, delta);
+        if (renderPaperdoll)
+            UIHelper.renderWithoutScissors(() -> PaperDoll.render(stack, true));
+    }
+
+    @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        KeyMapping bind = list.focusedBinding;
-        //attempt to set keybind
-        if (bind != null) {
-            bind.setKey(InputConstants.Type.MOUSE.getOrCreate(button));
-            list.focusedBinding = null;
-            return true;
-        } else {
-            return super.mouseClicked(mouseX, mouseY, button);
-        }
+        return list.updateKey(InputConstants.Type.MOUSE.getOrCreate(button)) || super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        KeyMapping bind = list.focusedBinding;
-        //attempt to set keybind
-        if (bind != null) {
-            bind.setKey(keyCode == 256 ? InputConstants.UNKNOWN: InputConstants.getKey(keyCode, scanCode));
-            list.focusedBinding = null;
-            return true;
-        } else {
-            return super.keyPressed(keyCode, scanCode, modifiers);
-        }
+        return list.updateKey(keyCode == 256 ? InputConstants.UNKNOWN : InputConstants.getKey(keyCode, scanCode)) || super.keyPressed(keyCode, scanCode, modifiers);
     }
 
-    private void loadNbt() {
+    private static void loadNbt() {
         IOUtils.readCacheFile("settings", nbt -> {
             ListTag groupList = nbt.getList("settings", Tag.TAG_COMPOUND);
             for (Tag tag : groupList) {
@@ -119,23 +114,27 @@ public class ConfigScreen extends AbstractPanelScreen {
 
                 String config = compound.getString("config");
                 boolean expanded = compound.getBoolean("expanded");
-                CATEGORY_DATA.put(Config.valueOf(config), expanded);
+                CATEGORY_DATA.put(ConfigManager.CATEGORIES_REGISTRY.get(config), expanded);
             }
         });
     }
 
-    private void saveNbt() {
+    private static void saveNbt() {
         IOUtils.saveCacheFile("settings", nbt -> {
             ListTag list = new ListTag();
 
-            for (Map.Entry<Config, Boolean> entry : CATEGORY_DATA.entrySet()) {
+            for (Map.Entry<ConfigType.Category, Boolean> entry : CATEGORY_DATA.entrySet()) {
                 CompoundTag compound = new CompoundTag();
-                compound.putString("config", entry.getKey().name());
+                compound.putString("config", entry.getKey().id);
                 compound.putBoolean("expanded", entry.getValue());
                 list.add(compound);
             }
 
             nbt.put("settings", list);
         });
+    }
+
+    public static void clearCache() {
+        IOUtils.deleteCacheFile("settings");
     }
 }

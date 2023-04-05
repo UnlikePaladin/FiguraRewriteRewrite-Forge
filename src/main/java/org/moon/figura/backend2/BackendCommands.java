@@ -11,6 +11,7 @@ import net.minecraft.network.chat.TextComponent;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import org.moon.figura.FiguraMod;
+import org.moon.figura.resources.FiguraRuntimeResources;
 
 public class BackendCommands {
     public static LiteralArgumentBuilder<CommandSourceStack> getCommand() {
@@ -50,7 +51,7 @@ public class BackendCommands {
         LiteralArgumentBuilder<CommandSourceStack> resources = LiteralArgumentBuilder.literal("checkResources");
         resources.executes(context -> {
             context.getSource().sendSuccess(new TextComponent("Checking for resources..."), false);
-//            FiguraRuntimeResources.init();
+            FiguraRuntimeResources.init().thenRun(() -> context.getSource().sendFeedback(new TextComponent("Resources checked!")));
             return 1;
         });
 
@@ -62,7 +63,7 @@ public class BackendCommands {
 
     private static int runRequest(CommandContext<CommandSourceStack> context, String request) {
         try {
-            NetworkStuff.api.runString(
+            HttpAPI.runString(
                     NetworkStuff.api.header(request).build(),
                     (code, data) -> FiguraMod.sendChatMessage(new TextComponent(data))
             );

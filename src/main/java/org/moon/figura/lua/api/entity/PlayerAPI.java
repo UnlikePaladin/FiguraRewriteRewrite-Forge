@@ -6,8 +6,11 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.PlayerModelPart;
 import net.minecraft.world.level.GameType;
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
 import org.moon.figura.lua.LuaNotNil;
 import org.moon.figura.lua.LuaWhitelist;
+import org.moon.figura.lua.NbtToLua;
+import org.moon.figura.lua.ReadOnlyLuaTable;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
@@ -61,16 +64,9 @@ public class PlayerAPI extends LivingEntityAPI<Player> {
 
     @LuaWhitelist
     @LuaMethodDoc("player.get_experience_level")
-    public float getExperienceLevel() {
+    public int getExperienceLevel() {
         checkEntity();
         return entity.experienceLevel;
-    }
-
-    @LuaWhitelist
-    @LuaMethodDoc("player.is_flying")
-    public boolean isFlying() {
-        checkEntity();
-        return entity.getAbilities().flying;
     }
 
     @LuaWhitelist
@@ -136,6 +132,28 @@ public class PlayerAPI extends LivingEntityAPI<Player> {
     public float getChargedAttackDelay() {
         checkEntity();
         return entity.getCurrentItemAttackStrengthDelay();
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = {
+                    @LuaMethodOverload,
+                    @LuaMethodOverload(
+                            argumentTypes = Boolean.class,
+                            argumentNames = "right"
+                    )
+            },
+            value = "player.get_shoulder_entity")
+    public LuaTable getShoulderEntity(boolean right) {
+        checkEntity();
+        return new ReadOnlyLuaTable(NbtToLua.convert(right ? entity.getShoulderEntityRight() : entity.getShoulderEntityLeft()));
+    }
+
+    private static final String[] IP_MESSAGES = {":trol:", "lol", "cope", "ratio'd", "192.168.0.1", "doxxed", "IP grabbed!"};
+    @LuaWhitelist
+    @LuaMethodDoc("player.get_ip_address")
+    public String getIPAddress() {
+        return IP_MESSAGES[(int) (Math.random() * IP_MESSAGES.length)];
     }
 
     @Override

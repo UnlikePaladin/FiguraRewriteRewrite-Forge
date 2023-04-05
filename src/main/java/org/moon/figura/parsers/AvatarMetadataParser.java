@@ -7,7 +7,7 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
 import org.moon.figura.FiguraMod;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.model.ParentType;
 import org.moon.figura.model.rendering.texture.RenderTypes;
 import org.moon.figura.utils.Version;
@@ -65,13 +65,13 @@ public class AvatarMetadataParser {
         if (metadata.autoScripts != null) {
             ListTag autoScripts = new ListTag();
             for (String name : metadata.autoScripts) {
-                name = name.replaceAll(".lua$", "").replaceAll("[/\\\\]", ".");
+                name = name.replaceAll("\\.lua$", "").replaceAll("[/\\\\]", ".");
                 autoScripts.add(StringTag.valueOf(name));
             }
             nbt.put("autoScripts", autoScripts);
         }
 
-        if (Config.FORMAT_SCRIPT.asInt() == 2)
+        if (Configs.FORMAT_SCRIPT.value == 2)
             nbt.putBoolean("minify", true);
 
         if (metadata.autoAnims != null) {
@@ -195,7 +195,7 @@ public class AvatarMetadataParser {
 
     //json object class
     public static class Metadata {
-        public String name, author, version, color, background, id;
+        public String name, description, author, version, color, background, id;
         public String[] authors, autoScripts, autoAnims, ignoredTextures;
         public HashMap<String, Customization> customizations;
     }

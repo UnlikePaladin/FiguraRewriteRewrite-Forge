@@ -1,5 +1,6 @@
 package org.moon.figura.gui;
 
+import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Vector3f;
@@ -7,12 +8,14 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.lua.api.action_wheel.Action;
 import org.moon.figura.lua.api.action_wheel.Page;
 import org.moon.figura.math.vector.FiguraVec3;
@@ -22,6 +25,7 @@ import org.moon.figura.utils.TextUtils;
 import org.moon.figura.utils.ui.UIHelper;
 
 import java.util.List;
+import java.util.function.Function;
 
 public class ActionWheel {
 
@@ -42,14 +46,15 @@ public class ActionWheel {
         if (!isEnabled()) return;
 
         minecraft = Minecraft.getInstance();
-        x = (int) (minecraft.getWindow().getGuiScaledWidth() / 2d);
-        y = (int) (minecraft.getWindow().getGuiScaledHeight() / 2d);
+        Window window = minecraft.getWindow();
+        x = (int) (window.getGuiScaledWidth() / 2d);
+        y = (int) (window.getGuiScaledHeight() / 2d);
 
         //rendering
         stack.pushPose();
         stack.translate(x, y, 0d);
 
-        scale = Config.ACTION_WHEEL_SCALE.asFloat();
+        scale = Configs.ACTION_WHEEL_SCALE.value;
         stack.scale(scale, scale, scale);
 
         Avatar avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
@@ -65,8 +70,8 @@ public class ActionWheel {
         leftSlots = (int) Math.floor(slots / 2d);
         rightSlots = (int) Math.ceil(slots / 2d);
 
-        mouseX = minecraft.mouseHandler.xpos();
-        mouseY = minecraft.mouseHandler.ypos();
+        mouseX = minecraft.mouseHandler.xpos() * window.getGuiScaledWidth() / window.getScreenWidth();
+        mouseY = minecraft.mouseHandler.ypos() * window.getGuiScaledHeight() / window.getScreenHeight();
 
         //calculate selected slot
         FiguraMod.pushProfiler("selectedSlot");
@@ -83,9 +88,9 @@ public class ActionWheel {
         stack.popPose();
 
         //render title
-        FiguraMod.popPushProfiler("title");
-        Action action = selected == -1 ? null : currentPage.actions[selected];
-        renderTitle(stack, action == null ? null : action.getTitle());
+        FiguraMod.popPushProfiler("texts");
+        Action action = selected == -1 ? null : currentPage.slots()[selected];
+        renderTexts(stack, currentPage, action == null ? null : action.getTitle());
 
         FiguraMod.popProfiler();
     }
@@ -118,22 +123,17 @@ public class ActionWheel {
     }
 
     private static void calculateSelected() {
-        //window specific variables
-        double screenMiddleW = minecraft.getWindow().getScreenWidth() / 2d;
-        double screenMiddleH = minecraft.getWindow().getScreenHeight() / 2d;
-        double guiScale = minecraft.getWindow().getGuiScale();
-
-        //get the total mouse distance from the center of screen
-        double mouseDistance = Math.sqrt(Math.pow(screenMiddleW - mouseX, 2) + Math.pow(screenMiddleH - mouseY, 2));
+        //get the total mouse distance from the center of the wheel
+        double mouseDistance = Math.sqrt(Math.pow(x - mouseX, 2) + Math.pow(y - mouseY, 2));
 
         //no need to sum left side because if the right side is 0, the left side will also be 0
-        if (rightSlots == 0 || mouseDistance < (19 * guiScale * scale)) {
+        if (rightSlots == 0 || mouseDistance < (19 * scale)) {
             selected = -1;
             return;
         }
 
-        //get the mouse angle in degrees from middle of screen, starting at top, clockwise
-        double angle = Math.toDegrees(Math.atan2(mouseY - screenMiddleH, mouseX - screenMiddleW)) + 90;
+        //get the mouse angle in degrees from middle of the wheel, starting at top, clockwise
+        double angle = Math.toDegrees(Math.atan2(mouseY - y, mouseX - x)) + 90;
         if (angle < 0) angle += 360;
 
         //get the selected slot
@@ -145,7 +145,7 @@ public class ActionWheel {
 
     private static void renderTextures(PoseStack stack, Page page) {
         for (int i = 0; i < slots; i++) {
-            Action action = page.actions[i];
+            Action action = page.slots()[i];
             boolean left = i >= rightSlots;
             int type = left ? leftSlots : rightSlots;
             int relativeIndex = left ? i - rightSlots : i;
@@ -184,7 +184,7 @@ public class ActionWheel {
         double distance = 41;
 
         for (int i = 0; i < slots; i++) {
-            Action action = page.actions[i];
+            Action action = page.slots()[i];
             if (action == null)
                 continue;
 
@@ -218,48 +218,78 @@ public class ActionWheel {
             modelStack.scale(scale, scale, scale);
 
             minecraft.getItemRenderer().renderGuiItem(item, (int) Math.round(xOff - 8), (int) Math.round(yOff - 8));
-            if (Config.ACTION_WHEEL_DECORATIONS.asBool())
-                minecraft.getItemRenderer().renderGuiItemDecorations(minecraft.font, item, -8, -8);
+            if (Configs.ACTION_WHEEL_DECORATIONS.value)
+                minecraft.getItemRenderer().renderGuiItemDecorations(minecraft.font, item, (int) Math.round(xOff - 8), (int) Math.round(yOff - 8));
 
             modelStack.popPose();
             RenderSystem.applyModelViewMatrix();
         }
     }
 
-    private static void renderTitle(PoseStack stack, String title) {
+    private static void renderTexts(PoseStack stack, Page page, String title) {
+        Font font = minecraft.font;
+        int titlePosition = Configs.ACTION_WHEEL_TITLE.value;
+        int indicatorPosition = Configs.ACTION_WHEEL_SLOTS_INDICATOR.value;
+
+        //page indicator
+        int groupCount = page.getGroupCount();
+        if (groupCount > 1 && (title == null || indicatorPosition != titlePosition - 2)) {
+            stack.pushPose();
+            stack.translate(0d, 0d, 999d);
+            int index = page.getSlotsShift();
+            int greatest = page.getGreatestSlot() + 1;
+
+            MutableComponent indicator = TextComponent.EMPTY.copy();
+            int extraWidth = 0;
+
+            //down arrow
+            if (index > 1) {
+                Component arrow = UIHelper.UP_ARROW.copy().append(" ");
+                indicator.append(arrow);
+                extraWidth -= font.width(arrow);
+            }
+            //text
+            indicator.append(new FiguraText("gui.action_wheel.slots_indicator",
+                    new TextComponent(String.valueOf((index - 1) * 8 + 1)).withStyle(FiguraMod.getAccentColor()),
+                    new TextComponent(String.valueOf(Math.min(index * 8, greatest))).withStyle(FiguraMod.getAccentColor()),
+                    new TextComponent(String.valueOf(greatest)).withStyle(FiguraMod.getAccentColor())
+            ));
+            //up arrow
+            if (index < groupCount) {
+                Component arrow = new TextComponent(" ").append(UIHelper.DOWN_ARROW);
+                indicator.append(arrow);
+                extraWidth += font.width(arrow);
+            }
+
+            //draw
+            font.drawShadow(stack, indicator, x - (font.width(indicator) - extraWidth) / 2, (int) Position.index(indicatorPosition).apply(font.lineHeight), 0xFFFFFF);
+            stack.popPose();
+        }
+
+        //title
         if (title == null)
             return;
 
         //vars
         Component text = Emojis.applyEmojis(TextUtils.tryParseJson(title));
         List<Component> list = TextUtils.splitText(text, "\n");
-        Font font = minecraft.font;
         int height = font.lineHeight * list.size();
 
-        //pos
-        double yOff;
-        int config = Config.ACTION_WHEEL_TITLE.asInt();
-        switch (config) {
-            case 2 -> yOff = Math.max(y - 64 * scale - 4 - height, 4); // top
-            case 3 -> yOff = y - height / 2f; // middle
-            case 4 -> yOff = Math.min(y + 64 * scale + 4 + height, y * 2 - 4) - height; // bottom
-            default -> { // tooltip
-                double guiScale = minecraft.getWindow().getGuiScale();
-                UIHelper.renderTooltip(stack, text, (int) (mouseX / guiScale), (int) (mouseY / guiScale), config == 0);
-                return;
+        //render
+        if (titlePosition < 2) { //tooltip
+            UIHelper.renderTooltip(stack, text, (int) mouseX, (int) mouseY, titlePosition == 0);
+        } else { //anchored
+            stack.pushPose();
+            stack.translate(0d, 0d, 999d);
+
+            int y = (int) Position.index(titlePosition - 2).apply(height);
+            for (int i = 0; i < list.size(); i++) {
+                Component component = list.get(i);
+                font.drawShadow(stack, component, x - font.width(component) / 2, y + font.lineHeight * i, 0xFFFFFF);
             }
+
+            stack.popPose();
         }
-
-        //render (when not tooltip)
-        stack.pushPose();
-        stack.translate(0d, 0d, 400d);
-
-        for (int i = 0; i < list.size(); i++) {
-            Component component = list.get(i);
-            font.drawShadow(stack, component, x - font.width(component) / 2, (int) (yOff + font.lineHeight * i), 0xFFFFFF);
-        }
-
-        stack.popPose();
     }
 
     // -- functions -- //
@@ -272,7 +302,8 @@ public class ActionWheel {
         }
 
         //wheel click action
-        avatar.luaRuntime.action_wheel.execute(avatar, left);
+        if (avatar.luaRuntime.action_wheel.execute(avatar, left))
+            return;
 
         //execute action
         Page currentPage;
@@ -281,7 +312,7 @@ public class ActionWheel {
             return;
         }
 
-        Action action = currentPage.actions[index];
+        Action action = currentPage.slots()[index];
         if (action != null) action.execute(avatar, left);
 
         selected = -1;
@@ -293,15 +324,24 @@ public class ActionWheel {
             return;
 
         //wheel scroll action
-        avatar.luaRuntime.action_wheel.mouseScroll(avatar, delta);
-
-        //scroll
-        Page currentPage;
-        if (selected < 0 || selected > 7 || (currentPage = avatar.luaRuntime.action_wheel.currentPage) == null)
+        if (avatar.luaRuntime.action_wheel.mouseScroll(avatar, delta))
             return;
 
-        Action action = currentPage.actions[selected];
-        if (action != null) action.mouseScroll(avatar, delta);
+        //scroll action
+        Page currentPage = avatar.luaRuntime.action_wheel.currentPage;
+        if (currentPage == null)
+            return;
+
+        if (selected >= 0 && selected <= 7) {
+            Action action = currentPage.slots()[selected];
+            if (action != null && action.scroll != null) {
+                action.mouseScroll(avatar, delta);
+                return;
+            }
+        }
+
+        //page scroll
+        currentPage.setSlotsShift(currentPage.getSlotsShift() - (int) Math.signum(delta));
     }
 
     public static void setEnabled(boolean enabled) {
@@ -380,6 +420,28 @@ public class ActionWheel {
             UIHelper.blit(stack, 0, y, 64, h, u, color == null ? v : v + 128, 64, rh, 256, 256);
 
             stack.popPose();
+        }
+    }
+
+    // -- text position -- //
+
+    private enum Position {
+        TOP(height -> Math.max(y - 64 * scale - 4 - height, 4)),
+        MID(height -> y - height / 2f),
+        BOT(height -> Math.min(y + 64 * scale + 4 + height, y * 2 - 4) - height);
+
+        private final Function<Double, Double> function;
+
+        Position(Function<Double, Double> function) {
+            this.function = function;
+        }
+
+        public static Position index(int i) {
+            return values()[i];
+        }
+
+        public double apply(double d) {
+            return function.apply(d);
         }
     }
 }

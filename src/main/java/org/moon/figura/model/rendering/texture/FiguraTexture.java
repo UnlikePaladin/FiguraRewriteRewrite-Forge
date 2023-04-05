@@ -18,19 +18,20 @@ import org.moon.figura.lua.LuaNotNil;
 import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
-import org.moon.figura.lua.docs.LuaMethodShadow;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.vector.FiguraVec2;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.math.vector.FiguraVec4;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.FiguraIdentifier;
+import org.moon.figura.utils.IOUtils;
 import org.moon.figura.utils.LuaUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Base64;
+import java.util.UUID;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -56,7 +57,7 @@ public class FiguraTexture extends SimpleTexture {
     private boolean isClosed = false;
 
     public FiguraTexture(Avatar owner, String name, byte[] data) {
-        super(new FiguraIdentifier("avatar_tex/" + owner.owner + "/" + FiguraIdentifier.formatPath(name)));
+        super(new FiguraIdentifier("avatar_tex/" + owner.owner + "/" + UUID.randomUUID()));
 
         //Read image from wrapper
         NativeImage image;
@@ -76,7 +77,7 @@ public class FiguraTexture extends SimpleTexture {
     }
 
     public FiguraTexture(Avatar owner, String name, NativeImage image) {
-        super(new FiguraIdentifier("avatar_tex/" + owner.owner + "/custom/" + FiguraIdentifier.formatPath(name)));
+        super(new FiguraIdentifier("avatar_tex/" + owner.owner + "/custom/" + UUID.randomUUID()));
         this.texture = image;
         this.name = name;
         this.owner = owner;
@@ -106,7 +107,7 @@ public class FiguraTexture extends SimpleTexture {
             registered = true;
         }
 
-        if (dirty) {
+        if (dirty && !isClosed) {
             dirty = false;
 
             RenderCall runnable = () -> {
@@ -128,12 +129,21 @@ public class FiguraTexture extends SimpleTexture {
         texture.writeToFile(path);
     }
 
+    public static void deleteCache() {
+        Path path = FiguraMod.getCacheDirectory().resolve("saved_texture.png");
+        IOUtils.deleteFile(path.toFile());
+    }
+
     private void backupImage() {
         this.modified = true;
-        if (this.backup == null) {
-            backup = new NativeImage(texture.format(), texture.getWidth(), texture.getHeight(), true);
-            backup.copyFrom(texture);
-        }
+        if (this.backup == null)
+            backup = copy();
+    }
+
+    public NativeImage copy() {
+        NativeImage image = new NativeImage(texture.format(), texture.getWidth(), texture.getHeight(), true);
+        image.copyFrom(texture);
+        return image;
     }
 
     public int getWidth() {
@@ -199,21 +209,21 @@ public class FiguraTexture extends SimpleTexture {
                             argumentNames = {"x", "y", "r", "g", "b", "a"}
                     )
             },
+            aliases = "pixel",
             value = "texture.set_pixel")
-    public void setPixel(int x, int y, Object r, Double g, Double b, Double a) {
+    public FiguraTexture setPixel(int x, int y, Object r, Double g, Double b, Double a) {
         try {
             backupImage();
             texture.setPixelRGBA(x, y, ColorUtils.rgbaToIntABGR(parseColor("setPixel", r, g, b, a)));
+            return this;
         } catch (Exception e) {
             throw new LuaError(e.getMessage());
         }
     }
 
     @LuaWhitelist
-    @LuaMethodShadow("setPixel")
     public FiguraTexture pixel(int x, int y, Object r, Double g, Double b, Double a) {
-        setPixel(x, y, r, g, b, a);
-        return this;
+        return setPixel(x, y, r, g, b, a);
     }
 
     @LuaWhitelist

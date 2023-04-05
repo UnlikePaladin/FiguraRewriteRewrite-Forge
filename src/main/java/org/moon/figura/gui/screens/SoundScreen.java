@@ -5,6 +5,7 @@ import net.minecraft.network.chat.Component;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
+import org.moon.figura.gui.widgets.PianoWidget;
 import org.moon.figura.gui.widgets.TexturedButton;
 import org.moon.figura.gui.widgets.lists.SoundsList;
 import org.moon.figura.utils.FiguraText;
@@ -14,6 +15,7 @@ public class SoundScreen extends AbstractPanelScreen {
     public static final Component TITLE = new FiguraText("gui.panels.title.sound");
 
     private final Screen sourcePanel;
+    private PianoWidget piano;
 
     public SoundScreen(AbstractPanelScreen parentScreen) {
         super(parentScreen.parentScreen, TITLE, WardrobeScreen.class);
@@ -33,11 +35,28 @@ public class SoundScreen extends AbstractPanelScreen {
 
         //list
         int listWidth = Math.min(this.width - 8, 420);
-        this.addRenderableWidget(new SoundsList((this.width - listWidth) / 2, 28, listWidth, height - 56, owner));
+        int listX = (this.width - listWidth) / 2;
+        SoundsList list;
+        addRenderableWidget(list = new SoundsList(listX, 28, listWidth, height - 120, owner));
+
+        //keys
+        addRenderableWidget(piano = new PianoWidget(listX, height - 88, listWidth, 60, list::getSound));
 
         //back
         addRenderableWidget(new TexturedButton(width / 2 - 60, height - 24, 120, 20, new FiguraText("gui.done"), null,
                 bx -> this.minecraft.setScreen(sourcePanel)
         ));
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        piano.pressed = button == 0;
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        piano.pressed = false;
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 }

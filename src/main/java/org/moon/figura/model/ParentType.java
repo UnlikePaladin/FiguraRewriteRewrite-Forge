@@ -18,10 +18,11 @@ public enum ParentType {
     Cape(true, VanillaModelProvider.FAKE_CAPE, FiguraVec3.of(), "CAPE"),
 
     World(true, false, "WORLD"),
-    Hud(true, false, "HUD", "Gui", "GUI"),
-    Camera("CAMERA"),
+    Hud(true, false, "HUD", "HeadsUpDisplay", "Gui", "GUI", "GraphicalUserInterface", "JraficalUserInterface"),
+    Camera("CAMERA", "Billboard", "BILLBOARD"),
     Skull(true, false, "SKULL", "☠"),
     Portrait(true, false, "PORTRAIT"),
+    Arrow(true, false, "ARROW"),
 
     LeftItemPivot(false, true,"LEFT_ITEM_PIVOT"),
     RightItemPivot(false, true,"RIGHT_ITEM_PIVOT"),
@@ -35,35 +36,39 @@ public enum ParentType {
     public final FiguraVec3 offset;
     public final String[] aliases;
 
-    //If this parent part renders separately from the rest of the model.
+    //If this parent part renders separately from the rest of the model
     public final boolean isSeparate;
 
-    //If this parent part serves as a modification for a vanilla rendering feature, and *not* to actually render blockbench cubes.
+    //If this parent part serves as a modification for a vanilla rendering feature, and *not* to actually render blockbench cubes
     public final boolean isPivot;
 
+    //If this parent part is a render layer, were parenting matrices should be kept
+    public final boolean isRenderLayer;
+
     ParentType(String... aliases) {
-        this(false, false, null, FiguraVec3.of(), aliases);
+        this(false, false, false, null, FiguraVec3.of(), aliases);
     }
 
     ParentType(VanillaModelProvider provider, String... aliases) {
-        this(false, false, provider, FiguraVec3.of(), aliases);
+        this(false, false, false, provider, FiguraVec3.of(), aliases);
     }
 
     ParentType(boolean isSeparate, boolean isPivot, String... aliases) {
-        this(isSeparate, isPivot, null, FiguraVec3.of(), aliases);
+        this(isSeparate, isPivot, false, null, FiguraVec3.of(), aliases);
     }
 
     ParentType(VanillaModelProvider provider, FiguraVec3 offset, String... aliases) {
-        this(false, false, provider, offset, aliases);
+        this(false, false, false, provider, offset, aliases);
     }
 
     ParentType(boolean isSeparate, VanillaModelProvider provider, FiguraVec3 offset, String... aliases) {
-        this(isSeparate, false, provider, offset, aliases);
+        this(isSeparate, false, true, provider, offset, aliases);
     }
 
-    ParentType(boolean isSeparate, boolean isPivot, VanillaModelProvider provider, FiguraVec3 offset, String... aliases) {
+    ParentType(boolean isSeparate, boolean isPivot, boolean isRenderLayer, VanillaModelProvider provider, FiguraVec3 offset, String... aliases) {
         this.isSeparate = isSeparate;
         this.isPivot = isPivot;
+        this.isRenderLayer = isRenderLayer;
         this.provider = provider;
         this.offset = offset;
         this.aliases = aliases;

@@ -10,14 +10,14 @@ import net.minecraft.client.renderer.entity.LivingEntityRenderer;
 import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Player;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.gui.PopupMenu;
+import org.moon.figura.lua.api.vanilla_model.VanillaPart;
 import org.moon.figura.model.rendering.PartFilterScheme;
-import org.moon.figura.trust.Trust;
+import org.moon.figura.permissions.Permissions;
 import org.moon.figura.utils.ui.UIHelper;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -67,8 +67,13 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extend
         if (currentAvatar == null)
             return;
 
-        if (currentAvatar.luaRuntime != null && entity instanceof Player)
-            currentAvatar.luaRuntime.vanilla_model.PLAYER.save(getModel());
+        if (currentAvatar.luaRuntime != null) {
+            VanillaPart part = currentAvatar.luaRuntime.vanilla_model.PLAYER;
+            EntityModel<?> model = getModel();
+            part.save(model);
+            if (currentAvatar.permissions.get(Permissions.VANILLA_MODEL_EDIT) == 1)
+                part.preTransform(model);
+        }
 
         boolean showBody = this.isBodyVisible(entity);
         boolean translucent = !showBody && Minecraft.getInstance().player != null && !entity.isInvisibleTo(Minecraft.getInstance().player);
@@ -93,8 +98,8 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extend
 
         FiguraMod.popProfiler(3);
 
-        if (currentAvatar.luaRuntime != null && currentAvatar.trust.get(Trust.VANILLA_MODEL_EDIT) == 1)
-            currentAvatar.luaRuntime.vanilla_model.PLAYER.change(getModel());
+        if (currentAvatar.luaRuntime != null && currentAvatar.permissions.get(Permissions.VANILLA_MODEL_EDIT) == 1)
+            currentAvatar.luaRuntime.vanilla_model.PLAYER.posTransform(getModel());
     }
 
     @Inject(at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;popPose()V"), method = "render(Lnet/minecraft/world/entity/LivingEntity;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V")
@@ -103,7 +108,7 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extend
             return;
 
         //Render avatar with params
-        if (currentAvatar.luaRuntime != null && currentAvatar.trust.get(Trust.VANILLA_MODEL_EDIT) == 1)
+        if (currentAvatar.luaRuntime != null && currentAvatar.permissions.get(Permissions.VANILLA_MODEL_EDIT) == 1)
             currentAvatar.luaRuntime.vanilla_model.PLAYER.restore(getModel());
 
         currentAvatar = null;
@@ -112,12 +117,14 @@ public abstract class LivingEntityRendererMixin<T extends LivingEntity, M extend
     @Inject(method = "shouldShowName(Lnet/minecraft/world/entity/LivingEntity;)Z", at = @At("HEAD"), cancellable = true)
     public void shouldShowName(T livingEntity, CallbackInfoReturnable<Boolean> cir) {
         if (UIHelper.paperdoll)
-            cir.setReturnValue(Config.PREVIEW_NAMEPLATE.asBool());
-        else if (!Minecraft.renderNames())
+            cir.setReturnValue(Configs.PREVIEW_NAMEPLATE.value);
+        else if (!Minecraft.renderNames() || livingEntity.getUUID().equals(PopupMenu.getEntityId()))
             cir.setReturnValue(false);
-        else if (livingEntity.getUUID().equals(PopupMenu.getEntityId()))
-            cir.setReturnValue(false);
-        else if (Config.SELF_NAMEPLATE.asBool() && livingEntity == Minecraft.getInstance().player)
-            cir.setReturnValue(true);
+        else if (!AvatarManager.panic) {
+            if (Configs.SELF_NAMEPLATE.value && livingEntity == Minecraft.getInstance().player)
+                cir.setReturnValue(true);
+            else if (Configs.NAMEPLATE_RENDER.value == 2 || (Configs.NAMEPLATE_RENDER.value == 1 && livingEntity != FiguraMod.extendedPickEntity))
+                cir.setReturnValue(false);
+        }
     }
 }

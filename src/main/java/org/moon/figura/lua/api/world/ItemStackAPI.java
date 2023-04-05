@@ -4,13 +4,12 @@ import net.minecraft.core.Registry;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.tags.TagKey;
-import net.minecraft.world.item.BlockItem;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.*;
 import org.luaj.vm2.LuaTable;
 import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.NbtToLua;
+import org.moon.figura.lua.ReadOnlyLuaTable;
 import org.moon.figura.lua.docs.LuaFieldDoc;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaTypeDoc;
@@ -50,7 +49,7 @@ public class ItemStackAPI {
     public ItemStackAPI(ItemStack itemStack) {
         this.itemStack = itemStack;
         this.id = Registry.ITEM.getKey(itemStack.getItem()).toString();
-        this.tag = (LuaTable) NbtToLua.convert(itemStack.getTag() != null ? itemStack.getTag() : null);
+        this.tag = new ReadOnlyLuaTable(itemStack.getTag() != null ? NbtToLua.convert(itemStack.getTag()) : new LuaTable());
     }
 
     @LuaWhitelist
@@ -192,8 +191,47 @@ public class ItemStackAPI {
     }
 
     @LuaWhitelist
+    @LuaMethodDoc("itemstack.is_armor")
+    public boolean isArmor() {
+        return itemStack.getItem() instanceof ArmorItem;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("itemstack.is_tool")
+    public boolean isTool() {
+        return itemStack.getItem() instanceof DiggerItem;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("itemstack.get_equipment_slot")
+    public String getEquipmentSlot() {
+        return LivingEntity.getEquipmentSlotForItem(itemStack).name();
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("itemstack.copy")
+    public ItemStackAPI copy() {
+        return new ItemStackAPI(itemStack.copy());
+    }
+
+    @LuaWhitelist
     public boolean __eq(ItemStackAPI other) {
-        return ItemStack.matches(this.itemStack, other.itemStack);
+        if (this == other)
+            return true;
+
+        ItemStack t = this.itemStack;
+        ItemStack o = other.itemStack;
+        if (t.getCount() != o.getCount())
+            return false;
+        if (!t.is(o.getItem()))
+            return false;
+
+        CompoundTag tag1 = t.getTag();
+        CompoundTag tag2 = o.getTag();
+        if (tag1 == null && tag2 != null)
+            return false;
+
+        return tag1 == null || tag1.equals(tag2);
     }
 
     @LuaWhitelist

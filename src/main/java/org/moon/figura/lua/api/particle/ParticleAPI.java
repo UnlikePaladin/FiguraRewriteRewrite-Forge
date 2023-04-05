@@ -15,7 +15,6 @@ import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.vector.FiguraVec3;
-import org.moon.figura.math.vector.FiguraVec6;
 import org.moon.figura.utils.LuaUtils;
 
 @LuaWhitelist
@@ -49,10 +48,6 @@ public class ParticleAPI {
     @LuaWhitelist
     @LuaMethodDoc(
             overloads = {
-                    @LuaMethodOverload(
-                            argumentTypes = {String.class, FiguraVec6.class},
-                            argumentNames = {"name", "posVel"}
-                    ),
                     @LuaMethodOverload(
                             argumentTypes = {String.class, FiguraVec3.class},
                             argumentNames = {"name", "pos"}
@@ -90,17 +85,31 @@ public class ParticleAPI {
 
         LuaParticle particle = generate(id, pos.x, pos.y, pos.z, vel.x, vel.y, vel.z);
         particle.spawn();
-
-        pos.free();
-        vel.free();
-
         return particle;
     }
 
     @LuaWhitelist
     @LuaMethodDoc("particles.remove_particles")
-    public void removeParticles() {
+    public ParticleAPI removeParticles() {
         getParticleEngine().figura$clearParticles(owner.owner);
+        return this;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = String.class,
+                    argumentNames = "id"
+            ),
+            value = "particles.is_present"
+    )
+    public boolean isPresent(String id) {
+        try {
+            ParticleOptions options = ParticleArgument.readParticle(new StringReader(id));
+            return getParticleEngine().figura$makeParticle(options, 0, 0, 0, 0, 0, 0) != null;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     @LuaWhitelist

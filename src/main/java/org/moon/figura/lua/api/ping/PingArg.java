@@ -3,7 +3,6 @@ package org.moon.figura.lua.api.ping;
 import org.luaj.vm2.*;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
-import org.moon.figura.lua.api.action_wheel.Action;
 import org.moon.figura.math.matrix.FiguraMatrix;
 import org.moon.figura.math.vector.FiguraVector;
 import org.moon.figura.utils.MathUtils;
@@ -52,9 +51,9 @@ public class PingArg {
         if (val.isboolean()) {
             dos.writeByte(BOOL);
             dos.writeBoolean(val.checkboolean());
-        } else if (val instanceof LuaString) {
+        } else if (val instanceof LuaString valStr) {
             dos.writeByte(STRING);
-            dos.writeUTF(val.checkjstring());
+            writeString(valStr, dos);
         } else if (val.isint()) {
             dos.writeByte(INT);
             dos.writeInt(val.checkinteger().v);
@@ -62,20 +61,27 @@ public class PingArg {
             dos.writeByte(DOUBLE);
             dos.writeDouble(val.checkdouble());
         } else if (val.istable()) {
+            dos.writeByte(TABLE);
             writeTable(val.checktable(), dos);
         } else if (val.isuserdata(FiguraVector.class)) {
+            dos.writeByte(VECTOR);
             writeVec((FiguraVector<?, ?>) val.checkuserdata(), dos);
         } else if (val.isuserdata(FiguraMatrix.class)) {
+            dos.writeByte(MATRIX);
             writeMat((FiguraMatrix<?, ?>) val.checkuserdata(), dos);
-        } else if (val.isnil() || val.isuserdata(Action.class)) {
-            dos.writeByte(NIL);
         } else {
-            throw new IllegalArgumentException("Invalid ping argument \"" + val + "\"");
+            dos.writeByte(NIL);
+            //dos.writeNull();
         }
     }
 
+    private static void writeString(LuaString string, DataOutputStream dos) throws IOException {
+        int strLen = Math.min(string.length(), Short.MAX_VALUE * 2 + 1);
+        dos.writeShort((short) strLen);
+        string.write(dos, 0, strLen);
+    }
+
     private static void writeTable(LuaTable table, DataOutputStream dos) throws IOException {
-        dos.writeByte(TABLE);
         dos.writeInt(table.keyCount());
 
         for (LuaValue key : table.keys()) {
@@ -85,7 +91,6 @@ public class PingArg {
     }
 
     private static void writeVec(FiguraVector<?, ?> vector, DataOutputStream dos) throws IOException {
-        dos.writeByte(VECTOR);
         dos.writeByte(vector.size());
 
         for (int i = 0; i < vector.size(); i++)
@@ -93,7 +98,6 @@ public class PingArg {
     }
 
     private static void writeMat(FiguraMatrix<?, ?> matrix, DataOutputStream dos) throws IOException {
-        dos.writeByte(MATRIX);
         dos.writeByte(matrix.cols());
 
         for (int i = 0; i < matrix.cols(); i++) {
@@ -126,7 +130,7 @@ public class PingArg {
             case BOOL -> LuaValue.valueOf(dis.readBoolean());
             case INT -> LuaValue.valueOf(dis.readInt());
             case DOUBLE -> LuaValue.valueOf(dis.readDouble());
-            case STRING -> LuaValue.valueOf(dis.readUTF());
+            case STRING -> LuaValue.valueOf(dis.readNBytes(dis.readUnsignedShort()));
             case TABLE -> readTable(dis, owner);
             case VECTOR -> owner.luaRuntime.typeManager.javaToLua(readVec(dis)).arg1();
             case MATRIX -> owner.luaRuntime.typeManager.javaToLua(readMat(dis)).arg1();
@@ -158,10 +162,8 @@ public class PingArg {
         byte columns = dis.readByte();
 
         FiguraVector<? ,?>[] vectors = new FiguraVector[columns];
-        for (int i = 0; i < columns; i++) {
-            dis.readByte(); //vec type - ignored
+        for (int i = 0; i < columns; i++)
             vectors[i] = readVec(dis);
-        }
 
         return MathUtils.sizedMat(vectors);
     }

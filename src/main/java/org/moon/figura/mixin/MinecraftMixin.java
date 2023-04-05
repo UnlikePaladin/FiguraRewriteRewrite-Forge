@@ -13,15 +13,12 @@ import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.backend2.NetworkStuff;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.gui.ActionWheel;
 import org.moon.figura.gui.FiguraToast;
 import org.moon.figura.gui.PopupMenu;
 import org.moon.figura.gui.screens.WardrobeScreen;
 import org.moon.figura.lua.FiguraLuaPrinter;
-import org.moon.figura.lua.api.particle.ParticleAPI;
-import org.moon.figura.lua.api.sound.SoundAPI;
-import org.moon.figura.utils.EntityUtils;
 import org.moon.figura.utils.FiguraText;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -46,35 +43,26 @@ public abstract class MinecraftMixin {
 
     @Inject(at = @At("RETURN"), method = "handleKeybinds")
     private void handleKeybinds(CallbackInfo ci) {
-        //panic button
-        if (Config.PANIC_BUTTON.keyBind.consumeClick()) {
-            AvatarManager.panic = !AvatarManager.panic;
-            FiguraToast.sendToast(new FiguraText(AvatarManager.panic ? "toast.panic_enabled" : "toast.panic_disabled"), FiguraToast.ToastType.WARNING);
-            SoundAPI.getSoundEngine().figura$stopAllSounds();
-            ParticleAPI.getParticleEngine().figura$clearParticles(null);
-            return;
-        }
-
         //dont handle keybinds on panic
         if (AvatarManager.panic)
             return;
 
         //reload avatar button
-        if (Config.RELOAD_BUTTON.keyBind.consumeClick()) {
+        if (Configs.RELOAD_BUTTON.keyBind.consumeClick()) {
             AvatarManager.reloadAvatar(FiguraMod.getLocalPlayerUUID());
             FiguraToast.sendToast(new FiguraText("toast.reload"));
         }
 
         //reload avatar button
-        if (Config.WARDROBE_BUTTON.keyBind.consumeClick())
+        if (Configs.WARDROBE_BUTTON.keyBind.consumeClick())
             this.setScreen(new WardrobeScreen(null));
 
         //action wheel button
         Boolean wheel = null;
-        if (Config.ACTION_WHEEL_MODE.asInt() % 2 == 1) {
-            if (Config.ACTION_WHEEL_BUTTON.keyBind.consumeClick())
+        if (Configs.ACTION_WHEEL_MODE.value % 2 == 1) {
+            if (Configs.ACTION_WHEEL_BUTTON.keyBind.consumeClick())
                 wheel = !ActionWheel.isEnabled();
-        } else if (Config.ACTION_WHEEL_BUTTON.keyBind.isDown()) {
+        } else if (Configs.ACTION_WHEEL_BUTTON.keyBind.isDown()) {
             wheel = true;
         } else if (ActionWheel.isEnabled()) {
             wheel = false;
@@ -84,7 +72,7 @@ public abstract class MinecraftMixin {
                 ActionWheel.setEnabled(true);
                 this.mouseHandler.releaseMouse();
             } else {
-                if (Config.ACTION_WHEEL_MODE.asInt() >= 2)
+                if (Configs.ACTION_WHEEL_MODE.value >= 2)
                     ActionWheel.execute(ActionWheel.getSelected(), true);
                 ActionWheel.setEnabled(false);
                 this.mouseHandler.grabMouse();
@@ -92,11 +80,11 @@ public abstract class MinecraftMixin {
         }
 
         //popup menu button
-        if (Config.POPUP_BUTTON.keyBind.isDown()) {
+        if (Configs.POPUP_BUTTON.keyBind.isDown()) {
             PopupMenu.setEnabled(true);
 
             if (!PopupMenu.hasEntity()) {
-                Entity target = EntityUtils.getViewedEntity(32);
+                Entity target = FiguraMod.extendedPickEntity;
                 if (this.player != null && target instanceof Player && !target.isInvisibleTo(this.player)) {
                     PopupMenu.setEntity(target);
                 } else if (!this.options.getCameraType().isFirstPerson()) {
@@ -138,6 +126,7 @@ public abstract class MinecraftMixin {
     private void clearLevel(Screen screen, CallbackInfo ci) {
         AvatarManager.clearAllAvatars();
         FiguraLuaPrinter.clearPrintQueue();
+        NetworkStuff.unsubscribeAll();
     }
 
     @Inject(at = @At("RETURN"), method = "setLevel")

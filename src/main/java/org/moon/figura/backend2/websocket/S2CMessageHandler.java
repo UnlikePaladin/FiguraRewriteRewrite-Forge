@@ -5,7 +5,7 @@ import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.backend2.NetworkStuff;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.gui.FiguraToast;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.FiguraText;
@@ -45,7 +45,8 @@ public class S2CMessageHandler {
     private static void auth() {
         FiguraMod.LOGGER.info("Connected to " + FiguraMod.MOD_NAME + " ws backend");
         NetworkStuff.backendStatus = 3;
-        if (Config.CONNECTION_TOASTS.asBool())
+        NetworkStuff.subscribeAll();
+        if (Configs.CONNECTION_TOASTS.value)
             FiguraToast.sendToast(new FiguraText("backend.connected"));
     }
 
@@ -84,7 +85,7 @@ public class S2CMessageHandler {
     }
 
     private static void notice(ByteBuffer bytes) {
-        if (!Config.CONNECTION_TOASTS.asBool())
+        if (!Configs.CONNECTION_TOASTS.value)
             return;
 
         byte type = bytes.get();

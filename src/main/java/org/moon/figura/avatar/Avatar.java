@@ -6,6 +6,7 @@ import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.datafixers.util.Pair;
+import com.mojang.math.Quaternion;
 import com.mojang.math.Vector3f;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -32,9 +33,11 @@ import org.luaj.vm2.Varargs;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.animation.Animation;
 import org.moon.figura.animation.AnimationPlayer;
-import org.moon.figura.config.Config;
+import org.moon.figura.backend2.NetworkStuff;
+import org.moon.figura.config.Configs;
 import org.moon.figura.lua.FiguraLuaPrinter;
 import org.moon.figura.lua.FiguraLuaRuntime;
+import org.moon.figura.lua.api.entity.EntityAPI;
 import org.moon.figura.lua.api.event.LuaEvent;
 import org.moon.figura.lua.api.particle.ParticleAPI;
 import org.moon.figura.lua.api.ping.PingArg;
@@ -45,16 +48,15 @@ import org.moon.figura.lua.api.world.ItemStackAPI;
 import org.moon.figura.math.matrix.FiguraMat3;
 import org.moon.figura.math.matrix.FiguraMat4;
 import org.moon.figura.math.vector.FiguraVec3;
-import org.moon.figura.math.vector.FiguraVec4;
 import org.moon.figura.model.ParentType;
 import org.moon.figura.model.PartCustomization;
 import org.moon.figura.model.rendering.AvatarRenderer;
+import org.moon.figura.model.rendering.EntityRenderMode;
 import org.moon.figura.model.rendering.ImmediateAvatarRenderer;
 import org.moon.figura.model.rendering.PartFilterScheme;
-import org.moon.figura.model.rendering.texture.EntityRenderMode;
-import org.moon.figura.trust.Trust;
-import org.moon.figura.trust.TrustContainer;
-import org.moon.figura.trust.TrustManager;
+import org.moon.figura.permissions.PermissionManager;
+import org.moon.figura.permissions.PermissionPack;
+import org.moon.figura.permissions.Permissions;
 import org.moon.figura.utils.EntityUtils;
 import org.moon.figura.utils.RefilledNumber;
 import org.moon.figura.utils.Version;
@@ -71,7 +73,7 @@ import java.util.function.Supplier;
 
 //the avatar class
 //contains all things related to the avatar
-//and also related to the owner, like trust settings
+//and also related to the owner, like its permissions
 public class Avatar {
 
     private static CompletableFuture<Void> tasks;
@@ -100,7 +102,7 @@ public class Avatar {
     public FiguraLuaRuntime luaRuntime;
     public EntityRenderMode renderMode = EntityRenderMode.OTHER;
 
-    public final TrustContainer.PlayerContainer trust;
+    public final PermissionPack.PlayerPermissionPack permissions;
 
     public final Map<String, SoundBuffer> customSounds = new HashMap<>();
     public final Map<Integer, Animation> animations = new HashMap<>();
@@ -108,8 +110,8 @@ public class Avatar {
     //runtime status
     public boolean hasTexture, scriptError;
     public Component errorText;
-    public Set<Trust> trustIssues = new HashSet<>();
-    public Set<Trust> trustsToTick = new HashSet<>();
+    public Set<Permissions> noPermissions = new HashSet<>();
+    public Set<Permissions> permissionsToTick = new HashSet<>();
     public int versionStatus = 0;
 
     //limits
@@ -122,15 +124,15 @@ public class Avatar {
         this.owner = owner;
         this.entityType = type;
         this.isHost = type == EntityType.PLAYER && FiguraMod.isLocal(owner);
-        this.trust = type == EntityType.PLAYER ? TrustManager.get(owner) : TrustManager.getMobTrust(owner);
-        this.complexity = new Instructions(trust.get(Trust.COMPLEXITY));
-        this.init = new Instructions(trust.get(Trust.INIT_INST));
-        this.render = new Instructions(trust.get(Trust.RENDER_INST));
-        this.worldRender = new Instructions(trust.get(Trust.WORLD_RENDER_INST));
-        this.tick = new Instructions(trust.get(Trust.TICK_INST));
-        this.worldTick = new Instructions(trust.get(Trust.WORLD_TICK_INST));
-        this.particlesRemaining = new RefilledNumber(trust.get(Trust.PARTICLES));
-        this.soundsRemaining = new RefilledNumber(trust.get(Trust.SOUNDS));
+        this.permissions = type == EntityType.PLAYER ? PermissionManager.get(owner) : PermissionManager.getMobPermissions(owner);
+        this.complexity = new Instructions(permissions.get(Permissions.COMPLEXITY));
+        this.init = new Instructions(permissions.get(Permissions.INIT_INST));
+        this.render = new Instructions(permissions.get(Permissions.RENDER_INST));
+        this.worldRender = new Instructions(permissions.get(Permissions.WORLD_RENDER_INST));
+        this.tick = new Instructions(permissions.get(Permissions.TICK_INST));
+        this.worldTick = new Instructions(permissions.get(Permissions.WORLD_TICK_INST));
+        this.particlesRemaining = new RefilledNumber(permissions.get(Permissions.PARTICLES));
+        this.soundsRemaining = new RefilledNumber(permissions.get(Permissions.SOUNDS));
         this.entityName = name == null ? "" : name;
     }
 
@@ -175,7 +177,7 @@ public class Avatar {
                 if (metadata.contains("minify"))
                     minify = metadata.getBoolean("minify");
                 fileSize = getFileSize();
-                versionStatus = version.compareTo(FiguraMod.VERSION);
+                versionStatus = getVersionStatus();
                 if (entityName.isBlank())
                     entityName = name;
 
@@ -211,30 +213,30 @@ public class Avatar {
             }
         }
 
-        //tick trusts
-        for (Trust t : trustsToTick) {
-            if (trust.get(t) > 0) {
-                trustIssues.remove(t);
+        //tick permissions
+        for (Permissions t : permissionsToTick) {
+            if (permissions.get(t) > 0) {
+                noPermissions.remove(t);
             } else {
-                trustIssues.add(t);
+                noPermissions.add(t);
             }
         }
 
         //sound
-        particlesRemaining.set(trust.get(Trust.PARTICLES));
+        particlesRemaining.set(permissions.get(Permissions.PARTICLES));
         particlesRemaining.tick();
 
         //particles
-        soundsRemaining.set(trust.get(Trust.SOUNDS));
+        soundsRemaining.set(permissions.get(Permissions.SOUNDS));
         soundsRemaining.tick();
 
         //call events
         FiguraMod.pushProfiler("worldTick");
-        worldTick.reset(trust.get(Trust.WORLD_TICK_INST));
+        worldTick.reset(permissions.get(Permissions.WORLD_TICK_INST));
         run("WORLD_TICK", worldTick);
 
         FiguraMod.popPushProfiler("tick");
-        tick.reset(trust.get(Trust.TICK_INST));
+        tick.reset(permissions.get(Permissions.TICK_INST));
         tickEvent();
 
         FiguraMod.popProfiler();
@@ -242,18 +244,18 @@ public class Avatar {
 
     public void render(float delta) {
         if (complexity.remaining <= 0) {
-            trustIssues.add(Trust.COMPLEXITY);
+            noPermissions.add(Permissions.COMPLEXITY);
         } else {
-            trustIssues.remove(Trust.COMPLEXITY);
+            noPermissions.remove(Permissions.COMPLEXITY);
         }
 
-        complexity.reset(trust.get(Trust.COMPLEXITY));
+        complexity.reset(permissions.get(Permissions.COMPLEXITY));
 
         if (scriptError || luaRuntime == null || !loaded)
             return;
 
-        render.reset(trust.get(Trust.RENDER_INST));
-        worldRender.reset(trust.get(Trust.WORLD_RENDER_INST));
+        render.reset(permissions.get(Permissions.RENDER_INST));
+        worldRender.reset(permissions.get(Permissions.WORLD_RENDER_INST));
         run("WORLD_RENDER", worldRender, delta);
     }
 
@@ -299,7 +301,7 @@ public class Avatar {
                 else if (toRun instanceof LuaFunction func)
                     ret = func.invoke(val);
                 else if (toRun instanceof Pair<?, ?> pair)
-                    ret = luaRuntime.run(pair.getFirst().toString(), pair.getSecond().toString());
+                    ret = luaRuntime.load(pair.getFirst().toString(), pair.getSecond().toString()).invoke(val);
                 else
                     throw new IllegalArgumentException("Internal event error - Invalid type to run!");
 
@@ -365,10 +367,10 @@ public class Avatar {
         run("POST_WORLD_RENDER", worldRender.post(), delta);
     }
 
-    public boolean skullRenderEvent(float delta, BlockStateAPI block, ItemStackAPI item) {
+    public boolean skullRenderEvent(float delta, BlockStateAPI block, ItemStackAPI item, EntityAPI<?> entity, String mode) {
         Varargs result = null;
         if (loaded && renderer != null && renderer.allowSkullRendering)
-            result = run("SKULL_RENDER", render, delta, block, item);
+            result = run("SKULL_RENDER", render, delta, block, item, entity, mode);
         return result != null && result.arg(1).isboolean() && result.arg(1).checkboolean();
     }
 
@@ -377,16 +379,22 @@ public class Avatar {
         return result != null && result.arg(1).isboolean() && result.arg(1).checkboolean();
     }
 
+    public boolean arrowRenderEvent(float delta, EntityAPI<?> arrow) {
+        Varargs result = null;
+        if (loaded) result = run("ARROW_RENDER", render, delta, arrow);
+        return result != null && result.arg(1).isboolean() && result.arg(1).checkboolean();
+    }
+
     // -- host only events -- //
 
     public String chatSendMessageEvent(String message) {
         Varargs val = loaded ? run("CHAT_SEND_MESSAGE", tick, message) : null;
-        return val == null || (!val.isnil(1) && !Config.CHAT_MESSAGES.asBool()) ? message : val.isnil(1) ? "" : val.arg(1).tojstring();
+        return val == null || (!val.isnil(1) && !Configs.CHAT_MESSAGES.value) ? message : val.isnil(1) ? "" : val.arg(1).tojstring();
     }
 
-    public void chatReceivedMessageEvent(String message) {
+    public void chatReceivedMessageEvent(Component message) {
         if (loaded)
-            run("CHAT_RECEIVE_MESSAGE", tick, message);
+            run("CHAT_RECEIVE_MESSAGE", tick, message.getString(), Component.Serializer.toJson(message));
     }
 
     public boolean mouseScrollEvent(double delta) {
@@ -418,7 +426,7 @@ public class Avatar {
         }
 
         int prev = complexity.remaining;
-        complexity.remaining = trust.get(Trust.COMPLEXITY);
+        complexity.remaining = permissions.get(Permissions.COMPLEXITY);
         renderer.render();
         complexity.remaining = prev;
     }
@@ -443,20 +451,16 @@ public class Avatar {
         render();
     }
 
-    public synchronized void worldRender(Entity entity, double camX, double camY, double camZ, PoseStack matrices, MultiBufferSource bufferSource, int lightFallback, float tickDelta) {
+    public synchronized void worldRender(Entity entity, double camX, double camY, double camZ, PoseStack matrices, MultiBufferSource bufferSource, int lightFallback, float tickDelta, EntityRenderMode mode) {
         if (renderer == null || !loaded)
             return;
 
-        for (Queue<Pair<FiguraMat4, FiguraMat3>> queue : renderer.pivotCustomizations.values()) {
-            while (!queue.isEmpty()) {
-                Pair<FiguraMat4, FiguraMat3> pair = queue.poll();
-                pair.getFirst().free();
-                pair.getSecond().free();
-            }
-        }
+        EntityRenderMode prevRenderMode = renderMode;
+        renderMode = mode;
+        boolean update = prevRenderMode != EntityRenderMode.OTHER || renderMode == EntityRenderMode.FIRST_PERSON_WORLD;
 
-        renderer.allowMatrixUpdate = true;
-        renderer.updateLight = renderMode != EntityRenderMode.OTHER;
+        renderer.pivotCustomizations.values().clear();
+        renderer.allowMatrixUpdate = renderer.updateLight = update;
         renderer.entity = entity;
         renderer.currentFilterScheme = PartFilterScheme.WORLD;
         renderer.bufferSource = bufferSource;
@@ -474,6 +478,7 @@ public class Avatar {
         complexity.use(renderer.renderSpecialParts());
         matrices.popPose();
 
+        renderMode = prevRenderMode;
         renderer.updateLight = false;
     }
 
@@ -520,13 +525,13 @@ public class Avatar {
         FiguraMod.pushProfiler("leftWing");
         renderer.vanillaModelData.update(ParentType.LeftElytra, model);
         renderer.currentFilterScheme = PartFilterScheme.LEFT_ELYTRA;
-        render();
+        renderer.renderSpecialParts();
 
         //right
         FiguraMod.popPushProfiler("rightWing");
         renderer.vanillaModelData.update(ParentType.RightElytra, model);
         renderer.currentFilterScheme = PartFilterScheme.RIGHT_ELYTRA;
-        render();
+        renderer.renderSpecialParts();
 
         FiguraMod.popProfiler(4);
     }
@@ -542,17 +547,12 @@ public class Avatar {
         int light = Minecraft.getInstance().getEntityRenderDispatcher().getPackedLightCoords(watcher, tickDelta);
         Vec3 camPos = camera.getPosition();
 
-        EntityRenderMode oldMode = renderMode;
-        renderMode = EntityRenderMode.FIRST_PERSON;
-
-        worldRender(watcher, camPos.x, camPos.y, camPos.z, matrices, bufferSource, light, tickDelta);
-
-        renderMode = oldMode;
+        worldRender(watcher, camPos.x, camPos.y, camPos.z, matrices, bufferSource, light, tickDelta, EntityRenderMode.FIRST_PERSON_WORLD);
 
         FiguraMod.popProfiler(3);
     }
 
-    public void firstPersonRender(PoseStack stack, MultiBufferSource bufferSource, Player player, PlayerRenderer playerRenderer, ModelPart arm, int light, int overlay, float tickDelta) {
+    public void firstPersonRender(PoseStack stack, MultiBufferSource bufferSource, Player player, PlayerRenderer playerRenderer, ModelPart arm, int light, float tickDelta) {
         if (renderer == null || !loaded)
             return;
 
@@ -561,8 +561,9 @@ public class Avatar {
         FiguraMod.pushProfiler("firstPersonRender");
 
         PartFilterScheme filter = arm == playerRenderer.getModel().leftArm ? PartFilterScheme.LEFT_ARM : PartFilterScheme.RIGHT_ARM;
-        boolean config = Config.ALLOW_FP_HANDS.asBool();
+        boolean config = Configs.ALLOW_FP_HANDS.value;
         renderer.allowHiddenTransforms = config;
+        renderer.allowMatrixUpdate = false;
 
         stack.pushPose();
         if (!config) {
@@ -570,7 +571,7 @@ public class Avatar {
             stack.mulPose(Vector3f.YP.rotation(arm.yRot));
             stack.mulPose(Vector3f.XP.rotation(arm.xRot));
         }
-        render(player, 0f, tickDelta, 1f, stack, bufferSource, light, overlay, playerRenderer, filter, false, false);
+        render(player, 0f, tickDelta, 1f, stack, bufferSource, light, OverlayTexture.NO_OVERLAY, playerRenderer, filter, false, false);
         stack.popPose();
 
         renderer.allowHiddenTransforms = true;
@@ -582,7 +583,6 @@ public class Avatar {
         if (renderer == null || !loaded)
             return;
 
-        FiguraMod.pushProfiler(FiguraMod.MOD_ID);
         FiguraMod.pushProfiler(this);
         FiguraMod.pushProfiler("hudRender");
 
@@ -609,7 +609,7 @@ public class Avatar {
 
         Lighting.setupFor3DItems();
 
-        FiguraMod.popProfiler(3);
+        FiguraMod.popProfiler(2);
     }
 
     public boolean skullRender(PoseStack stack, MultiBufferSource bufferSource, int light, Direction direction, float yaw) {
@@ -660,7 +660,6 @@ public class Avatar {
             return false;
 
         stack.pushPose();
-        stack.translate(0d, 24d / 16d, 0d);
         boolean oldMat = renderer.allowMatrixUpdate;
 
         //pre render
@@ -679,7 +678,7 @@ public class Avatar {
         renderer.allowMatrixUpdate = false;
 
         //render
-        int comp = renderer.renderSpecialParts();
+        int comp = renderer.render();
 
         //pos render
         renderer.allowMatrixUpdate = oldMat;
@@ -691,8 +690,8 @@ public class Avatar {
         return comp > 0 && luaRuntime != null && !luaRuntime.vanilla_model.HEAD.checkVisible();
     }
 
-    public boolean renderPortrait(PoseStack stack, int x, int y, int screenSize, float modelScale, boolean scissors) {
-        if (!Config.AVATAR_PORTRAITS.asBool() || renderer == null || !loaded)
+    public boolean renderPortrait(PoseStack stack, int x, int y, int size, float modelScale) {
+        if (!Configs.AVATAR_PORTRAITS.value || renderer == null || !loaded)
             return false;
 
         //matrices
@@ -702,20 +701,12 @@ public class Avatar {
         stack.mulPose(Vector3f.XP.rotationDegrees(180f));
 
         //scissors
-        FiguraVec4 oldScissors = UIHelper.scissors.copy();
         FiguraVec3 pos = FiguraMat4.fromMatrix4f(stack.last().pose()).apply(0d, 0d, 0d);
 
         int x1 = (int) pos.x;
         int y1 = (int) pos.y;
-        int x2 = (int) pos.x + screenSize;
-        int y2 = (int) pos.y + screenSize;
-
-        if (scissors) {
-            x1 = (int) Math.round(Math.max(x1, oldScissors.x));
-            y1 = (int) Math.round(Math.max(y1, oldScissors.y));
-            x2 = (int) Math.round(Math.min(x2, oldScissors.x + oldScissors.z));
-            y2 = (int) Math.round(Math.min(y2, oldScissors.y + oldScissors.w));
-        }
+        int x2 = (int) pos.x + size;
+        int y2 = (int) pos.y + size;
 
         UIHelper.setupScissor(x1, y1, x2 - x1, y2 - y1);
         UIHelper.paperdoll = true;
@@ -744,19 +735,40 @@ public class Avatar {
         boolean ret = comp > 0 || headRender(stack, buffer, light);
 
         //return
-        if (scissors)
-            UIHelper.setupScissor((int) oldScissors.x, (int) oldScissors.y, (int) oldScissors.z, (int) oldScissors.w);
-        else
-            RenderSystem.disableScissor();
-
+        UIHelper.disableScissor();
         UIHelper.paperdoll = false;
         renderer.allowPivotParts = true;
         renderer.allowRenderTasks = true;
         stack.popPose();
         return ret;
     }
+    public boolean renderArrow(PoseStack stack, MultiBufferSource bufferSource, float delta, int light) {
+        if (renderer == null || !loaded)
+            return false;
 
-    private static final PartCustomization PIVOT_PART_RENDERING_CUSTOMIZATION = PartCustomization.of();
+        renderer.currentFilterScheme = PartFilterScheme.ARROW;
+        renderer.tickDelta = delta;
+        renderer.overlay = OverlayTexture.NO_OVERLAY;
+        renderer.light = light;
+        renderer.alpha = 1f;
+        renderer.matrices = stack;
+        renderer.bufferSource = bufferSource;
+        renderer.translucent = false;
+        renderer.glowing = false;
+
+        stack.pushPose();
+        Quaternion quaternionf = Vector3f.XP.rotationDegrees(135f);
+        Quaternion quaternionf2 = Vector3f.YP.rotationDegrees(-90f);
+        quaternionf.mul(quaternionf2);
+        stack.mulPose(quaternionf);
+
+        int comp = renderer.renderSpecialParts();
+
+        stack.popPose();
+        return comp > 0;
+    }
+
+    private static final PartCustomization PIVOT_PART_RENDERING_CUSTOMIZATION = new PartCustomization();
     public synchronized boolean pivotPartRender(ParentType parent, Consumer<PoseStack> consumer) {
         if (renderer == null || !loaded || !parent.isPivot)
             return false;
@@ -774,8 +786,6 @@ public class Avatar {
             PIVOT_PART_RENDERING_CUSTOMIZATION.needsMatrixRecalculation = false;
             PoseStack stack = PIVOT_PART_RENDERING_CUSTOMIZATION.copyIntoGlobalPoseStack();
             consumer.accept(stack);
-            matrixPair.getFirst().free();
-            matrixPair.getSecond().free();
         }
 
         queue.clear();
@@ -801,24 +811,24 @@ public class Avatar {
     // -- animations -- //
 
     public void applyAnimations() {
-        if (!loaded)
+        if (!loaded || scriptError)
             return;
 
-        int animationsLimit = trust.get(Trust.BB_ANIMATIONS);
+        int animationsLimit = permissions.get(Permissions.BB_ANIMATIONS);
         int limit = animationsLimit;
         for (Animation animation : animations.values())
             limit = AnimationPlayer.tick(animation, limit);
         animationComplexity = animationsLimit - limit;
 
         if (limit <= 0) {
-            trustIssues.add(Trust.BB_ANIMATIONS);
+            noPermissions.add(Permissions.BB_ANIMATIONS);
         } else {
-            trustIssues.remove(Trust.BB_ANIMATIONS);
+            noPermissions.remove(Permissions.BB_ANIMATIONS);
         }
     }
 
     public void clearAnimations() {
-        if (!loaded)
+        if (!loaded || scriptError)
             return;
 
         for (Animation animation : animations.values())
@@ -862,6 +872,12 @@ public class Avatar {
         }
     }
 
+    private int getVersionStatus() {
+        if (version == null || (NetworkStuff.latestVersion != null && version.compareTo(NetworkStuff.latestVersion) > 0))
+            return 0;
+        return version.compareTo(FiguraMod.VERSION);
+    }
+
     // -- loading -- //
 
     private void createLuaRuntime() {
@@ -885,7 +901,7 @@ public class Avatar {
         if (renderer != null && renderer.root != null)
             runtime.setGlobal("models", renderer.root);
 
-        init.reset(trust.get(Trust.INIT_INST));
+        init.reset(permissions.get(Permissions.INIT_INST));
         runtime.setInstructionLimit(init.remaining);
 
         events.offer(() -> {

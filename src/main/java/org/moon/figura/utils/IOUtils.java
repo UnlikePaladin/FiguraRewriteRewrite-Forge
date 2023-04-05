@@ -12,6 +12,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -95,6 +96,11 @@ public class IOUtils {
         }
     }
 
+    public static void deleteCacheFile(String name) {
+        Path path = FiguraMod.getCacheDirectory().resolve(name + ".nbt");
+        deleteFile(path.toFile());
+    }
+
     public static <T> Set<T> loadEntryPoints(String name, Class<T> clazz) {
         Set<T> ret = new HashSet<>();
 
@@ -110,5 +116,38 @@ public class IOUtils {
         //FIXME: How necessary could these be
 
         return ret;
+    }
+
+    public static Path getOrCreateDir(Path startingPath, String dir) {
+        return createDirIfNeeded(startingPath.resolve(dir));
+    }
+
+    public static Path createDirIfNeeded(Path path) {
+        try {
+            Files.createDirectories(path);
+        } catch (FileAlreadyExistsException ignored) {
+        } catch (Exception e) {
+            FiguraMod.LOGGER.error("Failed to create directory", e);
+        }
+
+        return path;
+    }
+
+    public static void deleteFile(File file) {
+        if (!file.exists())
+            return;
+
+        File[] files = file.listFiles();
+        if (files != null) {
+            for (File f : files) {
+                if (f.isDirectory()) {
+                    deleteFile(f);
+                } else {
+                    f.delete();
+                }
+            }
+        }
+
+        file.delete();
     }
 }

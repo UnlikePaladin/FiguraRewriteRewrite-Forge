@@ -9,18 +9,17 @@ import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.ReadOnlyLuaTable;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
-import org.moon.figura.lua.docs.LuaMethodShadow;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.matrix.FiguraMatrix;
 import org.moon.figura.math.vector.FiguraVector;
+import org.moon.figura.utils.IOUtils;
 import org.moon.figura.utils.MathUtils;
 
 import java.io.FileOutputStream;
 import java.io.FileReader;
-import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Base64;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -41,9 +40,9 @@ public class ConfigAPI {
         MATRIX
     }
 
-    private final LuaTable luaTable = new LuaTable();
     private final Avatar owner;
     private final boolean isHost;
+    private LuaTable luaTable;
     private String name;
     private boolean loaded = false;
 
@@ -58,15 +57,7 @@ public class ConfigAPI {
 
 
     public static Path getConfigDataDir() {
-        Path p = FiguraMod.getFiguraDirectory().resolve("data");
-        try {
-            Files.createDirectories(p);
-        } catch (FileAlreadyExistsException ignored) {
-        } catch (Exception e) {
-            FiguraMod.LOGGER.error("Failed to create avatar data directory", e);
-        }
-
-        return p;
+        return IOUtils.getOrCreateDir(FiguraMod.getFiguraDirectory(), "data");
     }
 
     private Path getPath() {
@@ -106,9 +97,8 @@ public class ConfigAPI {
         if (val.isboolean()) {
             obj.addProperty("type", Type.BOOL.name());
             obj.addProperty("data", val.checkboolean());
-        } else if (val instanceof LuaString) {
-            obj.addProperty("type", Type.STRING.name());
-            obj.addProperty("data", val.checkjstring());
+        } else if (val instanceof LuaString str) {
+            writeString(str, obj);
         } else if (val.isint()) {
             obj.addProperty("type", Type.INT.name());
             obj.addProperty("data", val.checkinteger().v);
@@ -126,6 +116,16 @@ public class ConfigAPI {
         }
 
         return obj;
+    }
+
+    private static void writeString(LuaString string, JsonObject obj) {
+        int len = string.length();
+        byte[] copyTarget = new byte[len];
+        string.copyInto(0, copyTarget, 0, len);
+        String b64 = Base64.getEncoder().encodeToString(copyTarget);
+
+        obj.addProperty("type", Type.STRING.name());
+        obj.addProperty("data", b64);
     }
 
     private static void writeTable(LuaTable table, JsonObject obj) {
@@ -168,6 +168,9 @@ public class ConfigAPI {
 
     //read
     private void init() {
+        if (loaded) return;
+        luaTable = new LuaTable();
+
         //read file
         Path path = getPath();
         JsonObject root;
@@ -187,6 +190,8 @@ public class ConfigAPI {
             FiguraMod.LOGGER.error("", e);
             throw new LuaError("Failed to load avatar data file");
         }
+
+        loaded = true;
     }
 
     private static LuaValue readArg(JsonElement json, Avatar owner) {
@@ -197,7 +202,7 @@ public class ConfigAPI {
             case BOOL -> LuaBoolean.valueOf(data.getAsBoolean());
             case INT -> LuaInteger.valueOf(data.getAsInt());
             case DOUBLE -> LuaDouble.valueOf(data.getAsDouble());
-            case STRING -> LuaString.valueOf(data.getAsString());
+            case STRING -> LuaString.valueOf(Base64.getDecoder().decode(data.getAsString()));
             case TABLE -> readTable(data.getAsJsonArray(), owner);
             case VECTOR -> owner.luaRuntime.typeManager.javaToLua(readVec(data.getAsJsonArray())).arg1();
             case MATRIX -> owner.luaRuntime.typeManager.javaToLua(readMat(data.getAsJsonArray())).arg1();
@@ -238,24 +243,30 @@ public class ConfigAPI {
 
 
     @LuaWhitelist
+    @LuaMethodDoc("config.get_name")
+    public String getName() {
+        return name;
+    }
+
+    @LuaWhitelist
     @LuaMethodDoc(
             overloads = @LuaMethodOverload(
                     argumentTypes = String.class,
                     argumentNames = "name"
             ),
+            aliases = "name",
             value = "config.set_name"
     )
-    public void setName(@LuaNotNil String name) {
-        if (!isHost) return;
+    public ConfigAPI setName(@LuaNotNil String name) {
+        if (!isHost) return this;
         this.name = name;
         this.loaded = false;
+        return this;
     }
 
     @LuaWhitelist
-    @LuaMethodShadow("setName")
     public ConfigAPI name(@LuaNotNil String name) {
-        setName(name);
-        return this;
+        return setName(name);
     }
 
     @LuaWhitelist
@@ -270,10 +281,7 @@ public class ConfigAPI {
         if (!isHost)
             return this;
 
-        if (!loaded) {
-            init();
-            loaded = true;
-        }
+        init();
 
         val = val != null && (val.isboolean() || val.isstring() || val.isnumber() || val.istable() || val.isuserdata(FiguraVector.class) || val.isuserdata(FiguraMatrix.class)) ? val : LuaValue.NIL;
         luaTable.set(key, val);
@@ -300,11 +308,7 @@ public class ConfigAPI {
         if (!isHost)
             return null;
 
-        if (!loaded) {
-            init();
-            loaded = true;
-        }
-
+        init();
         return key != null ? luaTable.get(key) : new ReadOnlyLuaTable(luaTable);
     }
 

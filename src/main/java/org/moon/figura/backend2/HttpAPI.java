@@ -2,11 +2,10 @@ package org.moon.figura.backend2;
 
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import org.moon.figura.FiguraMod;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 
 import java.io.InputStream;
 import java.net.URI;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
@@ -15,11 +14,9 @@ import java.util.function.BiConsumer;
 
 public class HttpAPI {
 
-    private final HttpClient client;
     private final String token;
 
-    public HttpAPI(HttpClient client, String token) {
-        this.client = client;
+    public HttpAPI(String token) {
         this.token = token;
     }
 
@@ -27,12 +24,12 @@ public class HttpAPI {
     // -- builders -- //
 
 
-    private static URI getUri(String url) {
+    protected static URI getUri(String url) {
         return URI.create(getBackendAddress() + "/" + url);
     }
 
-    private static String getBackendAddress() {
-        ServerAddress backendIP = ServerAddress.parseString(Config.SERVER_IP.asString());
+    protected static String getBackendAddress() {
+        ServerAddress backendIP = ServerAddress.parseString(Configs.SERVER_IP.value);
         return "https://" + backendIP.getHost() + "/api";
     }
 
@@ -47,10 +44,10 @@ public class HttpAPI {
     // -- runners -- //
 
 
-    public void runString(HttpRequest request, BiConsumer<Integer, String> consumer) {
+    protected static void runString(HttpRequest request, BiConsumer<Integer, String> consumer) {
         try {
             requestDebug(request);
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<String> response = NetworkStuff.client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             int code = response.statusCode();
             if (code == 401) NetworkStuff.reAuth();
             consumer.accept(code, response.body());
@@ -59,10 +56,10 @@ public class HttpAPI {
         }
     }
 
-    public void runStream(HttpRequest request, BiConsumer<Integer, InputStream> consumer) {
+    protected static void runStream(HttpRequest request, BiConsumer<Integer, InputStream> consumer) {
         try {
             requestDebug(request);
-            HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            HttpResponse<InputStream> response = NetworkStuff.client.send(request, HttpResponse.BodyHandlers.ofInputStream());
             int code = response.statusCode();
             if (code == 401) NetworkStuff.reAuth();
             consumer.accept(code, response.body());

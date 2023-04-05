@@ -19,6 +19,7 @@ import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
@@ -28,30 +29,38 @@ import org.lwjgl.opengl.GL30;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
+import org.moon.figura.config.Configs;
 import org.moon.figura.gui.screens.AbstractPanelScreen;
 import org.moon.figura.gui.widgets.AbstractContainerElement;
 import org.moon.figura.gui.widgets.ContextMenu;
 import org.moon.figura.math.vector.FiguraVec4;
-import org.moon.figura.model.rendering.texture.EntityRenderMode;
+import org.moon.figura.model.rendering.EntityRenderMode;
 import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.TextUtils;
 
 import java.util.List;
+import java.util.Stack;
 
 public class UIHelper extends GuiComponent {
 
     // -- Variables -- //
 
+    public static final ResourceLocation OUTLINE_FILL = new FiguraIdentifier("textures/gui/outline_fill.png");
     public static final ResourceLocation OUTLINE = new FiguraIdentifier("textures/gui/outline.png");
     public static final ResourceLocation TOOLTIP = new FiguraIdentifier("textures/gui/tooltip.png");
     public static final ResourceLocation UI_FONT = new FiguraIdentifier("ui");
+    public static final ResourceLocation SPECIAL_FONT = new FiguraIdentifier("special");
+
+    public static final Component UP_ARROW = new TextComponent("^").withStyle(Style.EMPTY.withFont(UI_FONT));
+    public static final Component DOWN_ARROW = new TextComponent("V").withStyle(Style.EMPTY.withFont(UI_FONT));
 
     //Used for GUI rendering
     private static final CustomFramebuffer FIGURA_FRAMEBUFFER = new CustomFramebuffer();
     private static int previousFBO = -1;
     public static boolean paperdoll = false;
+    public static float fireRot = 0f;
     public static float dollScale = 1f;
-    public static FiguraVec4 scissors = FiguraVec4.of();
+    private static final Stack<FiguraVec4> SCISSORS_STACK = new Stack<>();
 
     // -- Functions -- //
 
@@ -100,111 +109,97 @@ public class UIHelper extends GuiComponent {
         RenderSystem.enableBlend();
     }
 
+    @SuppressWarnings("deprecation")
     public static void drawEntity(float x, float y, float scale, float pitch, float yaw, LivingEntity entity, PoseStack stack, EntityRenderMode renderMode) {
         //backup entity variables
-        float entityPitch = entity.getXRot();
-        float entityYaw = entity.getYRot();
-        float bodyYaw = entity.yBodyRot;
-        float headYaw = entity.yHeadRot;
+        float headX = entity.getXRot();
+        float headY = entity.yHeadRot;
         boolean invisible = entity.isInvisible();
 
-        entity.setInvisible(false);
-
-        //vehicle
-        LivingEntity vehicle = null;
-        float vBodyYaw = 0f;
+        float bodyY = entity.yBodyRot; //not truly a backup
         if (entity.getVehicle() instanceof LivingEntity l) {
-            vehicle = l;
-            vBodyYaw = l.yBodyRot;
+            //drawEntity(x, y, scale, pitch, yaw, l, stack, renderMode);
+            bodyY = l.yBodyRot;
         }
 
-        //apply matrix transformers
-        stack.pushPose();
-        stack.translate(x, y, renderMode == EntityRenderMode.MINECRAFT_GUI ? 200d : 0d);
-        stack.scale(scale, scale, scale);
-        stack.last().pose().multiply(Matrix4f.createScaleMatrix(1f, 1f, -1f)); //Scale ONLY THE POSITIONS! Inverted normals don't work for whatever reason
+        //setup rendering properties
+        float xRot, yRot;
+        double xPos = 0d;
+        double yPos = 0d;
 
-        Quaternion quaternion = Vector3f.ZP.rotationDegrees(180f);
-
-        double finalY;
-        Quaternion quaternion2;
         switch (renderMode) {
             case PAPERDOLL -> {
-                //stack rotations
-                quaternion2 = Vector3f.XP.rotationDegrees(pitch);
-                Quaternion quaternion3 = Vector3f.YP.rotationDegrees(yaw + 180);
-                quaternion3.mul(quaternion2);
-                quaternion.mul(quaternion3);
-                stack.mulPose(quaternion);
-                quaternion3.conj();
-                quaternion2 = quaternion3;
+                //rotations
+                xRot = pitch;
+                yRot = yaw + bodyY + 180;
 
-                //offset
+                //positions
+                yPos--;
+
                 if (entity.isFallFlying())
-                    stack.translate(Mth.triangleWave((float) Math.toRadians(270), Mth.TWO_PI), 0d, 0d);
+                    xPos += Mth.triangleWave((float) Math.toRadians(270), Mth.TWO_PI);
 
                 if (entity.isAutoSpinAttack() || entity.isVisuallySwimming() || entity.isFallFlying()) {
-                    stack.translate(0d, 1d, 0d);
+                    yPos++;
                     entity.setXRot(0f);
                 }
-
-                //rotations
-                entity.yBodyRot = 0;
-                entity.yHeadRot = headYaw - bodyYaw;
-
-                if (vehicle != null)
-                    vehicle.yBodyRot = vBodyYaw - bodyYaw;
 
                 //lightning
                 Lighting.setupForEntityInInventory();
 
-                finalY = -1d;
+                //invisibility
+                if (Configs.PAPERDOLL_INVISIBLE.value)
+                    entity.setInvisible(false);
             }
             case FIGURA_GUI -> {
-                quaternion2 = Vector3f.XP.rotationDegrees(pitch);
-                quaternion.mul(quaternion2);
-                stack.mulPose(quaternion);
-                quaternion2.conj();
-
                 //rotations
-                float rot = 180f - yaw;
-                entity.setXRot(0f);
-                entity.setYRot(rot);
-                entity.yBodyRot = rot;
-                entity.yHeadRot = rot;
+                xRot = pitch;
+                yRot = yaw + bodyY + 180;
 
-                if (vehicle != null)
-                    vehicle.yBodyRot = rot;
+                if (!Configs.PREVIEW_HEAD_ROTATION.value) {
+                    entity.setXRot(0f);
+                    entity.yHeadRot = bodyY;
+                }
+
+                //positions
+                yPos--;
 
                 //set up lighting
                 Lighting.setupForFlatItems();
                 RenderSystem.setShaderLights(Util.make(new Vector3f(-0.2f, -1f, -1f), Vector3f::normalize), Util.make(new Vector3f(-0.2f, 0.4f, -0.3f), Vector3f::normalize));
 
-                yaw = 0f;
-                finalY = -1d;
+                //invisibility
+                entity.setInvisible(false);
             }
             default -> {
-                float angle = (float) Math.atan(pitch / 40f);
-                float angle2 = (float) (Math.atan(yaw / 40f) * 20f);
-
-                quaternion2 = Vector3f.XP.rotationDegrees(angle2);
-                quaternion.mul(quaternion2);
-                stack.mulPose(quaternion);
-                quaternion2.conj();
-
                 //rotations
-                entity.setXRot(-angle2);
-                entity.setYRot(180f + angle * 40f);
-                entity.yBodyRot = 180f + angle * 20f;
-                entity.yHeadRot = entity.getYRot();
+                float rot = (float) Math.atan(pitch / 40f) * 20f;
+
+                xRot = (float) Math.atan(yaw / 40f) * 20f;
+                yRot = -rot + bodyY + 180;
+
+                entity.setXRot(-xRot);
+                entity.yHeadRot = rot + bodyY;
 
                 //lightning
                 Lighting.setupForEntityInInventory();
-
-                yaw = 0f;
-                finalY = 0d;
             }
         }
+
+        //apply matrix transformers
+        stack.pushPose();
+        stack.translate(x, y, renderMode == EntityRenderMode.MINECRAFT_GUI ? 250d : -250d);
+        stack.scale(scale, scale, scale);
+        stack.last().pose().multiply(Matrix4f.createScaleMatrix(1f, 1f, -1f)); //Scale ONLY THE POSITIONS! Inverted normals don't work for whatever reason
+
+        //apply rotations
+        Quaternion quaternion = Vector3f.ZP.rotationDegrees(180f);
+        Quaternion quaternion2 = Vector3f.YP.rotationDegrees(yRot);
+        Quaternion quaternion3 = Vector3f.XP.rotationDegrees(xRot);
+        quaternion3.mul(quaternion2);
+        quaternion.mul(quaternion3);
+        stack.mulPose(quaternion);
+        quaternion3.conj();
 
         //setup entity renderer
         Minecraft minecraft = Minecraft.getInstance();
@@ -212,40 +207,36 @@ public class UIHelper extends GuiComponent {
         boolean renderHitboxes = dispatcher.shouldRenderHitBoxes();
         dispatcher.setRenderHitBoxes(false);
         dispatcher.setRenderShadow(false);
-        dispatcher.overrideCameraOrientation(quaternion2);
+        dispatcher.overrideCameraOrientation(quaternion3);
         MultiBufferSource.BufferSource immediate = minecraft.renderBuffers().bufferSource();
 
         //render
-        UIHelper.paperdoll = true;
-        UIHelper.dollScale = scale;
+        paperdoll = true;
+        fireRot = -yRot;
+        dollScale = scale;
 
         Avatar avatar = AvatarManager.getAvatar(entity);
         if (avatar != null) avatar.renderMode = renderMode;
 
-        float finalYaw = yaw;
-        RenderSystem.runAsFancy(() -> dispatcher.render(entity, 0d, finalY, 0d, finalYaw, 1f, stack, immediate, LightTexture.FULL_BRIGHT));
+        double finalXPos = xPos;
+        double finalYPos = yPos;
+        RenderSystem.runAsFancy(() -> dispatcher.render(entity, finalXPos, finalYPos, 0d, 0f, 1f, stack, immediate, LightTexture.FULL_BRIGHT));
         immediate.endBatch();
 
-        UIHelper.paperdoll = false;
+        paperdoll = false;
 
         //restore entity rendering data
         dispatcher.setRenderHitBoxes(renderHitboxes);
         dispatcher.setRenderShadow(true);
 
-        //restore entity data
-        entity.setXRot(entityPitch);
-        entity.setYRot(entityYaw);
-        entity.yBodyRot = bodyYaw;
-        entity.yHeadRot = headYaw;
-        entity.setInvisible(invisible);
-
-        //vehicle
-        if (vehicle != null)
-            vehicle.yBodyRot = vBodyYaw;
-
         //pop matrix
         stack.popPose();
         Lighting.setupFor3DItems();
+
+        //restore entity data
+        entity.setXRot(headX);
+        entity.yHeadRot = headY;
+        entity.setInvisible(invisible);
     }
 
     public static void setupTexture(ResourceLocation texture) {
@@ -286,10 +277,11 @@ public class UIHelper extends GuiComponent {
         BufferBuilder bufferBuilder = tessellator.getBuilder();
         bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
 
-        bufferBuilder.vertex(x, y + height, 0f).uv(0f, height / textureHeight).endVertex();
-        bufferBuilder.vertex(x + width, y + height, 0f).uv(width / textureWidth, height / textureHeight).endVertex();
-        bufferBuilder.vertex(x + width, y, 0f).uv(width / textureWidth, 0f).endVertex();
-        bufferBuilder.vertex(x, y, 0f).uv(0f, 0f).endVertex();
+        float z = -999f;
+        bufferBuilder.vertex(x, y + height, z).uv(0f, height / textureHeight).endVertex();
+        bufferBuilder.vertex(x + width, y + height, z).uv(width / textureWidth, height / textureHeight).endVertex();
+        bufferBuilder.vertex(x + width, y, z).uv(width / textureWidth, 0f).endVertex();
+        bufferBuilder.vertex(x, y, z).uv(0f, 0f).endVertex();
 
         tessellator.end();
     }
@@ -362,14 +354,44 @@ public class UIHelper extends GuiComponent {
     }
 
     public static void setupScissor(int x, int y, int width, int height) {
-        scissors.set(x, y, width, height);
+        FiguraVec4 vec = FiguraVec4.of(x, y, width, height);
+        if (!SCISSORS_STACK.isEmpty()) {
+            FiguraVec4 old = SCISSORS_STACK.peek();
+            double newX = Math.max(x, old.x());
+            double newY = Math.max(y, old.y());
+            double newWidth = Math.min(x + width, old.x() + old.z()) - newX;
+            double newHeight = Math.min(y + height, old.y() + old.w()) - newY;
+            vec.set(newX, newY, newWidth, newHeight);
+        }
 
+        SCISSORS_STACK.push(vec);
+        setupScissor(vec);
+    }
+
+    private static void setupScissor(FiguraVec4 dimensions) {
         double scale = Minecraft.getInstance().getWindow().getGuiScale();
         int screenY = Minecraft.getInstance().getWindow().getHeight();
 
-        int scaledWidth = (int) Math.max(width * scale, 0);
-        int scaledHeight = (int) Math.max(height * scale, 0);
-        RenderSystem.enableScissor((int) (x * scale), (int) (screenY - y * scale - scaledHeight), scaledWidth, scaledHeight);
+        int scaledWidth = (int) Math.max(dimensions.z * scale, 0);
+        int scaledHeight = (int) Math.max(dimensions.w * scale, 0);
+        RenderSystem.enableScissor((int) (dimensions.x * scale), (int) (screenY - dimensions.y * scale - scaledHeight), scaledWidth, scaledHeight);
+    }
+
+    public static void disableScissor() {
+        SCISSORS_STACK.pop();
+        if (!SCISSORS_STACK.isEmpty()) {
+            setupScissor(SCISSORS_STACK.peek());
+        } else {
+            RenderSystem.disableScissor();
+        }
+    }
+
+    public static void renderWithoutScissors(Runnable toRun) {
+        RenderSystem.disableScissor();
+        toRun.run();
+        if (!SCISSORS_STACK.isEmpty()) {
+            setupScissor(SCISSORS_STACK.peek());
+        }
     }
 
     public static void highlight(PoseStack stack, Object component, Component text) {
@@ -439,7 +461,7 @@ public class UIHelper extends GuiComponent {
 
         //prepare text
         Font font = minecraft.font;
-        List<FormattedCharSequence> text = TextUtils.warpTooltip(tooltip, font, mouseX, (int) screenX);
+        List<FormattedCharSequence> text = TextUtils.wrapTooltip(tooltip, font, mouseX, (int) screenX);
         int height = font.lineHeight * text.size();
 
         //calculate pos
@@ -452,7 +474,7 @@ public class UIHelper extends GuiComponent {
 
         //render
         stack.pushPose();
-        stack.translate(0d, 0d, 400d);
+        stack.translate(0d, 0d, 999d);
 
         if (background)
             renderSliced(stack, x - 4, y - 4, width + 8, height + 8, TOOLTIP);
@@ -463,6 +485,38 @@ public class UIHelper extends GuiComponent {
         }
 
         stack.popPose();
+    }
+
+    public static void renderScrollingText(PoseStack stack, Component text, int x, int y, int width, int height, int color) {
+        Font font = Minecraft.getInstance().font;
+        int textWidth = font.width(text);
+        int textX = x + width / 2;
+        int textY = y + height / 2 - font.lineHeight / 2;
+
+        //the text fit :D
+        if (textWidth <= width - 2) {
+            drawCenteredString(stack, font, text, textX, textY, color);
+            return;
+        }
+
+        //oh, no it doesn't fit
+
+        float speed = Configs.TEXT_SCROLL_SPEED.value;
+        int scrollLen = textWidth - (width - 4);
+        int startingOffset = scrollLen / 2;
+        int stopDelay = (int) (Configs.TEXT_SCROLL_DELAY.value * speed);
+        int time = scrollLen + stopDelay;
+        int totalTime = time * 2;
+        int ticks = (int) (FiguraMod.ticks * speed);
+        int currentTime = ticks % time;
+        int dir = (ticks % totalTime) > time - 1 ? 1 : -1;
+
+        int clamp = Math.min(Math.max(currentTime - stopDelay, 0), scrollLen);
+        textX += (startingOffset - clamp) * dir;
+
+        setupScissor(x + 1, y, width - 2, height);
+        drawCenteredString(stack, font, text, textX, textY, color);
+        disableScissor();
     }
 
     public static void setContext(ContextMenu context) {

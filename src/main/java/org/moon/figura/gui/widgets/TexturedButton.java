@@ -3,9 +3,9 @@ package org.moon.figura.gui.widgets;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.resources.ResourceLocation;
 import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.ui.UIHelper;
@@ -48,7 +48,7 @@ public class TexturedButton extends Button {
 
     //texture constructor
     public TexturedButton(int x, int y, int width, int height, int u, int v, int regionSize, ResourceLocation texture, int textureWidth, int textureHeight, Component tooltip, Button.OnPress pressAction) {
-        this(x, y, width, height, u, v, regionSize, texture, textureWidth, textureHeight, null, tooltip, pressAction);
+        this(x, y, width, height, u, v, regionSize, texture, textureWidth, textureHeight, TextComponent.EMPTY.copy(), tooltip, pressAction);
     }
 
     @Override
@@ -56,11 +56,11 @@ public class TexturedButton extends Button {
         if (!this.visible)
             return;
 
-         //render button
-        this.renderButton(stack, mouseX, mouseY, delta);
-
         //update hovered
         this.setHovered(this.isMouseOver(mouseX, mouseY));
+
+         //render button
+        this.renderButton(stack, mouseX, mouseY, delta);
     }
 
     @Override
@@ -73,7 +73,7 @@ public class TexturedButton extends Button {
         }
 
         //render text
-        if (this.getMessage() != null)
+        if (this.getMessage() != null && !this.getMessage().getString().isBlank())
             renderText(stack);
     }
 
@@ -85,7 +85,8 @@ public class TexturedButton extends Button {
     @Override
     public boolean isMouseOver(double mouseX, double mouseY) {
         boolean over = UIHelper.isMouseOver(x, y, width, height, mouseX, mouseY);
-        if (over) UIHelper.setTooltip(this.tooltip);
+        if (over && this.tooltip != null)
+            UIHelper.setTooltip(this.tooltip);
         return over;
     }
 
@@ -102,14 +103,8 @@ public class TexturedButton extends Button {
     }
 
     protected void renderText(PoseStack stack) {
-        //draw text
-        Font font = Minecraft.getInstance().font;
-        drawCenteredString(
-                stack, font,
-                this.getMessage(),
-                this.x + this.width / 2, this.y + this.height / 2 - font.lineHeight / 2,
-                (!this.active ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE).getColor()
-        );
+        int color = (!this.active ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE).getColor();
+        UIHelper.renderScrollingText(stack, getMessage(), x, y, getWidth(), getHeight(), color);
     }
 
     protected int getUVStatus() {
@@ -140,5 +135,14 @@ public class TexturedButton extends Button {
 
     public void setHovered(boolean hovered) {
         this.isHovered = hovered;
+    }
+
+    public void run() {
+        playDownSound(Minecraft.getInstance().getSoundManager());
+        onPress();
+    }
+
+    public void setHeight(int height) {
+        this.height = height;
     }
 }

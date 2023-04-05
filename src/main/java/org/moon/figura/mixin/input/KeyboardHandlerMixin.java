@@ -7,6 +7,7 @@ import net.minecraft.client.Minecraft;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
+import org.moon.figura.config.Configs;
 import org.moon.figura.lua.api.keybind.FiguraKeybind;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,7 +22,7 @@ public class KeyboardHandlerMixin {
     @Shadow @Final private Minecraft minecraft;
 
     @Inject(method = "keyPress", at = @At("HEAD"), cancellable = true)
-    public void keyPress(long window, int key, int scancode, int action, int modifiers, CallbackInfo ci) {
+    private void keyPress(long window, int key, int scancode, int action, int modifiers, CallbackInfo ci) {
         if (window != this.minecraft.getWindow().getWindow())
             return;
 
@@ -29,13 +30,21 @@ public class KeyboardHandlerMixin {
         if (avatar == null || avatar.luaRuntime == null)
             return;
 
-        if (avatar.keyPressEvent(key, action, modifiers) && this.minecraft.mouseHandler.isMouseGrabbed()) {
+        if (avatar.keyPressEvent(key, action, modifiers) && (this.minecraft.mouseHandler.isMouseGrabbed() || this.minecraft.screen == null)) {
             ci.cancel();
             return;
         }
 
-        if (FiguraKeybind.set(avatar.luaRuntime.keybinds.keyBindings, InputConstants.getKey(key, scancode), action != 0)) {
+        if (avatar.luaRuntime != null && FiguraKeybind.set(avatar.luaRuntime.keybinds.keyBindings, InputConstants.getKey(key, scancode), action != 0, modifiers)) {
             KeyMapping.setAll();
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "keyPress", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/KeyMapping;matches(II)Z", ordinal = 0), cancellable = true)
+    private void processGlobalKeybinds(long window, int key, int scancode, int action, int modifiers, CallbackInfo ci) {
+        if (Configs.PANIC_BUTTON.keyBind.matches(key, scancode)) {
+            AvatarManager.togglePanic();
             ci.cancel();
         }
     }

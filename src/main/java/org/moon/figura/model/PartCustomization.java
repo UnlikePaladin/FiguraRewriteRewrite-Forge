@@ -2,16 +2,15 @@ package org.moon.figura.model;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.datafixers.util.Pair;
-import org.moon.figura.model.rendering.texture.FiguraTextureSet;
-import org.moon.figura.model.rendering.texture.RenderTypes;
 import org.moon.figura.math.matrix.FiguraMat3;
 import org.moon.figura.math.matrix.FiguraMat4;
 import org.moon.figura.math.vector.FiguraVec3;
-import org.moon.figura.utils.caching.CacheStack;
-import org.moon.figura.utils.caching.CacheUtils;
-import org.moon.figura.utils.caching.CachedType;
+import org.moon.figura.model.rendering.texture.FiguraTextureSet;
+import org.moon.figura.model.rendering.texture.RenderTypes;
 
-public class PartCustomization implements CachedType<PartCustomization> {
+import java.util.Stack;
+
+public class PartCustomization {
 
     //-- Matrix thingies --//
     /**
@@ -21,29 +20,34 @@ public class PartCustomization implements CachedType<PartCustomization> {
      */
     public PartType partType = PartType.GROUP;
 
-    public FiguraMat4 positionMatrix = FiguraMat4.of();
-    public FiguraMat3 uvMatrix = FiguraMat3.of();
-    public FiguraMat3 normalMatrix = FiguraMat3.of();
+    public final FiguraMat4 positionMatrix = FiguraMat4.of();
+    public final FiguraMat3 uvMatrix = FiguraMat3.of();
+    public final FiguraMat3 normalMatrix = FiguraMat3.of();
 
-    public boolean needsMatrixRecalculation = true;
+    public boolean needsMatrixRecalculation = false;
+    public boolean render = true;
     public Boolean visible = null;
+    public Boolean vanillaVisible = null;
 
-    private FiguraVec3 position = FiguraVec3.of();
-    private FiguraVec3 rotation = FiguraVec3.of();
-    private FiguraVec3 scale = FiguraVec3.of(1, 1, 1);
-    private FiguraVec3 pivot = FiguraVec3.of();
+    private final FiguraVec3 position = FiguraVec3.of();
+    private final FiguraVec3 rotation = FiguraVec3.of();
+    private final FiguraVec3 scale = FiguraVec3.of(1, 1, 1);
+    private final FiguraVec3 pivot = FiguraVec3.of();
 
     //The "offset" values are for vanilla part scaling. The offset pivot and rot can be get and set from script.
-    private FiguraVec3 offsetPivot = FiguraVec3.of();
-    private FiguraVec3 offsetPos = FiguraVec3.of();
-    private FiguraVec3 offsetRot = FiguraVec3.of();
+    private final FiguraVec3 offsetPivot = FiguraVec3.of();
+    private final FiguraVec3 offsetPos = FiguraVec3.of();
+    private final FiguraVec3 offsetRot = FiguraVec3.of();
+    private final FiguraVec3 offsetScale = FiguraVec3.of(1, 1, 1);
 
     //These values are set by animation players. They can be queried, though not set, by script.
-    private FiguraVec3 animPos = FiguraVec3.of();
-    private FiguraVec3 animRot = FiguraVec3.of();
-    private FiguraVec3 animScale = FiguraVec3.of(1, 1, 1);
+    private final FiguraVec3 animPos = FiguraVec3.of();
+    private final FiguraVec3 animRot = FiguraVec3.of();
+    private final FiguraVec3 animScale = FiguraVec3.of(1, 1, 1);
 
-    public FiguraVec3 color = FiguraVec3.of(1, 1, 1);
+    public final FiguraVec3 stackScale = FiguraVec3.of(1, 1, 1);
+    public final FiguraVec3 color = FiguraVec3.of(1, 1, 1);
+    public final FiguraVec3 color2 = FiguraVec3.of(1, 1, 1);
     public Float alpha = null;
     public Integer light = null;
     public Integer overlay = null;
@@ -60,70 +64,72 @@ public class PartCustomization implements CachedType<PartCustomization> {
      * Recalculates the matrix if necessary.
      */
     public void recalculate() {
-        if (needsMatrixRecalculation) {
-            positionMatrix.reset();
+        if (!needsMatrixRecalculation)
+            return;
 
-            //Position the pivot point at 0, 0, 0, and translate the part
-            positionMatrix.translate(
-                    offsetPos.x - pivot.x - offsetPivot.x,
-                    offsetPos.y - pivot.y - offsetPivot.y,
-                    offsetPos.z - pivot.z - offsetPivot.z
+        positionMatrix.reset();
+
+        //Position the pivot point at 0, 0, 0, and translate the part
+        positionMatrix.translate(
+                offsetPos.x - pivot.x - offsetPivot.x,
+                offsetPos.y - pivot.y - offsetPivot.y,
+                offsetPos.z - pivot.z - offsetPivot.z
+        );
+
+        //Scale the model part around the pivot
+        stackScale.set(
+                offsetScale.x * scale.x * animScale.x,
+                offsetScale.y * scale.y * animScale.y,
+                offsetScale.z * scale.z * animScale.z
+        );
+        positionMatrix.scale(stackScale);
+
+        //Rotate the model part around the pivot
+        if (partType == PartType.MESH) {
+            positionMatrix.rotateZ(rotation.z + offsetRot.z + animRot.z);
+            positionMatrix.rotateY(rotation.y + offsetRot.y + animRot.y);
+            positionMatrix.rotateX(rotation.x + offsetRot.x + animRot.x);
+        } else {
+            positionMatrix.rotateZYX(
+                    rotation.x + offsetRot.x + animRot.x,
+                    rotation.y + offsetRot.y + animRot.y,
+                    rotation.z + offsetRot.z + animRot.z
             );
-
-            //Scale the model part around the pivot
-            positionMatrix.scale(
-                    scale.x * animScale.x,
-                    scale.y * animScale.y,
-                    scale.z * animScale.z
-            );
-
-            //Rotate the model part around the pivot
-            if (partType == PartType.MESH) {
-                positionMatrix.rotateZ(rotation.z + offsetRot.z + animRot.z);
-                positionMatrix.rotateY(rotation.y + offsetRot.y + animRot.y);
-                positionMatrix.rotateX(rotation.x + offsetRot.x + animRot.x);
-            } else {
-                positionMatrix.rotateZYX(
-                        rotation.x + offsetRot.x + animRot.x,
-                        rotation.y + offsetRot.y + animRot.y,
-                        rotation.z + offsetRot.z + animRot.z
-                );
-            }
-
-            //Undo the effects of the pivot translation
-            positionMatrix.translate(
-                    position.x + animPos.x + pivot.x + offsetPivot.x,
-                    position.y + animPos.y + pivot.y + offsetPivot.y,
-                    position.z + animPos.z + pivot.z + offsetPivot.z
-            );
-
-            //Set up the normal matrix as well
-            normalMatrix.reset();
-            double x = scale.x * animScale.x;
-            double y = scale.y * animScale.y;
-            double z = scale.z * animScale.z;
-            double c = Math.cbrt(x * y * z);
-            normalMatrix.scale(
-                    c == 0 && x == 0 ? 1 : c / x,
-                    c == 0 && y == 0 ? 1 : c / y,
-                    c == 0 && z == 0 ? 1 : c / z
-            );
-
-            //Perform rotation of normals
-            if (partType == PartType.MESH) {
-                normalMatrix.rotateZ(rotation.z + offsetRot.z + animRot.z);
-                normalMatrix.rotateY(rotation.y + offsetRot.y + animRot.y);
-                normalMatrix.rotateX(rotation.x + offsetRot.x + animRot.x);
-            } else {
-                normalMatrix.rotateZYX(
-                        rotation.x + offsetRot.x + animRot.x,
-                        rotation.y + offsetRot.y + animRot.y,
-                        rotation.z + offsetRot.z + animRot.z
-                );
-            }
-
-            needsMatrixRecalculation = false;
         }
+
+        //Undo the effects of the pivot translation
+        positionMatrix.translate(
+                position.x + animPos.x + pivot.x + offsetPivot.x,
+                position.y + animPos.y + pivot.y + offsetPivot.y,
+                position.z + animPos.z + pivot.z + offsetPivot.z
+        );
+
+        //Set up the normal matrix as well
+        normalMatrix.reset();
+        double x = scale.x * animScale.x;
+        double y = scale.y * animScale.y;
+        double z = scale.z * animScale.z;
+        double c = Math.cbrt(x * y * z);
+        normalMatrix.scale(
+                c == 0 && x == 0 ? 1 : c / x,
+                c == 0 && y == 0 ? 1 : c / y,
+                c == 0 && z == 0 ? 1 : c / z
+        );
+
+        //Perform rotation of normals
+        if (partType == PartType.MESH) {
+            normalMatrix.rotateZ(rotation.z + offsetRot.z + animRot.z);
+            normalMatrix.rotateY(rotation.y + offsetRot.y + animRot.y);
+            normalMatrix.rotateX(rotation.x + offsetRot.x + animRot.x);
+        } else {
+            normalMatrix.rotateZYX(
+                    rotation.x + offsetRot.x + animRot.x,
+                    rotation.y + offsetRot.y + animRot.y,
+                    rotation.z + offsetRot.z + animRot.z
+            );
+        }
+
+        needsMatrixRecalculation = false;
     }
 
     public void setPos(FiguraVec3 pos) {
@@ -203,22 +209,33 @@ public class PartCustomization implements CachedType<PartCustomization> {
         return offsetRot.copy();
     }
 
-    public void setAnimPos(FiguraVec3 vec) {
-        animPos.set(vec);
+    public void offsetScale(FiguraVec3 scale) {
+        offsetScale(scale.x, scale.y, scale.z);
+    }
+    public void offsetScale(double x, double y, double z) {
+        offsetScale.set(x, y, z);
+        needsMatrixRecalculation = true;
+    }
+    public FiguraVec3 getOffsetScale() {
+        return offsetScale.copy();
+    }
+
+    public void setAnimPos(double x, double y, double z) {
+        animPos.set(x, y, z);
         needsMatrixRecalculation = true;
     }
     public FiguraVec3 getAnimPos() {
         return animPos.copy();
     }
-    public void setAnimRot(FiguraVec3 vec) {
-        animRot.set(vec);
+    public void setAnimRot(double x, double y, double z) {
+        animRot.set(x, y, z);
         needsMatrixRecalculation = true;
     }
     public FiguraVec3 getAnimRot() {
         return animRot.copy();
     }
-    public void setAnimScale(FiguraVec3 vec) {
-        animScale.set(vec);
+    public void setAnimScale(double x, double y, double z) {
+        animScale.set(x, y, z);
         needsMatrixRecalculation = true;
     }
     public FiguraVec3 getAnimScale() {
@@ -231,7 +248,6 @@ public class PartCustomization implements CachedType<PartCustomization> {
         temp.invert();
         temp.transpose();
         normalMatrix.set(temp);
-        temp.free();
         needsMatrixRecalculation = false;
     }
 
@@ -249,7 +265,7 @@ public class PartCustomization implements CachedType<PartCustomization> {
         return result;
     }
     public FiguraMat3 getNormalMatrix() {
-        FiguraMat3 result = FiguraMat3.of();
+        FiguraMat3 result = new FiguraMat3();
         result.set(normalMatrix);
         return result;
     }
@@ -269,92 +285,37 @@ public class PartCustomization implements CachedType<PartCustomization> {
         return secondaryRenderType;
     }
 
-
-    //-- Caching thingies --//
-
-    private static final CacheUtils.Cache<PartCustomization> CACHE = CacheUtils.getCache(PartCustomization::new);
-    private PartCustomization() {}
-    public PartCustomization reset() {
-        positionMatrix = FiguraMat4.of();
-        uvMatrix = FiguraMat3.of();
-        normalMatrix = FiguraMat3.of();
-        partType = PartType.GROUP;
-        position = FiguraVec3.of();
-        rotation = FiguraVec3.of();
-        scale = FiguraVec3.of(1, 1, 1);
-        pivot = FiguraVec3.of();
-        offsetPivot = FiguraVec3.of();
-        offsetPos = FiguraVec3.of();
-        offsetRot = FiguraVec3.of();
-        color = FiguraVec3.of(1, 1, 1);
-        animPos = FiguraVec3.of();
-        animRot = FiguraVec3.of();
-        animScale = FiguraVec3.of(1, 1, 1);
-        alpha = null;
-        light = null;
-        needsMatrixRecalculation = false;
-        visible = null;
-        primaryTexture = null;
-        secondaryTexture = null;
-        return this;
-    }
-    public void free() {
-        positionMatrix.free();
-        uvMatrix.free();
-        normalMatrix.free();
-        position.free();
-        rotation.free();
-        scale.free();
-        pivot.free();
-        offsetPivot.free();
-        offsetPos.free();
-        offsetRot.free();
-        color.free();
-    }
-    public static PartCustomization of() {
-        return CACHE.getFresh();
-    }
-    public static class Stack extends CacheStack<PartCustomization, PartCustomization> {
-
-        public Stack() {
-            this(CACHE);
-        }
-        public Stack(CacheUtils.Cache<PartCustomization> cache) {
-            super(cache);
-        }
-
-        @Override
-        protected void modify(PartCustomization valueToModify, PartCustomization modifierArg) {
-            valueToModify.modify(modifierArg);
-        }
-        @Override
-        protected void copy(PartCustomization from, PartCustomization to) {
-            to.partType = from.partType;
-            to.positionMatrix.set(from.positionMatrix);
-            to.uvMatrix.set(from.uvMatrix);
-            to.normalMatrix.set(from.normalMatrix);
-            to.setPos(from.position);
-            to.setRot(from.rotation);
-            to.setScale(from.scale);
-            to.setPivot(from.pivot);
-            to.offsetPivot(from.offsetPivot);
-            to.offsetPos(from.offsetPos);
-            to.offsetRot(from.offsetRot);
-            to.color.set(from.color);
-            to.alpha = from.alpha;
-            to.light = from.light;
-            to.overlay = from.overlay;
-            to.needsMatrixRecalculation = from.needsMatrixRecalculation;
-            to.visible = from.visible;
-            to.setPrimaryRenderType(from.primaryRenderType);
-            to.setSecondaryRenderType(from.secondaryRenderType);
-            to.primaryTexture = from.primaryTexture;
-            to.secondaryTexture = from.secondaryTexture;
-        }
+    public void copyTo(PartCustomization target) {
+        target.partType = partType;
+        target.positionMatrix.set(positionMatrix);
+        target.uvMatrix.set(uvMatrix);
+        target.normalMatrix.set(normalMatrix);
+        target.setPos(position);
+        target.setRot(rotation);
+        target.setScale(scale);
+        target.setPivot(pivot);
+        target.offsetPivot(offsetPivot);
+        target.offsetPos(offsetPos);
+        target.offsetRot(offsetRot);
+        target.offsetScale(offsetScale);
+        target.stackScale.set(stackScale);
+        target.color.set(color);
+        target.color2.set(color2);
+        target.alpha = alpha;
+        target.light = light;
+        target.overlay = overlay;
+        target.needsMatrixRecalculation = needsMatrixRecalculation;
+        target.render = render;
+        target.visible = visible;
+        target.vanillaVisible = vanillaVisible;
+        target.setPrimaryRenderType(primaryRenderType);
+        target.setSecondaryRenderType(secondaryRenderType);
+        target.primaryTexture = primaryTexture;
+        target.secondaryTexture = secondaryTexture;
     }
 
     //Modify this object using the information contained in the other object
-    private void modify(PartCustomization other) {
+    public void modify(PartCustomization other) {
         positionMatrix.rightMultiply(other.positionMatrix);
         uvMatrix.rightMultiply(other.uvMatrix);
         normalMatrix.rightMultiply(other.normalMatrix);
@@ -364,8 +325,13 @@ public class PartCustomization implements CachedType<PartCustomization> {
         if (other.secondaryRenderType != null)
             setSecondaryRenderType(other.secondaryRenderType);
 
+        render = other.render;
+
         if (other.visible != null)
             visible = other.visible;
+
+        if (other.vanillaVisible != null)
+            vanillaVisible = other.vanillaVisible;
 
         if (other.light != null)
             light = other.light;
@@ -380,12 +346,16 @@ public class PartCustomization implements CachedType<PartCustomization> {
                 alpha = other.alpha;
         }
 
+        stackScale.multiply(other.stackScale);
         color.multiply(other.color);
+        color2.multiply(other.color2);
 
         if (other.primaryTexture != null)
             primaryTexture = other.primaryTexture;
         if (other.secondaryTexture != null)
             secondaryTexture = other.secondaryTexture;
+
+        needsMatrixRecalculation = false;
     }
 
     public static final PoseStack GLOBAL_CUSTOMIZATION_POSE_STACK = new PoseStack();
@@ -401,5 +371,36 @@ public class PartCustomization implements CachedType<PartCustomization> {
         MESH,
         CUBE,
         GROUP
+    }
+
+    public static class PartCustomizationStack {
+
+        private final Stack<PartCustomization> stack = new Stack<>() {{
+            add(new PartCustomization());
+        }};
+
+        public void push(PartCustomization customization) {
+            //copy stack
+            PartCustomization newCustomization = new PartCustomization();
+            stack.peek().copyTo(newCustomization);
+
+            //modify
+            newCustomization.modify(customization);
+
+            //add
+            stack.push(newCustomization);
+        }
+
+        public void pop() {
+            stack.pop();
+        }
+
+        public PartCustomization peek() {
+            return stack.peek();
+        }
+
+        public boolean isEmpty() {
+            return stack.size() == 1;
+        }
     }
 }

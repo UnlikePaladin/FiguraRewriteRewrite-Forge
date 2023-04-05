@@ -17,7 +17,7 @@ import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.mixin.sound.SoundManagerAccessor;
-import org.moon.figura.trust.Trust;
+import org.moon.figura.permissions.Permissions;
 import org.moon.figura.utils.LuaUtils;
 
 import java.util.Base64;
@@ -108,8 +108,9 @@ public class SoundAPI {
             },
             value = "sounds.stop_sound"
     )
-    public void stopSound(String id) {
+    public SoundAPI stopSound(String id) {
         getSoundEngine().figura$stopSound(owner.owner, id);
+        return this;
     }
 
     @LuaWhitelist
@@ -126,7 +127,7 @@ public class SoundAPI {
             },
             value = "sounds.new_sound"
     )
-    public void newSound(@LuaNotNil String name, @LuaNotNil Object object) {
+    public SoundAPI newSound(@LuaNotNil String name, @LuaNotNil Object object) {
         byte[] bytes;
         if (object instanceof LuaTable table) {
             bytes = new byte[table.length()];
@@ -140,8 +141,29 @@ public class SoundAPI {
 
         try {
             owner.loadSound(name, bytes);
+            return this;
         } catch (Exception e) {
             throw new LuaError("Failed to add custom sound \"" + name + "\"");
+        }
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = String.class,
+                    argumentNames = "id"
+            ),
+            value = "sounds.is_present"
+    )
+    public boolean isPresent(String id) {
+        if (id == null)
+            return false;
+        if (owner.customSounds.get(id) != null)
+            return true;
+        try {
+            return Minecraft.getInstance().getSoundManager().getSoundEvent(new ResourceLocation(id)) != null;
+        } catch (Exception ignored) {
+            return false;
         }
     }
 
@@ -149,10 +171,10 @@ public class SoundAPI {
     public LuaSound __index(String id) {
         SoundBuffer buffer = owner.customSounds.get(id);
         if (buffer != null) {
-            if (owner.trust.get(Trust.CUSTOM_SOUNDS) == 1) {
+            if (owner.permissions.get(Permissions.CUSTOM_SOUNDS) == 1) {
                 return new LuaSound(buffer, id, owner);
             } else {
-                owner.trustIssues.add(Trust.CUSTOM_SOUNDS);
+                owner.noPermissions.add(Permissions.CUSTOM_SOUNDS);
             }
         }
 
@@ -161,11 +183,11 @@ public class SoundAPI {
             if (events != null) {
                 Sound sound = events.getSound();
                 if (sound != SoundManager.EMPTY_SOUND) {
-                    owner.trustIssues.remove(Trust.CUSTOM_SOUNDS);
+                    owner.noPermissions.remove(Permissions.CUSTOM_SOUNDS);
                     return new LuaSound(sound, id, owner);
                 }
             }
-            throw new LuaError("Unable to find sound \"" + id + "\"");
+            return new LuaSound((SoundBuffer) null, id, owner);
         } catch (Exception e) {
             throw new LuaError(e.getMessage());
         }

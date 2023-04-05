@@ -1,6 +1,5 @@
 package org.moon.figura.gui.widgets.lists;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -36,7 +35,7 @@ public class AvatarWizardList extends AbstractList {
     @Override
     public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
         //background and scissors
-        UIHelper.renderSliced(stack, x, y, width, height, UIHelper.OUTLINE);
+        UIHelper.renderSliced(stack, x, y, width, height, UIHelper.OUTLINE_FILL);
         UIHelper.setupScissor(x + scissorsX, y + scissorsY, width + scissorsWidth, height + scissorsHeight);
 
         //scrollbar
@@ -96,7 +95,7 @@ public class AvatarWizardList extends AbstractList {
         super.render(stack, mouseX, mouseY, delta);
 
         //reset scissor
-        RenderSystem.disableScissor();
+        UIHelper.disableScissor();
     }
 
     @Override
@@ -152,6 +151,7 @@ public class AvatarWizardList extends AbstractList {
             this.parent = parent;
             this.entry = entry;
             this.name = new FiguraText("gui.avatar_wizard." + entry.name().toLowerCase());
+            this.getField().setValue(String.valueOf(parent.wizard.getEntry(entry, "")));
         }
 
         @Override
@@ -183,6 +183,7 @@ public class AvatarWizardList extends AbstractList {
             this.parent = parent;
             this.entry = entry;
             this.name = new FiguraText("gui.avatar_wizard." + entry.name().toLowerCase());
+            this.setToggled((boolean) parent.wizard.getEntry(entry, false));
         }
 
         @Override

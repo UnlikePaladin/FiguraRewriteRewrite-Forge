@@ -6,11 +6,11 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
+import org.moon.figura.avatar.Avatar;
 import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.api.world.BlockStateAPI;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
-import org.moon.figura.lua.docs.LuaMethodShadow;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.model.PartCustomization;
 import org.moon.figura.utils.LuaUtils;
@@ -27,12 +27,12 @@ public class BlockTask extends RenderTask {
     private BlockState block;
     private int cachedComplexity;
 
-    public BlockTask(String name) {
-        super(name);
+    public BlockTask(String name, Avatar owner) {
+        super(name, owner);
     }
 
     @Override
-    public boolean render(PartCustomization.Stack stack, MultiBufferSource buffer, int light, int overlay) {
+    public boolean render(PartCustomization.PartCustomizationStack stack, MultiBufferSource buffer, int light, int overlay) {
         if (!enabled || block == null || block.isAir())
             return false;
 
@@ -51,6 +51,10 @@ public class BlockTask extends RenderTask {
         return cachedComplexity;
     }
 
+
+    // -- lua -- //
+
+
     @LuaWhitelist
     @LuaMethodDoc(
             overloads = {
@@ -63,9 +67,10 @@ public class BlockTask extends RenderTask {
                             argumentNames = "block"
                     )
             },
+            aliases = "block",
             value = "block_task.set_block"
     )
-    public void setBlock(Object block) {
+    public BlockTask setBlock(Object block) {
         this.block = LuaUtils.parseBlockState("block", block);
         Minecraft client = Minecraft.getInstance();
         Random random = client.level != null ? client.level.random : new Random();
@@ -74,13 +79,13 @@ public class BlockTask extends RenderTask {
         cachedComplexity = blockModel.getQuads(this.block, null, random).size();
         for (Direction dir : Direction.values())
             cachedComplexity += blockModel.getQuads(this.block, dir, random).size();
+
+        return this;
     }
 
     @LuaWhitelist
-    @LuaMethodShadow("setBlock")
-    public RenderTask block(Object block) {
-        setBlock(block);
-        return this;
+    public BlockTask block(Object block) {
+        return setBlock(block);
     }
 
     @Override

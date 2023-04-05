@@ -1,11 +1,13 @@
 package org.moon.figura.model;
 
 import com.google.common.collect.ImmutableMap;
+import com.mojang.datafixers.util.Pair;
 import net.minecraft.nbt.ByteTag;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.util.Mth;
+import org.moon.figura.FiguraMod;
 import org.moon.figura.animation.Animation;
 import org.moon.figura.animation.Interpolation;
 import org.moon.figura.animation.Keyframe;
@@ -14,11 +16,13 @@ import org.moon.figura.avatar.Avatar;
 import org.moon.figura.math.vector.FiguraVec2;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.math.vector.FiguraVec4;
-import org.moon.figura.model.rendering.FiguraImmediateBuffer;
+import org.moon.figura.model.rendering.Vertex;
 import org.moon.figura.model.rendering.texture.FiguraTextureSet;
 import org.moon.figura.model.rendering.texture.RenderTypes;
+import org.moon.figura.utils.MathUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -28,18 +32,17 @@ import java.util.Map;
  */
 public class FiguraModelPartReader {
 
-    public static FiguraModelPart read(Avatar owner, CompoundTag partCompound, List<FiguraImmediateBuffer.Builder> bufferBuilders, List<FiguraTextureSet> textureSets) {
+    public static FiguraModelPart read(Avatar owner, CompoundTag partCompound, List<FiguraTextureSet> textureSets) {
         //Read name
         String name = partCompound.getString("name");
 
         //Read transformation
-        PartCustomization customization = PartCustomization.of();
+        PartCustomization customization = new PartCustomization();
         FiguraVec3 target = FiguraVec3.of();
         readVec3(target, partCompound, "rot");
         customization.setRot(target);
         readVec3(target, partCompound, "piv");
         customization.setPivot(target);
-        target.free();
         if (partCompound.contains("primary")) {
             try {
                 customization.setPrimaryRenderType(RenderTypes.valueOf(partCompound.getString("primary")));
@@ -59,16 +62,15 @@ public class FiguraModelPartReader {
         List<Integer> facesByTexture = new ArrayList<>(0);
         while (textureSets.size() > facesByTexture.size())
             facesByTexture.add(0);
-        while (textureSets.size() > bufferBuilders.size())
-            bufferBuilders.add(FiguraImmediateBuffer.builder());
 
         //Read vertex data
+        Map<Integer, List<Vertex>> vertices = new HashMap<>();
         if (hasCubeData(partCompound)) {
-            readCuboid(facesByTexture, bufferBuilders, partCompound);
+            readCuboid(facesByTexture, partCompound, vertices);
             customization.partType = PartCustomization.PartType.CUBE;
         } else if (hasMeshData(partCompound)) {
             //TODO: smooth normals
-            readMesh(facesByTexture, bufferBuilders, partCompound);
+            readMesh(facesByTexture, partCompound, vertices);
             customization.partType = PartCustomization.PartType.MESH;
         }
 
@@ -77,10 +79,10 @@ public class FiguraModelPartReader {
         if (partCompound.contains("chld")) {
             ListTag listTag = partCompound.getList("chld", Tag.TAG_COMPOUND);
             for (Tag tag : listTag)
-                children.add(read(owner, (CompoundTag) tag, bufferBuilders, textureSets));
+                children.add(read(owner, (CompoundTag) tag, textureSets));
         }
 
-        FiguraModelPart result = new FiguraModelPart(name, customization, children);
+        FiguraModelPart result = new FiguraModelPart(owner, name, customization, vertices, children);
         result.facesByTexture = facesByTexture;
         storeTextures(result, textureSets);
         if (partCompound.contains("pt"))
@@ -115,18 +117,33 @@ public class FiguraModelPartReader {
                     for (Tag keyframeTag : keyframeList) {
                         CompoundTag keyframeNbt = (CompoundTag) keyframeTag;
                         float time = keyframeNbt.getFloat("time");
-                        Interpolation interpolation = Interpolation.valueOf(keyframeNbt.getString("int").toUpperCase());
-
-                        FiguraVec3 pos = FiguraVec3.of();
-                        readVec3(pos, keyframeNbt, "pre");
-
-                        if (keyframeNbt.contains("end")) {
-                            FiguraVec3 end = FiguraVec3.of();
-                            readVec3(end, keyframeNbt, "end");
-                            keyframes.add(new Keyframe(time, interpolation, pos, end));
-                        } else {
-                            keyframes.add(new Keyframe(time, interpolation, pos));
+                        Interpolation interpolation;
+                        try {
+                            interpolation = Interpolation.valueOf(keyframeNbt.getString("int").toUpperCase());
+                        } catch (Exception e) {
+                            FiguraMod.LOGGER.error("", e);
+                            continue;
                         }
+
+                        Pair<FiguraVec3, String[]> pre = parseKeyframeData(keyframeNbt, "pre");
+                        if (pre == null) pre = Pair.of(FiguraVec3.of(), null);
+                        Pair<FiguraVec3, String[]> end = parseKeyframeData(keyframeNbt, "end");
+                        if (end == null) end = pre;
+
+                        FiguraVec3 bezierLeft = FiguraVec3.of();
+                        FiguraVec3 bezierRight = FiguraVec3.of();
+                        readVec3(bezierLeft, keyframeNbt, "bl");
+                        readVec3(bezierRight, keyframeNbt, "br");
+
+                        FiguraVec3 bezierLeftTime = FiguraVec3.of(-0.1, -0.1, -0.1);
+                        FiguraVec3 bezierRightTime = FiguraVec3.of(0.1, 0.1, 0.1);
+                        readVec3(bezierLeftTime, keyframeNbt, "blt");
+                        readVec3(bezierRightTime, keyframeNbt, "brt");
+                        bezierLeftTime.add(1, 1, 1);
+                        bezierLeftTime = MathUtils.clamp(bezierLeftTime, 0, 1);
+                        bezierRightTime = MathUtils.clamp(bezierRightTime, 0, 1);
+
+                        keyframes.add(new Keyframe(owner, time, interpolation, pre, end, bezierLeft, bezierRight, bezierLeftTime, bezierRightTime));
                     }
 
                     keyframes.sort(Keyframe::compareTo);
@@ -136,6 +153,21 @@ public class FiguraModelPartReader {
         }
 
         return result;
+    }
+
+    private static Pair<FiguraVec3, String[]> parseKeyframeData(CompoundTag keyframeNbt, String tag) {
+        if (!keyframeNbt.contains(tag))
+            return null;
+
+        ListTag floatList = keyframeNbt.getList(tag, Tag.TAG_FLOAT);
+        if (!floatList.isEmpty()) {
+            FiguraVec3 ret = FiguraVec3.of();
+            readVec3(ret, floatList);
+            return Pair.of(ret, null);
+        } else {
+            ListTag stringList = keyframeNbt.getList(tag, Tag.TAG_STRING);
+            return Pair.of(null, new String[]{stringList.getString(0), stringList.getString(1), stringList.getString(2)});
+        }
     }
 
     /**
@@ -196,24 +228,20 @@ public class FiguraModelPartReader {
     }
 
     private static void readVec3(FiguraVec3 target, CompoundTag tag, String name) {
-        readVec3(target, tag, name, 0, 0, 0);
+        if (tag.contains(name))
+            readVec3(target, (ListTag) tag.get(name));
     }
 
-    private static void readVec3(FiguraVec3 target, CompoundTag tag, String name, double defX, double defY, double defZ) {
-        if (tag.contains(name)) {
-            ListTag list = (ListTag) tag.get(name);
-            switch (list.getElementType()) {
-                case Tag.TAG_FLOAT -> target.set(list.getFloat(0), list.getFloat(1), list.getFloat(2));
-                case Tag.TAG_INT -> target.set(list.getInt(0), list.getInt(1), list.getInt(2));
-                case Tag.TAG_SHORT -> target.set(list.getShort(0), list.getShort(1), list.getShort(2));
-                case Tag.TAG_BYTE -> target.set(
-                        ((ByteTag) list.get(0)).getAsByte(),
-                        ((ByteTag) list.get(1)).getAsByte(),
-                        ((ByteTag) list.get(2)).getAsByte()
-                );
-            }
-        } else {
-            target.set(defX, defY, defZ);
+    private static void readVec3(FiguraVec3 target, ListTag list) {
+        switch (list.getElementType()) {
+            case Tag.TAG_FLOAT -> target.set(list.getFloat(0), list.getFloat(1), list.getFloat(2));
+            case Tag.TAG_INT -> target.set(list.getInt(0), list.getInt(1), list.getInt(2));
+            case Tag.TAG_SHORT -> target.set(list.getShort(0), list.getShort(1), list.getShort(2));
+            case Tag.TAG_BYTE -> target.set(
+                    ((ByteTag) list.get(0)).getAsByte(),
+                    ((ByteTag) list.get(1)).getAsByte(),
+                    ((ByteTag) list.get(2)).getAsByte()
+            );
         }
     }
 
@@ -303,7 +331,7 @@ public class FiguraModelPartReader {
     private static final FiguraVec3 to = FiguraVec3.of();
     private static final FiguraVec3 ftDiff = FiguraVec3.of();
 
-    private static void readCuboid(List<Integer> facesByTexture, List<FiguraImmediateBuffer.Builder> builders, CompoundTag data) {
+    private static void readCuboid(List<Integer> facesByTexture, CompoundTag data, Map<Integer, List<Vertex>> vertices) {
         //Read from and to
         readVec3(from, data, "f");
         readVec3(to, data, "t");
@@ -321,13 +349,13 @@ public class FiguraModelPartReader {
 
         //Iterate over faces, add them
         for (String direction : faceData.keySet())
-            readFace(data.getCompound("cube_data"), facesByTexture, builders, direction);
+            readFace(data.getCompound("cube_data"), facesByTexture, direction, vertices);
     }
 
     private static final FiguraVec3 tempPos = FiguraVec3.of();
     private static final FiguraVec4 uv = FiguraVec4.of();
 
-    private static void readFace(CompoundTag faces, List<Integer> facesByTexture, List<FiguraImmediateBuffer.Builder> builders, String direction) {
+    private static void readFace(CompoundTag faces, List<Integer> facesByTexture, String direction, Map<Integer, List<Vertex>> vertices) {
         if (faces.contains(direction)) {
             CompoundTag face = faces.getCompound(direction);
             short texId = face.getShort("tex");
@@ -343,17 +371,19 @@ public class FiguraModelPartReader {
 
                 FiguraVec2 normalizedUv = uvValues[(i + rotation)%4];
 
-                builders.get(texId).vertex(
+                List<Vertex> list = vertices.getOrDefault((int) texId, new ArrayList<>());
+                list.add(new Vertex(
                         (float) tempPos.x, (float) tempPos.y, (float) tempPos.z,
                         (float) Mth.lerp(normalizedUv.x, uv.x, uv.z),
                         (float) Mth.lerp(normalizedUv.y, uv.y, uv.w),
                         (float) normal.x, (float) normal.y, (float) normal.z
-                );
+                ));
+                vertices.put((int) texId, list);
             }
         }
     }
 
-    private static void readMesh(List<Integer> facesByTexture, List<FiguraImmediateBuffer.Builder> builders, CompoundTag data) {
+    private static void readMesh(List<Integer> facesByTexture, CompoundTag data, Map<Integer, List<Vertex>> vertices) {
         CompoundTag meshData = data.getCompound("mesh_data");
         //mesh_data:
         //"vtx": List<Float>, xyz
@@ -363,14 +393,14 @@ public class FiguraModelPartReader {
 
         boolean smoothNormals = false;
         if (smoothNormals)
-            readMeshSmooth(facesByTexture, builders, meshData);
+            readMeshSmooth(facesByTexture, meshData, vertices);
         else
-            readMeshFlat(facesByTexture, builders, meshData);
+            readMeshFlat(facesByTexture, meshData, vertices);
     }
 
     private static final FiguraVec3 p1 = FiguraVec3.of(), p2 = FiguraVec3.of(), p3 = FiguraVec3.of();
 
-    private static void readMeshFlat(List<Integer> facesByTexture, List<FiguraImmediateBuffer.Builder> builders, CompoundTag meshData) {
+    private static void readMeshFlat(List<Integer> facesByTexture, CompoundTag meshData, Map<Integer, List<Vertex>> vertices) {
         // Get the vertex, UV, and texture lists from the mesh data
         ListTag verts = meshData.getList("vtx", Tag.TAG_FLOAT);
         ListTag uvs = meshData.getList("uvs", Tag.TAG_FLOAT);
@@ -434,19 +464,23 @@ public class FiguraModelPartReader {
 
             // Add the vertex data to the appropriate builder
             for (int j = 0; j < numVerts; j++) {
-                builders.get(texId).vertex(
+                List<Vertex> list = vertices.getOrDefault(texId, new ArrayList<>());
+                list.add(new Vertex(
                         posArr[3*j], posArr[3*j+1], posArr[3*j+2],
                         uvArr[2*j], uvArr[2*j+1],
                         (float) p3.x, (float) p3.y, (float) p3.z
-                );
+                ));
+                vertices.put(texId, list);
             }
             // Add a vertex if necessary
             if (numVerts == 3) {
-                builders.get(texId).vertex(
+                List<Vertex> list = vertices.getOrDefault(texId, new ArrayList<>());
+                list.add(new Vertex(
                         posArr[6], posArr[7], posArr[8],
                         uvArr[4], uvArr[5],
                         (float) p3.x, (float) p3.y, (float) p3.z
-                );
+                ));
+                vertices.put(texId, list);
             }
 
             // Increment the counters for the vertex and UV lists
@@ -455,7 +489,7 @@ public class FiguraModelPartReader {
         }
     }
 
-    private static void readMeshSmooth(List<Integer> facesByTexture, List<FiguraImmediateBuffer.Builder> builders, CompoundTag meshData) {
+    private static void readMeshSmooth(List<Integer> facesByTexture, CompoundTag meshData, Map<Integer, List<Vertex>> vertices) {
 
     }
 }

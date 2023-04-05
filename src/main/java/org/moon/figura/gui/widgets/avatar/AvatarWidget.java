@@ -5,20 +5,26 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextComponent;
+import net.minecraft.resources.ResourceLocation;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.gui.widgets.TexturedButton;
 import org.moon.figura.gui.widgets.lists.AvatarList;
+import org.moon.figura.utils.FiguraIdentifier;
+import org.moon.figura.utils.FileTexture;
 import org.moon.figura.utils.TextUtils;
 import org.moon.figura.utils.ui.UIHelper;
 
 public class AvatarWidget extends AbstractAvatarWidget {
 
+    public static final ResourceLocation MISSING_ICON = new FiguraIdentifier("textures/gui/unknown_icon.png");
+
     public AvatarWidget(int depth, int width, LocalAvatarFetcher.AvatarPath avatar, AvatarList parent) {
-        super(depth, width, avatar, parent);
+        super(depth, width, 24, avatar, parent);
 
         AvatarWidget instance = this;
-        this.button = new TexturedButton(x, y, width, 20, null, null, button -> {
+        this.button = new TexturedButton(x, y, width, 24, TextComponent.EMPTY.copy(), null, button -> {
             AvatarManager.loadLocalAvatar(avatar == null ? null : avatar.getPath());
             AvatarList.selectedEntry = instance;
         }) {
@@ -35,23 +41,44 @@ public class AvatarWidget extends AbstractAvatarWidget {
             protected void renderText(PoseStack stack) {
                 //variables
                 Font font = Minecraft.getInstance().font;
-                Component message = TextUtils.trimToWidthEllipsis(font, getMessage(), this.width - 6, TextUtils.ELLIPSIS.copy().withStyle(getMessage().getStyle()));
+                int spacing = font.width(SPACING) * depth;
+                int x = this.x + 2;
+                int y = this.y + 2;
 
-                //draw text
-                font.drawShadow(
-                        stack, message,
-                        this.x + 3, this.y + this.height / 2 - font.lineHeight / 2,
-                        (!this.active ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE).getColor()
-                );
+                //icon
+                FileTexture texture = avatar.getIcon();
+                ResourceLocation icon = texture == null ? MISSING_ICON : texture.getLocation();
+                UIHelper.renderTexture(stack, x + spacing, y, 20, 20, icon);
+
+                //name
+                Component name = TextUtils.trimToWidthEllipsis(font, getMessage(), this.width - 26, TextUtils.ELLIPSIS.copy().withStyle(getMessage().getStyle()));
+                font.drawShadow(stack, name, x + 22, y, 0xFFFFFFFF);
+
+                //description
+                Component description = new TextComponent(avatar.getDescription());
+                Component parsedDescription = TextUtils.trimToWidthEllipsis(font, description, this.width - 26, TextUtils.ELLIPSIS.copy().withStyle(description.getStyle()));
+                font.drawShadow(stack, parsedDescription, x + 22, y + font.lineHeight + 1, ChatFormatting.GRAY.getColor());
 
                 //tooltip
-                if (message != getMessage())
-                    setTooltip(instance.getName());
+                if (name != getMessage() || parsedDescription != description) {
+                    Component tooltip = instance.getName();
+                    if (!description.getString().isBlank())
+                        tooltip = tooltip.copy().append("\n\n").append(description);
+                    setTooltip(tooltip);
+                }
             }
 
             @Override
             public boolean isMouseOver(double mouseX, double mouseY) {
                 return parent.isInsideScissors(mouseX, mouseY) && super.isMouseOver(mouseX, mouseY);
+            }
+
+            @Override
+            public void setHovered(boolean hovered) {
+                if (!hovered && UIHelper.getContext() == context && context.isVisible())
+                    hovered = true;
+
+                super.setHovered(hovered);
             }
         };
 

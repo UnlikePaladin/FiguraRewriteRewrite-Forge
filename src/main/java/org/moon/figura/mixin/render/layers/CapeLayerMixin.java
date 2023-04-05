@@ -1,6 +1,7 @@
 package org.moon.figura.mixin.render.layers;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.player.AbstractClientPlayer;
@@ -15,7 +16,8 @@ import net.minecraft.world.item.Items;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.ducks.PlayerModelAccessor;
-import org.moon.figura.trust.Trust;
+import org.moon.figura.lua.api.vanilla_model.VanillaPart;
+import org.moon.figura.permissions.Permissions;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -53,9 +55,7 @@ public abstract class CapeLayerMixin extends RenderLayer<AbstractClientPlayer, P
         double d = Mth.lerp(tickDelta, entity.xCloakO, entity.xCloak) - Mth.lerp(tickDelta, entity.xo, entity.getX());
         double e = Mth.lerp(tickDelta, entity.yCloakO, entity.yCloak) - Mth.lerp(tickDelta, entity.yo, entity.getY());
         double m = Mth.lerp(tickDelta, entity.zCloakO, entity.zCloak) - Mth.lerp(tickDelta, entity.zo, entity.getZ());
-        //Change n to use lerp, to "fix" https://bugs.mojang.com/browse/MC-127749 //Fran: we cant, check my comment in the issue
-        //float n = Mth.lerp(tickDelta, entity.yBodyRotO, entity.yBodyRot);
-        float n = entity.yBodyRotO + (entity.yBodyRot - entity.yBodyRotO);
+        float n = Mth.rotLerp(tickDelta, entity.yBodyRotO, entity.yBodyRot);
         n = (float) Math.toRadians(n);
         double o = Mth.sin(n);
         double p = -Mth.cos(n);
@@ -106,14 +106,19 @@ public abstract class CapeLayerMixin extends RenderLayer<AbstractClientPlayer, P
         );
 
         //Copy rotations from fake cloak
-        if (avatar.luaRuntime != null)
-            avatar.luaRuntime.vanilla_model.CAPE.save(getParentModel());
+        if (avatar.luaRuntime != null) {
+            VanillaPart part = avatar.luaRuntime.vanilla_model.CAPE;
+            EntityModel<?> model = getParentModel();
+            part.save(model);
+            if (avatar.permissions.get(Permissions.VANILLA_MODEL_EDIT) == 1)
+                part.preTransform(model);
+        }
 
         avatar.capeRender(entity, multiBufferSource, poseStack, light, tickDelta, fakeCloak);
 
         //Setup visibility for real cloak
-        if (avatar.luaRuntime != null && avatar.trust.get(Trust.VANILLA_MODEL_EDIT) == 1)
-            avatar.luaRuntime.vanilla_model.CAPE.change(getParentModel());
+        if (avatar.luaRuntime != null && avatar.permissions.get(Permissions.VANILLA_MODEL_EDIT) == 1)
+            avatar.luaRuntime.vanilla_model.CAPE.posTransform(getParentModel());
     }
 
     @Inject(method = "render(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;ILnet/minecraft/client/player/AbstractClientPlayer;FFFFFF)V", at = @At("RETURN"))

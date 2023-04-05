@@ -13,6 +13,7 @@
     "LivingEntityAccessor",
     "LivingEntityMixin",
     "MinecraftMixin",
+    "ReloadableResourceManagerMixin",
     "SkullBlockEntityAccessor",
 
     "gui.ChatComponentMixin",
@@ -23,7 +24,9 @@
     "gui.InventoryScreenMixin",
     "gui.PauseScreenMixin",
     "gui.PlayerTabOverlayMixin",
+    "gui.ScreenMixin",
     "gui.SplashManagerMixin",
+    "gui.TitleScreenMixin",
 
     "input.InputConstantsTypeMixin",
     "input.KeyboardHandlerMixin",
@@ -33,8 +36,8 @@
 
     "particle.ParticleAccessor",
     "particle.ParticleEngineMixin",
+    "particle.SingleQuadParticleMixin",
 
-    "render.BlockEntityWithoutLevelRendererMixin",
     "render.CameraMixin",
     "render.EntityRenderDispatcherMixin",
     "render.GameRendererAccessor",
@@ -54,12 +57,14 @@
     "render.layers.items.ItemInHandLayerMixin",
     "render.layers.items.PlayerItemInHandLayerMixin",
 
+    "render.renderers.ArrowRendererMixin",
+    "render.renderers.BlockEntityWithoutLevelRendererMixin",
     "render.renderers.EntityRendererMixin",
     "render.renderers.HandRenderSelectionAccessor",
     "render.renderers.ItemInHandRendererMixin",
-    "render.renderers.LevelRendererMixin",
     "render.renderers.LivingEntityRendererMixin",
     "render.renderers.PlayerRendererMixin",
+    "render.renderers.ScreenEffectRendererMixin",
     "render.renderers.SkullBlockRendererMixin",
 
     "sound.ChannelHandleMixin",

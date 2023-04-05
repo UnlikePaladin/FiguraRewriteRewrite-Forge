@@ -3,14 +3,16 @@ package org.moon.figura.mixin.render.layers;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.entity.RenderLayerParent;
 import net.minecraft.client.renderer.entity.layers.HumanoidArmorLayer;
+import net.minecraft.client.renderer.entity.layers.RenderLayer;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.lua.api.vanilla_model.VanillaModelAPI;
 import org.moon.figura.lua.api.vanilla_model.VanillaPart;
-import org.moon.figura.trust.Trust;
+import org.moon.figura.permissions.Permissions;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,7 +20,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(HumanoidArmorLayer.class)
-public class HumanoidArmorLayerMixin<T extends LivingEntity, M extends HumanoidModel<T>, A extends HumanoidModel<T>> {
+public abstract class HumanoidArmorLayerMixin<T extends LivingEntity, M extends HumanoidModel<T>, A extends HumanoidModel<T>> extends RenderLayer<T, M> {
+
+    public HumanoidArmorLayerMixin(RenderLayerParent<T, M> context) {
+        super(context);
+    }
 
     @Unique
     private VanillaModelAPI vanillaModelAPI;
@@ -26,7 +32,7 @@ public class HumanoidArmorLayerMixin<T extends LivingEntity, M extends HumanoidM
     @Inject(at = @At("HEAD"), method = "render(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;ILnet/minecraft/world/entity/LivingEntity;FFFFFF)V")
     public void onRender(PoseStack poseStack, MultiBufferSource multiBufferSource, int i, T livingEntity, float f, float g, float h, float j, float k, float l, CallbackInfo ci) {
         Avatar avatar = AvatarManager.getAvatar(livingEntity);
-        if (avatar != null && avatar.luaRuntime != null && avatar.trust.get(Trust.VANILLA_MODEL_EDIT) == 1)
+        if (avatar != null && avatar.luaRuntime != null && avatar.permissions.get(Permissions.VANILLA_MODEL_EDIT) == 1)
             vanillaModelAPI = avatar.luaRuntime.vanilla_model;
         else
             vanillaModelAPI = null;
@@ -50,8 +56,11 @@ public class HumanoidArmorLayerMixin<T extends LivingEntity, M extends HumanoidM
             default -> null;
         };
 
-        if (part != null)
-            part.change(humanoidModel);
+        if (part != null) {
+            part.save(humanoidModel);
+            part.preTransform(humanoidModel);
+            part.posTransform(humanoidModel);
+        }
     }
 
     @Inject(at = @At("RETURN"), method = "renderArmorPiece")

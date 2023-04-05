@@ -16,11 +16,14 @@ import org.luaj.vm2.LuaError;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.lua.LuaNotNil;
 import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.api.world.ItemStackAPI;
-import org.moon.figura.lua.docs.*;
+import org.moon.figura.lua.docs.LuaFieldDoc;
+import org.moon.figura.lua.docs.LuaMethodDoc;
+import org.moon.figura.lua.docs.LuaMethodOverload;
+import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.mixin.LivingEntityAccessor;
 import org.moon.figura.mixin.gui.ChatScreenAccessor;
@@ -72,8 +75,9 @@ public class HostAPI {
                     argumentNames = "boolean"
             ),
             value = "host.set_unlock_cursor")
-    public void setUnlockCursor(boolean bool) {
+    public HostAPI setUnlockCursor(boolean bool) {
         unlockCursor = bool;
+        return this;
     }
 
     @LuaWhitelist
@@ -88,26 +92,27 @@ public class HostAPI {
                             argumentNames = {"fadeInTime", "stayTime", "fadeOutTime"}
                     )
             },
+            aliases = "titleTimes",
             value = "host.set_title_times"
     )
-    public void setTitleTimes(Object x, Double y, Double z) {
-        if (!isHost()) return;
+    public HostAPI setTitleTimes(Object x, Double y, Double z) {
+        if (!isHost()) return this;
         FiguraVec3 times = LuaUtils.parseVec3("setTitleTimes", x, y, z);
         this.minecraft.gui.setTimes((int) times.x, (int) times.y, (int) times.z);
+        return this;
     }
 
     @LuaWhitelist
-    @LuaMethodShadow("setTitleTimes")
     public HostAPI titleTimes(Object x, Double y, Double z) {
-        setTitleTimes(x, y, z);
-        return this;
+        return setTitleTimes(x, y, z);
     }
 
     @LuaWhitelist
     @LuaMethodDoc("host.clear_title")
-    public void clearTitle() {
+    public HostAPI clearTitle() {
         if (isHost())
             this.minecraft.gui.clear();
+        return this;
     }
 
     @LuaWhitelist
@@ -116,18 +121,18 @@ public class HostAPI {
                     argumentTypes = String.class,
                     argumentNames = "text"
             ),
+            aliases = "title",
             value = "host.set_title"
     )
-    public void setTitle(@LuaNotNil String text) {
+    public HostAPI setTitle(@LuaNotNil String text) {
         if (isHost())
             this.minecraft.gui.setTitle(TextUtils.tryParseJson(text));
+        return this;
     }
 
     @LuaWhitelist
-    @LuaMethodShadow("setTitle")
     public HostAPI title(@LuaNotNil String text) {
-        setTitle(text);
-        return this;
+        return setTitle(text);
     }
 
     @LuaWhitelist
@@ -136,18 +141,18 @@ public class HostAPI {
                     argumentTypes = String.class,
                     argumentNames = "text"
             ),
+            aliases = "subtitle",
             value = "host.set_subtitle"
     )
-    public void setSubtitle(@LuaNotNil String text) {
+    public HostAPI setSubtitle(@LuaNotNil String text) {
         if (isHost())
             this.minecraft.gui.setSubtitle(TextUtils.tryParseJson(text));
+        return this;
     }
 
     @LuaWhitelist
-    @LuaMethodShadow("setSubtitle")
     public HostAPI subtitle(@LuaNotNil String text) {
-        setSubtitle(text);
-        return this;
+        return setSubtitle(text);
     }
 
     @LuaWhitelist
@@ -162,18 +167,18 @@ public class HostAPI {
                             argumentNames = {"text", "animated"}
                     )
             },
+            aliases = "actionbar",
             value = "host.set_actionbar"
     )
-    public void setActionbar(@LuaNotNil String text, boolean animated) {
+    public HostAPI setActionbar(@LuaNotNil String text, boolean animated) {
         if (isHost())
             this.minecraft.gui.setOverlayMessage(TextUtils.tryParseJson(text), animated);
+        return this;
     }
 
     @LuaWhitelist
-    @LuaMethodShadow("setActionbar")
     public HostAPI actionbar(@LuaNotNil String text, boolean animated) {
-        setActionbar(text, animated);
-        return this;
+        return setActionbar(text, animated);
     }
 
     @LuaWhitelist
@@ -184,10 +189,11 @@ public class HostAPI {
             ),
             value = "host.send_chat_message"
     )
-    public void sendChatMessage(@LuaNotNil String message) {
-        if (!isHost() || !Config.CHAT_MESSAGES.asBool()) return;
-        LocalPlayer player = Minecraft.getInstance().player;
+    public HostAPI sendChatMessage(@LuaNotNil String message) {
+        if (!isHost() || !Configs.CHAT_MESSAGES.value) return this;
+        LocalPlayer player = this.minecraft.player;
         if (player != null) player.chat(message.startsWith("/") ? message.substring(1) : message);
+        return this;
     }
 
     @LuaWhitelist
@@ -198,10 +204,11 @@ public class HostAPI {
             ),
             value = "host.send_chat_command"
     )
-    public void sendChatCommand(@LuaNotNil String command) {
-        if (!isHost() || !Config.CHAT_MESSAGES.asBool()) return;
-        LocalPlayer player = Minecraft.getInstance().player;
+    public HostAPI sendChatCommand(@LuaNotNil String command) {
+        if (!isHost() || !Configs.CHAT_MESSAGES.value) return this;
+        LocalPlayer player = this.minecraft.player;
         if (player != null) player.chat(command.startsWith("/") ? command : "/" + command);
+        return this;
     }
 
     @LuaWhitelist
@@ -212,9 +219,10 @@ public class HostAPI {
             ),
             value = "host.append_chat_history"
     )
-    public void appendChatHistory(@LuaNotNil String message) {
+    public HostAPI appendChatHistory(@LuaNotNil String message) {
         if (isHost())
             this.minecraft.gui.getChat().addRecentChat(message);
+        return this;
     }
 
     @LuaWhitelist
@@ -228,9 +236,10 @@ public class HostAPI {
             },
             value = "host.swing_arm"
     )
-    public void swingArm(boolean offhand) {
-        if (isHost() && Minecraft.getInstance().player != null)
-            Minecraft.getInstance().player.swing(offhand ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND);
+    public HostAPI swingArm(boolean offhand) {
+        if (isHost() && this.minecraft.player != null)
+            this.minecraft.player.swing(offhand ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND);
+        return this;
     }
 
     @LuaWhitelist
@@ -268,23 +277,23 @@ public class HostAPI {
     }
 
     @LuaWhitelist
-    public void setBadge(int index, boolean value, boolean pride) {
-        if (!isHost()) return;
+    public HostAPI setBadge(int index, boolean value, boolean pride) {
+        if (!isHost()) return this;
         if (!FiguraMod.DEBUG_MODE)
             throw new LuaError("Congrats, you found this debug easter egg!");
 
         Pair<BitSet, BitSet> badges = AvatarManager.getBadges(owner.owner);
         if (badges == null)
-            return;
+            return this;
 
         BitSet set = pride ? badges.getFirst() : badges.getSecond();
         set.set(index, value);
+        return this;
     }
 
     @LuaWhitelist
     public HostAPI badge(int index, boolean value, boolean pride) {
-        setBadge(index, value, pride);
-        return this;
+        return setBadge(index, value, pride);
     }
 
     @LuaWhitelist
@@ -305,23 +314,23 @@ public class HostAPI {
                             argumentNames = {"r", "g", "b"}
                     )
             },
+            aliases = "chatColor",
             value = "host.set_chat_color"
     )
-    public void setChatColor(Object x, Double y, Double z) {
+    public HostAPI setChatColor(Object x, Double y, Double z) {
         if (isHost()) this.chatColor = x == null ? null : ColorUtils.rgbToInt(LuaUtils.parseVec3("setChatColor", x, y, z));
+        return this;
     }
 
     @LuaWhitelist
-    @LuaMethodShadow("setChatColor")
     public HostAPI chatColor(Object x, Double y, Double z) {
-        setChatColor(x, y, z);
-        return this;
+        return setChatColor(x, y, z);
     }
 
     @LuaWhitelist
     @LuaMethodDoc("host.get_chat_text")
     public String getChatText() {
-        if (isHost() && Minecraft.getInstance().screen instanceof ChatScreen chat)
+        if (isHost() && this.minecraft.screen instanceof ChatScreen chat)
             return ((ChatScreenAccessor) chat).getInput().getValue();
 
         return null;
@@ -333,38 +342,38 @@ public class HostAPI {
                     argumentTypes = String.class,
                     argumentNames = "text"
             ),
+            aliases = "chatText",
             value = "host.set_chat_text"
     )
-    public void setChatText(@LuaNotNil String text) {
-        if (isHost() && Config.CHAT_MESSAGES.asBool() && Minecraft.getInstance().screen instanceof ChatScreen chat)
+    public HostAPI setChatText(@LuaNotNil String text) {
+        if (isHost() && Configs.CHAT_MESSAGES.value && this.minecraft.screen instanceof ChatScreen chat)
             ((ChatScreenAccessor) chat).getInput().setValue(text);
+        return this;
     }
 
     @LuaWhitelist
-    @LuaMethodShadow("setChatText")
     public HostAPI chatText(@LuaNotNil String text) {
-        setChatText(text);
-        return this;
+        return setChatText(text);
     }
 
     @LuaWhitelist
     @LuaMethodDoc("host.get_screen")
     public String getScreen() {
-        if (!isHost() || Minecraft.getInstance().screen == null)
+        if (!isHost() || this.minecraft.screen == null)
             return null;
-        return Minecraft.getInstance().screen.getClass().getName();
+        return this.minecraft.screen.getClass().getName();
     }
 
     @LuaWhitelist
     @LuaMethodDoc("host.is_chat_open")
     public boolean isChatOpen() {
-        return isHost() && Minecraft.getInstance().screen instanceof ChatScreen;
+        return isHost() && this.minecraft.screen instanceof ChatScreen;
     }
 
     @LuaWhitelist
     @LuaMethodDoc("host.is_container_open")
     public boolean isContainerOpen() {
-        return isHost() && Minecraft.getInstance().screen instanceof AbstractContainerScreen;
+        return isHost() && this.minecraft.screen instanceof AbstractContainerScreen;
     }
 
     @LuaWhitelist
@@ -374,7 +383,7 @@ public class HostAPI {
                     argumentNames = "texture"
             ),
             value = "host.save_texture")
-    public void saveTexture(@LuaNotNil FiguraTexture texture) {
+    public HostAPI saveTexture(@LuaNotNil FiguraTexture texture) {
         if (isHost()) {
             try {
                 texture.saveCache();
@@ -382,6 +391,7 @@ public class HostAPI {
                 throw new LuaError(e.getMessage());
             }
         }
+        return this;
     }
 
     @LuaWhitelist
@@ -395,7 +405,7 @@ public class HostAPI {
         if (!isHost())
             return null;
 
-        NativeImage img = Screenshot.takeScreenshot(Minecraft.getInstance().getMainRenderTarget());
+        NativeImage img = Screenshot.takeScreenshot(this.minecraft.getMainRenderTarget());
         return owner.luaRuntime.texture.register(name, img, true);
     }
 
@@ -410,7 +420,7 @@ public class HostAPI {
     public List<Map<String, Object>> getStatusEffects() {
         List<Map<String, Object>> list = new ArrayList<>();
 
-        LocalPlayer player = Minecraft.getInstance().player;
+        LocalPlayer player = this.minecraft.player;
         if (!isHost() || player == null)
             return list;
 
@@ -430,7 +440,7 @@ public class HostAPI {
     @LuaWhitelist
     @LuaMethodDoc("host.get_clipboard")
     public String getClipboard() {
-        return isHost() ? Minecraft.getInstance().keyboardHandler.getClipboard() : null;
+        return isHost() ? this.minecraft.keyboardHandler.getClipboard() : null;
     }
 
     @LuaWhitelist
@@ -439,22 +449,22 @@ public class HostAPI {
                     argumentTypes = String.class,
                     argumentNames = "text"
             ),
+            aliases = "clipboard",
             value = "host.set_clipboard")
-    public void setClipboard(@LuaNotNil String text) {
-        if (isHost()) Minecraft.getInstance().keyboardHandler.setClipboard(text);
+    public HostAPI setClipboard(@LuaNotNil String text) {
+        if (isHost()) this.minecraft.keyboardHandler.setClipboard(text);
+        return this;
     }
 
     @LuaWhitelist
-    @LuaMethodShadow("setClipboard")
     public HostAPI clipboard(@LuaNotNil String text) {
-        setClipboard(text);
-        return this;
+        return setClipboard(text);
     }
 
     @LuaWhitelist
     @LuaMethodDoc("host.get_attack_charge")
     public float getAttackCharge() {
-        LocalPlayer player = Minecraft.getInstance().player;
+        LocalPlayer player = this.minecraft.player;
         if (isHost() && player != null)
             return player.getAttackStrengthScale(0f);
         return 0f;
@@ -463,10 +473,34 @@ public class HostAPI {
     @LuaWhitelist
     @LuaMethodDoc("host.is_jumping")
     public boolean isJumping() {
-        LocalPlayer player = Minecraft.getInstance().player;
+        LocalPlayer player = this.minecraft.player;
         if (isHost() && player != null)
             return ((LivingEntityAccessor) player).isJumping();
         return false;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("host.is_flying")
+    public boolean isFlying() {
+        LocalPlayer player = this.minecraft.player;
+        if (isHost() && player != null)
+            return player.getAbilities().flying;
+        return false;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("host.get_reach_distance")
+    public double getReachDistance() {
+        return this.minecraft.gameMode == null ? 0 : this.minecraft.gameMode.getPickRange();
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("host.get_air")
+    public int getAir() {
+        LocalPlayer player = this.minecraft.player;
+        if (isHost() && player != null)
+            return player.getAirSupply();
+        return 0;
     }
 
     public Object __index(String arg) {
@@ -476,9 +510,10 @@ public class HostAPI {
     }
 
     @LuaWhitelist
-    public void __newindex(String key, Object value) {
+    public void __newindex(@LuaNotNil String key, Object value) {
         if ("unlockCursor".equals(key))
             unlockCursor = (Boolean) value;
+        else throw new LuaError("Cannot assign value on key \"" + key + "\"");
     }
 
     @Override

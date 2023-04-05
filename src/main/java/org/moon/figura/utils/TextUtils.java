@@ -10,6 +10,7 @@ import net.minecraft.util.FormattedCharSequence;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 
 public class TextUtils {
@@ -18,37 +19,39 @@ public class TextUtils {
     public static final Component ELLIPSIS = new FiguraText("ellipsis");
     public static final Component UNKNOWN = new TextComponent("�").withStyle(Style.EMPTY.withFont(Style.DEFAULT_FONT));
 
-    public static List<Component> splitText(Component text, String regex) {
+    public static List<Component> splitText(FormattedText text, String regex) {
         //list to return
         ArrayList<Component> textList = new ArrayList<>();
 
         //current line variable
-        MutableComponent currentText = TextComponent.EMPTY.copy();
+        MutableComponent[] currentText = {TextComponent.EMPTY.copy()};
 
         //iterate over the text
-        for (Component entry : text.toFlatList(text.getStyle())) {
+        text.visit((style, string) -> {
             //split text based on regex
-            String entryString = entry.getString();
-            String[] lines = entryString.split(regex, -1);
+            String[] lines = string.split(regex, -1);
 
             //iterate over the split text
             for (int i = 0; i < lines.length; i++) {
                 //if it is not the first iteration, add to return list and reset the line variable
                 if (i != 0) {
-                    textList.add(currentText.copy());
-                    currentText = TextComponent.EMPTY.copy();
+                    textList.add(currentText[0].copy());
+                    currentText[0] = TextComponent.EMPTY.copy();
                 }
 
                 //append text with the line text
-                currentText.append(new TextComponent(lines[i]).setStyle(entry.getStyle()));
+                currentText[0].append(new TextComponent(lines[i]).withStyle(style));
             }
-        }
+
+            return Optional.empty();
+        }, Style.EMPTY);
+
         //add the last text iteration then return
-        textList.add(currentText);
+        textList.add(currentText[0]);
         return textList;
     }
 
-    public static Component removeClickableObjects(Component text) {
+    public static Component removeClickableObjects(FormattedText text) {
         MutableComponent ret = TextComponent.EMPTY.copy();
         text.visit((style, string) -> {
             ret.append(new TextComponent(string).withStyle(style.withClickEvent(null)));
@@ -83,15 +86,16 @@ public class TextUtils {
         return finalText;
     }
 
-    public static Component replaceInText(Component text, String regex, Object replacement) {
-        return replaceInText(text, regex, replacement, (s, style) -> true);
+    public static Component replaceInText(FormattedText text, String regex, Object replacement) {
+        return replaceInText(text, regex, replacement, (s, style) -> true, Integer.MAX_VALUE);
     }
 
-    public static Component replaceInText(Component text, String regex, Object replacement, BiPredicate<String, Style> predicate) {
+    public static Component replaceInText(FormattedText text, String regex, Object replacement, BiPredicate<String, Style> predicate, int times) {
         //fix replacement object
         Component replace = replacement instanceof Component c ? c : new TextComponent(replacement.toString());
         MutableComponent ret = TextComponent.EMPTY.copy();
 
+        int[] remaining = {times};
         text.visit((style, string) -> {
             //test predicate
             if (!predicate.test(string, style)) {
@@ -103,10 +107,12 @@ public class TextUtils {
             String[] split = string.split("((?<=" + regex + ")|(?=" + regex + "))");
             for (String s : split) {
                 //append the text if it does not match the split, otherwise append the replacement instead
-                if (!s.matches(regex))
+                if (!s.matches(regex) || remaining[0] <= 0)
                     ret.append(new TextComponent(s).withStyle(style));
-                else
+                else {
                     ret.append(TextComponent.EMPTY.copy().withStyle(style).append(replace));
+                    remaining[0]--;
+                }
             }
 
             return Optional.empty();
@@ -124,17 +130,17 @@ public class TextUtils {
         return addEllipsis(font, text, width, ellipsis);
     }
 
-    public static Component addEllipsis(Font font, Component text, int width, Component ellipsis) {
+    public static Component addEllipsis(Font font, FormattedText text, int width, Component ellipsis) {
         //trim with the ellipsis size and return the modified text
         FormattedText trimmed = font.substrByWidth(text, width - font.width(ellipsis));
         return formattedTextToText(trimmed).copy().append(ellipsis);
     }
 
-    public static Component replaceTabs(Component text) {
+    public static Component replaceTabs(FormattedText text) {
         return TextUtils.replaceInText(text, "\\t", TAB);
     }
 
-    public static List<FormattedCharSequence> warpTooltip(Component text, Font font, int mousePos, int screenWidth) {
+    public static List<FormattedCharSequence> wrapTooltip(FormattedText text, Font font, int mousePos, int screenWidth) {
         //first split the new line text
         List<Component> splitText = TextUtils.splitText(text, "\n");
 
@@ -149,7 +155,7 @@ public class TextUtils {
         int side = largest <= right ? right : largest <= left ? left : Math.max(left, right);
 
         //warp the unmodified text
-        return warpText(text, side, font);
+        return wrapText(text, side, font);
     }
 
     //get the largest text width from a list
@@ -172,17 +178,32 @@ public class TextUtils {
         return width;
     }
 
-    public static Component replaceStyle(Component text, Style newStyle) {
+    public static Component replaceStyle(FormattedText text, Style newStyle) {
         MutableComponent ret = TextComponent.EMPTY.copy();
-
-        List<Component> list = text.toFlatList(text.getStyle());
-        for (Component component : list)
-            ret.append(component.copy().withStyle(newStyle));
-
+        text.visit((style, string) -> {
+            ret.append(new TextComponent(string).withStyle(newStyle));
+            return Optional.empty();
+        }, Style.EMPTY);
         return ret;
     }
 
-    public static List<FormattedCharSequence> warpText(Component text, int width, Font font) {
+    public static Component setStyleAtWidth(FormattedText text, int width, Font font, Style newStyle) {
+        MutableComponent ret = TextComponent.EMPTY.copy();
+        text.visit((style, string) -> {
+            MutableComponent current = new TextComponent(string).withStyle(style);
+
+            int prevWidth = font.width(ret);
+            int currentWidth = font.width(current);
+            if (prevWidth <= width && prevWidth + currentWidth > width)
+                current.withStyle(newStyle);
+
+            ret.append(current);
+            return Optional.empty();
+        }, Style.EMPTY);
+        return ret;
+    }
+
+    public static List<FormattedCharSequence> wrapText(FormattedText text, int width, Font font) {
         List<FormattedCharSequence> warp = new ArrayList<>();
         font.getSplitter().splitLines(text, width, Style.EMPTY, (formattedText, aBoolean) -> warp.add(Language.getInstance().getVisualOrder(formattedText)));
         return warp;
@@ -190,14 +211,32 @@ public class TextUtils {
 
     public static Component charSequenceToText(FormattedCharSequence charSequence) {
         MutableComponent builder = TextComponent.EMPTY.copy();
+        StringBuilder buffer = new StringBuilder();
+        Style[] lastStyle = new Style[1];
+
         charSequence.accept((index, style, codePoint) -> {
-            builder.append(new TextComponent(String.valueOf(Character.toChars(codePoint))).withStyle(style));
+            if (!style.equals(lastStyle[0])) {
+                if (buffer.length() > 0) {
+                    builder.append(new TextComponent(buffer.toString()).withStyle(lastStyle[0]));
+                    buffer.setLength(0);
+                }
+                lastStyle[0] = style;
+            }
+
+            buffer.append(Character.toChars(codePoint));
             return true;
         });
+
+        if (buffer.length() > 0)
+            builder.append(new TextComponent(buffer.toString()).withStyle(lastStyle[0]));
+
         return builder;
     }
 
     public static Component formattedTextToText(FormattedText formattedText) {
+        if (formattedText instanceof Component c)
+            return c;
+
         MutableComponent builder = TextComponent.EMPTY.copy();
         formattedText.visit((style, string) -> {
             builder.append(new TextComponent(string).withStyle(style));
@@ -206,7 +245,7 @@ public class TextUtils {
         return builder;
     }
 
-    public static Component substring(Component text, int beginIndex, int endIndex) {
+    public static Component substring(FormattedText text, int beginIndex, int endIndex) {
         StringBuilder counter = new StringBuilder();
         MutableComponent builder = TextComponent.EMPTY.copy();
         text.visit((style, string) -> {
@@ -225,7 +264,7 @@ public class TextUtils {
         return builder;
     }
 
-    public static Component parseLegacyFormatting(Component text) {
+    public static Component parseLegacyFormatting(FormattedText text) {
         MutableComponent builder = TextComponent.EMPTY.copy();
         text.visit((style, string) -> {
             formatting: {
@@ -267,12 +306,72 @@ public class TextUtils {
         return builder;
     }
 
-    public static Component reverse(Component text) {
-        MutableComponent builder = TextComponent.EMPTY.copy();
-        for (Component entry : text.toFlatList(text.getStyle())) {
-            StringBuilder str = new StringBuilder(entry.getString()).reverse();
-            builder = new TextComponent(str.toString()).withStyle(entry.getStyle()).append(builder);
+    public static Component reverse(FormattedText text) {
+        MutableComponent[] builder = {TextComponent.EMPTY.copy()};
+        text.visit((style, string) -> {
+            StringBuilder str = new StringBuilder(string).reverse();
+            builder[0] = new TextComponent(str.toString()).withStyle(style).append(builder[0]);
+            return Optional.empty();
+        }, Style.EMPTY);
+        return builder[0];
+    }
+
+    public static Component trim(FormattedText text) {
+        String string = text.getString();
+        int start = 0;
+        int end = string.length();
+
+        //trim
+        while (start < end && string.charAt(start) <= ' ')
+            start++;
+        while (start < end && string.charAt(end - 1) <= ' ')
+            end--;
+
+        //apply trim
+        return substring(text, start, end);
+    }
+
+    public static List<Component> formatInBounds(FormattedText text, Font font, int maxWidth, boolean wrap) {
+        if (maxWidth > 0) {
+            if (wrap) {
+                List<FormattedCharSequence> warped = wrapText(text, maxWidth, font);
+                List<Component> newList = new ArrayList<>();
+                for (FormattedCharSequence charSequence : warped)
+                    newList.add(charSequenceToText(charSequence));
+                return newList;
+            } else {
+                List<Component> list = splitText(text, "\n");
+                List<Component> newList = new ArrayList<>();
+                for (Component component : list)
+                    newList.add(formattedTextToText(font.substrByWidth(component, maxWidth)));
+                return newList;
+            }
+        } else {
+            return splitText(text, "\n");
         }
-        return builder;
+    }
+
+    public enum Alignment {
+        LEFT((font, component) -> 0),
+        RIGHT((font, component) -> font.width(component)),
+        CENTER((font, component) -> font.width(component) / 2);
+
+        private final BiFunction<Font, FormattedText, Integer> function;
+
+        Alignment(BiFunction<Font, FormattedText, Integer> function) {
+            this.function = function;
+        }
+
+        public int apply(Font font, FormattedText component) {
+            return function.apply(font, component);
+        }
+    }
+
+    public static class FiguraClickEvent extends ClickEvent {
+        public final Runnable onClick;
+        public FiguraClickEvent(Runnable onClick) {
+            super(Action.SUGGEST_COMMAND, "");
+            this.onClick = onClick;
+        }
     }
 }

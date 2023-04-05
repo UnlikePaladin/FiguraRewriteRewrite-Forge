@@ -5,7 +5,7 @@ import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.*;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
@@ -13,11 +13,13 @@ import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.avatar.local.LocalAvatarLoader;
 import org.moon.figura.backend2.NetworkStuff;
 import org.moon.figura.commands.FiguraLinkCommand;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.gui.widgets.*;
 import org.moon.figura.gui.widgets.lists.AvatarList;
 import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.FiguraText;
+import org.moon.figura.utils.TextUtils;
+import org.moon.figura.utils.ui.UIHelper;
 
 public class WardrobeScreen extends AbstractPanelScreen {
 
@@ -44,26 +46,26 @@ public class WardrobeScreen extends AbstractPanelScreen {
         super.init();
 
         //screen
+        Minecraft minecraft = Minecraft.getInstance();
         int middle = width / 2;
-        int third = this.width / 3 - 8;
-        double guiScale = this.minecraft.getWindow().getGuiScale();
-        double screenScale = Math.min(this.width, this.height) / 1018d;
+        int panels = Math.min(width / 3, 256) - 8;
 
-        //model
-        int modelBgSize = Math.min((int) ((512 / guiScale) * (screenScale * guiScale)), third);
-        int entitySize = (int) ((192 / guiScale) * (screenScale * guiScale));
+        int modelBgSize = Math.min(width - panels * 2 - 16, height - 96);
+        panels = Math.max((width - modelBgSize) / 2 - 8, panels);
 
         // -- left -- //
 
-        AvatarList avatarList = new AvatarList(4, 28, third, height - 36, this);
+        AvatarList avatarList = new AvatarList(4, 28, panels, height - 32, this);
         addRenderableWidget(avatarList);
 
         // -- middle -- //
 
+        //model
+        int entitySize = 11 * modelBgSize / 29;
         int entityX = middle - modelBgSize / 2;
         int entityY = this.height / 2 - modelBgSize / 2;
 
-        InteractableEntity entity = new InteractableEntity(entityX, entityY, modelBgSize, modelBgSize, entitySize, -15f, 30f, Minecraft.getInstance().player, this);
+        EntityPreview entity = new EntityPreview(entityX, entityY, modelBgSize, modelBgSize, entitySize, -15f, 30f, minecraft.player, this);
         addRenderableWidget(entity);
 
         int buttX = entity.x + entity.width / 2;
@@ -83,6 +85,9 @@ public class WardrobeScreen extends AbstractPanelScreen {
         //reload
         addRenderableWidget(new TexturedButton(buttX - 12, buttY, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/reload.png"), 72, 24, new FiguraText("gui.wardrobe.reload.tooltip"), button -> {
             AvatarManager.clearAvatars(FiguraMod.getLocalPlayerUUID());
+            try {
+                LocalAvatarLoader.loadAvatar(null, null);
+            } catch (Exception ignored) {}
             AvatarManager.localUploaded = true;
             NetworkStuff.auth();
             AvatarList.selectedEntry = null;
@@ -102,11 +107,28 @@ public class WardrobeScreen extends AbstractPanelScreen {
         // -- bottom -- //
 
         //version
-        Label version = new Label(new FiguraText().append(" " + FiguraMod.VERSION.noBuildString()).withStyle(ChatFormatting.ITALIC), middle, this.height - 5, true);
-        addRenderableOnly(version);
-        version.setColor(0x33FFFFFF);
+        MutableComponent versionText = new FiguraText().append(" " + FiguraMod.VERSION.noBuildString()).withStyle(ChatFormatting.ITALIC);
+        boolean oldVersion = NetworkStuff.latestVersion != null && NetworkStuff.latestVersion.compareTo(FiguraMod.VERSION) > 0;
+        if (oldVersion) {
+            versionText
+                    .append(new TextComponent(" =")
+                            .withStyle(Style.EMPTY
+                                    .withFont(UIHelper.UI_FONT)
+                                    .withItalic(false)
+                                    .applyLegacyFormat(ChatFormatting.WHITE)
+                            ))
+                    .withStyle(Style.EMPTY
+                            .applyFormat(ChatFormatting.AQUA)
+                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new FiguraText("gui.new_version.tooltip", NetworkStuff.latestVersion)))
+                    );
+        }
 
-        int rightSide = Math.min(third, 134);
+        Label version = new Label(versionText, middle, this.height, TextUtils.Alignment.CENTER);
+        addRenderableWidget(version);
+        if (!oldVersion) version.alpha = 0x33;
+        version.y -= version.getHeight() / 2 + 1;
+
+        int rightSide = Math.min(panels, 134);
 
         //back
         TexturedButton back = new TexturedButton(width - rightSide - 4, height - 24, rightSide, 20, new FiguraText("gui.done"), null,
@@ -116,9 +138,11 @@ public class WardrobeScreen extends AbstractPanelScreen {
 
         // -- right side -- //
 
+        rightSide = panels / 2 + 52;
+
         //hellp
         addRenderableWidget(new TexturedButton(
-                this.width - rightSide - 4, 32, 24, 24,
+                this.width - rightSide, 28, 24, 24,
                 0, 0, 24,
                 new FiguraIdentifier("textures/gui/help.png"),
                 72, 24,
@@ -130,24 +154,26 @@ public class WardrobeScreen extends AbstractPanelScreen {
         ));
 
         //sounds
-        TexturedButton sounds = new TexturedButton(this.width - rightSide / 2 - 16, 32, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/sound.png"), 72, 24, new FiguraText("gui.wardrobe.sound.tooltip"),
+        TexturedButton sounds = new TexturedButton(this.width - rightSide + 36, 28, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/sound.png"), 72, 24, new FiguraText("gui.wardrobe.sound.tooltip"),
                 button -> Minecraft.getInstance().setScreen(new SoundScreen(this))
         );
         addRenderableWidget(sounds);
 
         //keybinds
-        TexturedButton keybinds = new TexturedButton(this.width - 28, 32, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/keybind.png"), 72, 24, new FiguraText("gui.wardrobe.keybind.tooltip"),
+        TexturedButton keybinds = new TexturedButton(this.width - rightSide + 72, 28, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/keybind.png"), 72, 24, new FiguraText("gui.wardrobe.keybind.tooltip"),
                 button -> Minecraft.getInstance().setScreen(new KeybindScreen(this))
         );
         addRenderableWidget(keybinds);
 
         //avatar metadata
-        addRenderableOnly(avatarInfo = new AvatarInfoWidget(this.width - rightSide - 4, 64, rightSide, back.y - 68));
+        addRenderableOnly(avatarInfo = new AvatarInfoWidget(this.width - panels - 4, 56, panels, back.y - 60));
 
         //panic warning - always added last, on top
-        addRenderableOnly(panic = new Label(new FiguraText("gui.panic.1").withStyle(ChatFormatting.YELLOW).append("\n").append(new FiguraText("gui.panic.2", Config.PANIC_BUTTON.keyBind.getTranslatedKeyMessage())),
-                middle, this.height - 23, true, 0)
+        addRenderableWidget(panic = new Label(
+                new FiguraText("gui.panic", Configs.PANIC_BUTTON.keyBind.getTranslatedKeyMessage()).withStyle(ChatFormatting.YELLOW),
+                middle, this.height - version.getHeight(), TextUtils.Alignment.CENTER, 0)
         );
+        panic.y -= panic.getHeight() / 2;
         panic.setVisible(false);
     }
 

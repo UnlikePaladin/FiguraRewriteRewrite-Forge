@@ -7,10 +7,9 @@ import org.moon.figura.lua.LuaNotNil;
 import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
-import org.moon.figura.lua.docs.LuaMethodShadow;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.vector.FiguraVec3;
-import org.moon.figura.trust.Trust;
+import org.moon.figura.permissions.Permissions;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.LuaUtils;
 
@@ -28,8 +27,8 @@ public class AvatarAPI {
         this.avatar = avatar;
     }
 
-    private boolean bool(Trust trust) {
-        return trust.asBoolean(avatar.trust.get(trust));
+    private boolean bool(Permissions permissions) {
+        return permissions.asBoolean(avatar.permissions.get(permissions));
     }
 
     @LuaWhitelist
@@ -75,19 +74,18 @@ public class AvatarAPI {
                             argumentNames = {"r", "g", "b"}
                     )
             },
+            aliases = "color",
             value = "avatar.set_color"
     )
-    public void setColor(Object r, Double g, Double b) {
+    public AvatarAPI setColor(Object r, Double g, Double b) {
         FiguraVec3 vec = LuaUtils.parseVec3("setColor", r, g, b, 1, 1, 1);
         avatar.color = ColorUtils.rgbToHex(vec);
-        vec.free();
+        return this;
     }
 
     @LuaWhitelist
-    @LuaMethodShadow("setColor")
     public AvatarAPI color(Object r, Double g, Double b) {
-        setColor(r, g, b);
-        return this;
+        return setColor(r, g, b);
     }
 
     @LuaWhitelist
@@ -128,9 +126,9 @@ public class AvatarAPI {
     }
 
     @LuaWhitelist
-    @LuaMethodDoc("avatar.get_trust_level")
-    public String getTrustLevel() {
-        return avatar.trust.getGroup().name();
+    @LuaMethodDoc("avatar.get_permission_level")
+    public String getPermissionLevel() {
+        return avatar.permissions.getCategory().name();
     }
 
     @LuaWhitelist
@@ -148,7 +146,7 @@ public class AvatarAPI {
     @LuaWhitelist
     @LuaMethodDoc("avatar.get_max_init_count")
     public int getMaxInitCount() {
-        return avatar.trust.get(Trust.INIT_INST);
+        return avatar.permissions.get(Permissions.INIT_INST);
     }
 
     @LuaWhitelist
@@ -160,7 +158,7 @@ public class AvatarAPI {
     @LuaWhitelist
     @LuaMethodDoc("avatar.get_max_tick_count")
     public int getMaxTickCount() {
-        return avatar.trust.get(Trust.TICK_INST);
+        return avatar.permissions.get(Permissions.TICK_INST);
     }
 
     @LuaWhitelist
@@ -172,7 +170,7 @@ public class AvatarAPI {
     @LuaWhitelist
     @LuaMethodDoc("avatar.get_max_render_count")
     public int getMaxRenderCount() {
-        return avatar.trust.get(Trust.RENDER_INST);
+        return avatar.permissions.get(Permissions.RENDER_INST);
     }
 
     @LuaWhitelist
@@ -184,7 +182,7 @@ public class AvatarAPI {
     @LuaWhitelist
     @LuaMethodDoc("avatar.get_max_world_tick_count")
     public int getMaxWorldTickCount() {
-        return avatar.trust.get(Trust.WORLD_TICK_INST);
+        return avatar.permissions.get(Permissions.WORLD_TICK_INST);
     }
 
     @LuaWhitelist
@@ -196,7 +194,7 @@ public class AvatarAPI {
     @LuaWhitelist
     @LuaMethodDoc("avatar.get_max_world_render_count")
     public int getMaxWorldRenderCount() {
-        return avatar.trust.get(Trust.WORLD_RENDER_INST);
+        return avatar.permissions.get(Permissions.WORLD_RENDER_INST);
     }
 
     @LuaWhitelist
@@ -208,7 +206,7 @@ public class AvatarAPI {
     @LuaWhitelist
     @LuaMethodDoc("avatar.get_max_complexity")
     public int getMaxComplexity() {
-        return avatar.trust.get(Trust.COMPLEXITY);
+        return avatar.permissions.get(Permissions.COMPLEXITY);
     }
 
     @LuaWhitelist
@@ -220,7 +218,7 @@ public class AvatarAPI {
     @LuaWhitelist
     @LuaMethodDoc("avatar.get_max_particles")
     public int getMaxParticles() {
-        return avatar.trust.get(Trust.PARTICLES);
+        return avatar.permissions.get(Permissions.PARTICLES);
     }
 
     @LuaWhitelist
@@ -232,13 +230,13 @@ public class AvatarAPI {
     @LuaWhitelist
     @LuaMethodDoc("avatar.get_max_sounds")
     public int getMaxSounds() {
-        return avatar.trust.get(Trust.SOUNDS);
+        return avatar.permissions.get(Permissions.SOUNDS);
     }
 
     @LuaWhitelist
     @LuaMethodDoc("avatar.get_volume")
     public int getVolume() {
-        return avatar.trust.get(Trust.VOLUME);
+        return avatar.permissions.get(Permissions.VOLUME);
     }
 
     @LuaWhitelist
@@ -250,43 +248,43 @@ public class AvatarAPI {
     @LuaWhitelist
     @LuaMethodDoc("avatar.get_max_animation_complexity")
     public int getMaxAnimationComplexity() {
-        return avatar.trust.get(Trust.BB_ANIMATIONS);
+        return avatar.permissions.get(Permissions.BB_ANIMATIONS);
     }
 
     @LuaWhitelist
     @LuaMethodDoc("avatar.get_max_texture_size")
     public int getMaxTextureSize() {
-        return avatar.trust.get(Trust.TEXTURE_SIZE);
+        return avatar.permissions.get(Permissions.TEXTURE_SIZE);
     }
 
     @LuaWhitelist
     @LuaMethodDoc("avatar.can_edit_vanilla_model")
     public boolean canEditVanillaModel() {
-        return bool(Trust.VANILLA_MODEL_EDIT);
+        return bool(Permissions.VANILLA_MODEL_EDIT);
     }
 
     @LuaWhitelist
     @LuaMethodDoc("avatar.can_edit_nameplate")
     public boolean canEditNameplate() {
-        return bool(Trust.NAMEPLATE_EDIT);
+        return bool(Permissions.NAMEPLATE_EDIT);
     }
 
     @LuaWhitelist
     @LuaMethodDoc("avatar.can_render_offscreen")
     public boolean canRenderOffscreen() {
-        return bool(Trust.OFFSCREEN_RENDERING);
+        return bool(Permissions.OFFSCREEN_RENDERING);
     }
 
     @LuaWhitelist
     @LuaMethodDoc("avatar.can_use_custom_sounds")
     public boolean canUseCustomSounds() {
-        return bool(Trust.CUSTOM_SOUNDS);
+        return bool(Permissions.CUSTOM_SOUNDS);
     }
 
     @LuaWhitelist
     @LuaMethodDoc("avatar.can_have_custom_heads")
     public boolean canHaveCustomHeads() {
-        return bool(Trust.CUSTOM_HEADS);
+        return bool(Permissions.CUSTOM_HEADS);
     }
 
     @Override

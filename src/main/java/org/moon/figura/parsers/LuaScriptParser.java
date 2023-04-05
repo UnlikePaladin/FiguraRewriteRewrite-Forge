@@ -2,7 +2,7 @@ package org.moon.figura.parsers;
 
 import net.minecraft.nbt.ByteArrayTag;
 import org.moon.figura.FiguraMod;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
@@ -13,7 +13,7 @@ public class LuaScriptParser {
 
     // regex minify constants
 
-    private static final Pattern string = Pattern.compile("\"(\\\\|\\\"|[^\"\n\r])*?\"|'(\\\\|\\'|[^'\n\r])*?'".stripIndent(), Pattern.MULTILINE);
+    private static final Pattern string = Pattern.compile("\"(\\\\z\\s*|\\\\\\d{1,3}|\\\\x[\\da-fA-F]{2}|\\\\[\\\\\"'\\n\\rabfnrtv]|[^\\\\\"\\n\\r])*?\"|'(\\\\z\\s*|\\\\\\d{1,3}|\\\\x[\\da-fA-F]{2}|\\\\[\\\\\"'\\n\\rabfnrtv]|[^\\\\'\\n\\r])*?'", Pattern.MULTILINE);
     private static final Pattern multilineString = Pattern.compile("\\[(?<s>=*)\\[.*?](\\k<s>)]", Pattern.MULTILINE | Pattern.DOTALL);
     private static final Pattern comments = Pattern.compile("--[^\n]*$", Pattern.MULTILINE);
     private static final Pattern multilineComment = Pattern.compile("--\\[(?<s>=*)\\[.*?](\\k<s>)]", Pattern.MULTILINE | Pattern.DOTALL);
@@ -33,11 +33,11 @@ public class LuaScriptParser {
 
     public static ByteArrayTag parseScript(String name, String script) {
         error = true;
-        String minified = switch (Config.FORMAT_SCRIPT.asInt()) {
+        String minified = switch (Configs.FORMAT_SCRIPT.value) {
             case 0 -> noMinifier(script);
             case 1 -> regexMinify(name, script);
             case 2 -> aggressiveMinify(name, script);
-            default -> throw new IllegalStateException("Format_SCRIPT should not be %d, expecting 0 to %d".formatted(Config.FORMAT_SCRIPT.asInt(), Config.FORMAT_SCRIPT.enumList.size() - 1));
+            default -> throw new IllegalStateException("Format_SCRIPT should not be %d, expecting 0 to %d".formatted(Configs.FORMAT_SCRIPT.value, Configs.FORMAT_SCRIPT.enumList.size() - 1));
         };
         ByteArrayTag out;
         if (error) {
