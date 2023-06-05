@@ -7,16 +7,16 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
+import org.jetbrains.annotations.NotNull;
+import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.gui.FiguraToast;
 import org.moon.figura.gui.widgets.AbstractContainerElement;
-import org.moon.figura.gui.widgets.ContextMenu;
 import org.moon.figura.gui.widgets.Button;
+import org.moon.figura.gui.widgets.ContextMenu;
 import org.moon.figura.gui.widgets.lists.AvatarList;
 import org.moon.figura.utils.FiguraText;
 import org.moon.figura.utils.ui.UIHelper;
-
-import java.io.File;
 
 public abstract class AbstractAvatarWidget extends AbstractContainerElement implements Comparable<AbstractAvatarWidget> {
 
@@ -49,11 +49,15 @@ public abstract class AbstractAvatarWidget extends AbstractContainerElement impl
             context.updateDimensions();
         });
         context.addAction(FiguraText.of("gui.context.open_folder"), null, button -> {
-            File f = avatar.getPath().toFile();
-            Util.getPlatform().openFile(f.isDirectory() ? f : f.getParentFile());
+            try {
+                Util.getPlatform().openUri(avatar.getFSPath().toUri());
+            } catch (Exception e) {
+                FiguraMod.debug("failed to open avatar folder: ", e.getMessage());
+                Util.getPlatform().openUri(LocalAvatarFetcher.getLocalAvatarDirectory().toUri());
+            }
         });
         context.addAction(FiguraText.of("gui.context.copy_path"), null, button -> {
-            Minecraft.getInstance().keyboardHandler.setClipboard(avatar.getPath().toString());
+            Minecraft.getInstance().keyboardHandler.setClipboard(avatar.getFSPath().toString());
             FiguraToast.sendToast(FiguraText.of("toast.clipboard"));
         });
     }
@@ -138,7 +142,7 @@ public abstract class AbstractAvatarWidget extends AbstractContainerElement impl
     }
 
     @Override
-    public int compareTo(AbstractAvatarWidget other) {
+    public int compareTo(@NotNull AbstractAvatarWidget other) {
         //compare favourite
         if (this.favourite && !other.favourite)
             return -1;
