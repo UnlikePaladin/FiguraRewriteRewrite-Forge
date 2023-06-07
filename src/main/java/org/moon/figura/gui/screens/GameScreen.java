@@ -1,13 +1,13 @@
 package org.moon.figura.gui.screens;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.gui.components.Widget;
+import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.gui.widgets.Label;
-import org.moon.figura.gui.widgets.TexturedButton;
+import org.moon.figura.gui.widgets.Button;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.FiguraIdentifier;
@@ -31,8 +31,13 @@ public class GameScreen extends AbstractPanelScreen {
     private static final String EGG = "FRAN";
     private String egg = EGG;
 
-    protected GameScreen(Screen parentScreen, int index) {
-        super(parentScreen, Component.empty(), index);
+    protected GameScreen(Screen parentScreen) {
+        super(parentScreen, Component.empty());
+    }
+
+    @Override
+    public Class<? extends Screen> getSelectedPanel() {
+        return parentScreen.getClass();
     }
 
     protected void init() {
@@ -42,12 +47,10 @@ public class GameScreen extends AbstractPanelScreen {
         addRenderableOnly(grid = new Grid(width, height));
 
         //back button
-        addRenderableWidget(new TexturedButton(this.width - 28, 4, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/back.png"), 72, 24, FiguraText.of("gui.done"),
-            bx -> this.minecraft.setScreen(parentScreen)
-        ));
+        addRenderableWidget(new Button(this.width - 28, 4, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/back.png"), 72, 24, FiguraText.of("gui.done"), bx -> onClose()));
 
         //text
-        addRenderableOnly(keys = new Label(
+        addRenderableWidget(keys = new Label(
                 Component.empty()
                         .append(Component.literal("[R]").withStyle(FiguraMod.getAccentColor()))
                         .append(" restart, ")
@@ -60,9 +63,9 @@ public class GameScreen extends AbstractPanelScreen {
                         .append(" hide text, ")
                         .append(Component.literal("[Scroll]").withStyle(FiguraMod.getAccentColor()))
                         .append(" scale (restarts)"),
-                4, 4, false, 0)
+                4, 4, 0)
         );
-        addRenderableOnly(stats = new Label("", 4, keys.y + keys.height, false, 0));
+        addRenderableWidget(stats = new Label("", 4, keys.getRawY() + keys.getHeight(), 0));
     }
 
     @Override
@@ -108,7 +111,7 @@ public class GameScreen extends AbstractPanelScreen {
         return true;
     }
 
-    private static class Grid implements Widget {
+    private static class Grid implements Renderable {
 
         private Cell[][] grid;
         private final int width, height;

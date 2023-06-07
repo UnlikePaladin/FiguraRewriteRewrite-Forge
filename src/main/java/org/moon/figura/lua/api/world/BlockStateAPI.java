@@ -1,34 +1,43 @@
 package org.moon.figura.lua.api.world;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.block.BlockRenderDispatcher;
+import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.commands.arguments.blocks.BlockStateParser;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.material.Fluid;
-import net.minecraft.world.level.material.Material;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.luaj.vm2.LuaTable;
 import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.NbtToLua;
+import org.moon.figura.lua.ReadOnlyLuaTable;
 import org.moon.figura.lua.docs.LuaFieldDoc;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.vector.FiguraVec3;
-import org.moon.figura.math.vector.FiguraVec6;
 import org.moon.figura.mixin.BlockBehaviourAccessor;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.LuaUtils;
 
-import java.lang.reflect.Field;
 import java.util.*;
 
 @LuaWhitelist
@@ -51,21 +60,33 @@ public class BlockStateAPI {
     public BlockStateAPI(BlockState blockstate, BlockPos pos) {
         this.blockState = blockstate;
         this.pos = pos;
-        this.id = Registry.BLOCK.getKey(blockstate.getBlock()).toString();
+        this.id = BuiltInRegistries.BLOCK.getKey(blockstate.getBlock()).toString();
 
         CompoundTag tag = NbtUtils.writeBlockState(blockstate);
-        this.properties = (LuaTable) NbtToLua.convert(tag.contains("Properties") ? tag.get("Properties") : null);
+        this.properties = new ReadOnlyLuaTable(tag.contains("Properties") ? NbtToLua.convert(tag.get("Properties")) : new LuaTable());
     }
 
     protected BlockPos getBlockPos() {
         return pos == null ? BlockPos.ZERO : pos;
     }
 
-    protected static List<FiguraVec6> voxelShapeToTable(VoxelShape shape) {
-        List<FiguraVec6> shapes = new ArrayList<>();
+    protected static List<List<FiguraVec3>> voxelShapeToTable(VoxelShape shape) {
+        List<List<FiguraVec3>> shapes = new ArrayList<>();
         for (AABB aabb : shape.toAabbs())
-            shapes.add(FiguraVec6.of(aabb.minX, aabb.minY, aabb.minZ, aabb.maxX, aabb.maxY, aabb.maxZ));
+            shapes.add(List.of(FiguraVec3.of(aabb.minX, aabb.minY, aabb.minZ), FiguraVec3.of(aabb.maxX, aabb.maxY, aabb.maxZ)));
         return shapes;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("blockstate.get_id")
+    public String getID() {
+        return id;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("blockstate.get_properties")
+    public LuaTable getProperties() {
+        return properties;
     }
 
     @LuaWhitelist
@@ -86,12 +107,18 @@ public class BlockStateAPI {
                             argumentNames = {"x", "y", "z"}
                     )
             },
+            aliases = "pos",
             value = "blockstate.set_pos"
     )
-    public void setPos(Object x, Double y, Double z) {
+    public BlockStateAPI setPos(Object x, Double y, Double z) {
         FiguraVec3 newPos = LuaUtils.parseVec3("setPos", x, y, z);
         pos = newPos.asBlockPos();
-        newPos.free();
+        return this;
+    }
+
+    @LuaWhitelist
+    public BlockStateAPI pos(Object x, Double y, Double z) {
+        return setPos(x, y, z);
     }
 
     @LuaWhitelist
@@ -125,7 +152,7 @@ public class BlockStateAPI {
     }
 
     @LuaWhitelist
-    @LuaMethodDoc("blockstate.has_emissive_lightning")
+    @LuaMethodDoc("blockstate.has_emissive_lighting")
     public boolean hasEmissiveLighting() {
         return blockState.emissiveRendering(WorldAPI.getCurrentWorld(), getBlockPos());
     }
@@ -201,7 +228,7 @@ public class BlockStateAPI {
     public List<String> getTags() {
         List<String> list = new ArrayList<>();
 
-        Registry<Block> registry = WorldAPI.getCurrentWorld().registryAccess().registryOrThrow(Registry.BLOCK_REGISTRY);
+        Registry<Block> registry = WorldAPI.getCurrentWorld().registryAccess().registryOrThrow(Registries.BLOCK);
         Optional<ResourceKey<Block>> key = registry.getResourceKey(blockState.getBlock());
 
         if (key.isEmpty())
@@ -214,33 +241,20 @@ public class BlockStateAPI {
     }
 
     @LuaWhitelist
-    @LuaMethodDoc("blockstate.get_material")
-    public String getMaterial() {
-        for (Field field : Material.class.getFields()) {
-            try {
-                if (field.get(null) == blockState.getMaterial())
-                    return field.getName();
-            } catch (Exception ignored) {}
-        }
-
-        return null;
-    }
-
-    @LuaWhitelist
-    @LuaMethodDoc("blockstate.get_has_collision")
+    @LuaMethodDoc("blockstate.has_collision")
     public boolean hasCollision() {
         return ((BlockBehaviourAccessor) blockState.getBlock()).hasCollision();
     }
 
     @LuaWhitelist
     @LuaMethodDoc("blockstate.get_collision_shape")
-    public List<FiguraVec6> getCollisionShape() {
+    public List<List<FiguraVec3>> getCollisionShape() {
         return voxelShapeToTable(blockState.getCollisionShape(WorldAPI.getCurrentWorld(), getBlockPos()));
     }
 
     @LuaWhitelist
     @LuaMethodDoc("blockstate.get_outline_shape")
-    public List<FiguraVec6> getOutlineShape() {
+    public List<List<FiguraVec3>> getOutlineShape() {
         return voxelShapeToTable(blockState.getShape(WorldAPI.getCurrentWorld(), getBlockPos()));
     }
 
@@ -255,7 +269,7 @@ public class BlockStateAPI {
         sounds.put("break", snd.getBreakSound().getLocation().toString());
         sounds.put("fall", snd.getFallSound().getLocation().toString());
         sounds.put("hit", snd.getHitSound().getLocation().toString());
-        sounds.put("plate", snd.getPlaceSound().getLocation().toString());
+        sounds.put("place", snd.getPlaceSound().getLocation().toString());
         sounds.put("step", snd.getStepSound().getLocation().toString());
 
         return sounds;
@@ -284,6 +298,46 @@ public class BlockStateAPI {
         CompoundTag tag = entity != null ? entity.saveWithoutMetadata() : new CompoundTag();
 
         return BlockStateParser.serialize(blockState) + tag;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("blockstate.get_textures")
+    public HashMap<String, Set<String>> getTextures() {
+        HashMap<String, Set<String>> map = new HashMap<>();
+
+        RenderShape renderShape = blockState.getRenderShape();
+        if (renderShape != RenderShape.MODEL)
+            return map;
+
+        BlockRenderDispatcher blockRenderer = Minecraft.getInstance().getBlockRenderer();
+        BakedModel bakedModel = blockRenderer.getBlockModel(blockState);
+        RandomSource randomSource = RandomSource.create();
+        long seed = 42L;
+
+        for (Direction direction : Direction.values())
+            map.put(direction.name(), getTexturesForFace(blockState, direction, randomSource, bakedModel, seed));
+        map.put("NONE", getTexturesForFace(blockState, null, randomSource, bakedModel, seed));
+
+        TextureAtlasSprite particle = blockRenderer.getBlockModelShaper().getParticleIcon(blockState);
+        map.put("PARTICLE", Set.of(getTextureName(particle)));
+
+        return map;
+    }
+
+    private static Set<String> getTexturesForFace(BlockState blockState, Direction direction, RandomSource randomSource, BakedModel bakedModel, long seed) {
+        randomSource.setSeed(seed);
+        List<BakedQuad> quads = bakedModel.getQuads(blockState, direction, randomSource);
+        Set<String> textures = new HashSet<>();
+
+        for (BakedQuad quad : quads)
+            textures.add(getTextureName(quad.getSprite()));
+
+        return textures;
+    }
+
+    private static String getTextureName(TextureAtlasSprite sprite) {
+        ResourceLocation location = sprite.contents().name(); // do not close it
+        return location.getNamespace() + ":textures/" + location.getPath();
     }
 
     @LuaWhitelist

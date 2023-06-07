@@ -1,6 +1,7 @@
 package org.moon.figura.animation;
 
 import net.minecraft.util.Mth;
+import org.moon.figura.FiguraMod;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.model.FiguraModelPart;
 
@@ -13,6 +14,8 @@ public class AnimationPlayer {
         if (anim.playState == Animation.PlayState.STOPPED)
             return limit;
 
+        FiguraMod.pushProfiler(anim.name);
+
         if (anim.playState != Animation.PlayState.PAUSED)
             anim.tick();
 
@@ -22,13 +25,20 @@ public class AnimationPlayer {
             if (part.lastAnimationPriority > anim.priority)
                 continue;
 
+            FiguraMod.pushProfiler(part.name);
+
             boolean merge = part.lastAnimationPriority == anim.priority;
             part.lastAnimationPriority = anim.priority;
             part.animated = true;
 
             for (Animation.AnimationChannel channel : entry.getValue()) {
-                if (limit <= 0)
+                if (limit <= 0) {
+                    FiguraMod.popProfiler(2);
                     return limit;
+                }
+
+                TransformType type = channel.type();
+                FiguraMod.pushProfiler(type.name());
 
                 Keyframe[] keyframes = channel.keyframes();
 
@@ -38,13 +48,16 @@ public class AnimationPlayer {
                 Keyframe current = keyframes[currentIndex];
                 Keyframe next = keyframes[nextIndex];
 
-                float timeDiff = anim.frameTime - current.getTime();
-                float delta = Math.min(Math.max(timeDiff / (next.getTime() - current.getTime()), 0), 1);
-                if (Float.isNaN(delta))
+                float delta;
+                if (current == next) {
                     delta = 0;
+                } else {
+                    float timeDiff = anim.frameTime - current.getTime();
+                    delta = Math.min(Math.max(timeDiff / (next.getTime() - current.getTime()), 0), 1);
+                }
 
-                TransformType type = channel.type();
-                FiguraVec3 transform = current.getInterpolation().generate(keyframes, currentIndex, nextIndex, anim.blend, delta, type);
+                Interpolation interpolation = next.getInterpolation() == Interpolation.BEZIER ? Interpolation.BEZIER : current.getInterpolation();
+                FiguraVec3 transform = interpolation.generate(keyframes, currentIndex, nextIndex, anim.blend, delta, type);
                 type.apply(part, transform, merge);
 
                 switch (type) {
@@ -72,9 +85,13 @@ public class AnimationPlayer {
                 }
 
                 limit--;
+                FiguraMod.popProfiler();
             }
+
+            FiguraMod.popProfiler();
         }
 
+        FiguraMod.popProfiler();
         return limit;
     }
 

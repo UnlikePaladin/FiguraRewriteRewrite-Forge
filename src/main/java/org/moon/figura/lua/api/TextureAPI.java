@@ -10,14 +10,13 @@ import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.model.rendering.texture.FiguraTexture;
-import org.moon.figura.trust.Trust;
+import org.moon.figura.permissions.Permissions;
 import org.moon.figura.utils.ColorUtils;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -40,9 +39,11 @@ public class TextureAPI {
     }
 
     public FiguraTexture register(String name, NativeImage image, boolean ignoreSize) {
-        int max = owner.trust.get(Trust.TEXTURE_SIZE);
-        if (!ignoreSize && (image.getWidth() > max || image.getHeight() > max))
+        int max = owner.permissions.get(Permissions.TEXTURE_SIZE);
+        if (!ignoreSize && (image.getWidth() > max || image.getHeight() > max)) {
+            owner.noPermissions.add(Permissions.TEXTURE_SIZE);
             throw new LuaError("Texture exceeded max size of " + max + " x " + max + " resolution, got " + image.getWidth() + " x " + image.getHeight());
+        }
 
         FiguraTexture oldText = get(name);
         if (oldText != null)
@@ -72,7 +73,7 @@ public class TextureAPI {
         }
 
         FiguraTexture texture = register(name, image, false);
-        texture.fill(0, 0, width, height, ColorUtils.Colors.FRAN_PINK.vec.augmented(), null, null, null);
+        texture.fill(0, 0, width, height, ColorUtils.Colors.FRAN_PINK.vec.augmented(1d), null, null, null);
         return texture;
     }
 
@@ -117,6 +118,18 @@ public class TextureAPI {
     @LuaWhitelist
     @LuaMethodDoc(
             overloads = @LuaMethodOverload(
+                    argumentTypes = {String.class, FiguraTexture.class},
+                    argumentNames = {"name", "texture"}
+            ),
+            value = "textures.copy")
+    public FiguraTexture copy(@LuaNotNil String name, @LuaNotNil FiguraTexture texture) {
+        NativeImage image = texture.copy();
+        return register(name, image, false);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
                     argumentTypes = String.class,
                     argumentNames = "name"
             ),
@@ -136,17 +149,7 @@ public class TextureAPI {
     @LuaWhitelist
     public FiguraTexture __index(@LuaNotNil String name) {
         check();
-
-        FiguraTexture texture = get(name);
-        if (texture != null)
-            return texture;
-
-        for (Map.Entry<String, FiguraTexture> entry : owner.renderer.textures.entrySet()) {
-            if (entry.getKey().equals(name))
-                return entry.getValue();
-        }
-
-        return null;
+        return owner.renderer.getTexture(name);
     }
 
     @Override

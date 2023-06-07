@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.particle.Particle;
 import net.minecraft.commands.arguments.ParticleArgument;
 import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.core.registries.BuiltInRegistries;
 import org.luaj.vm2.LuaError;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.ducks.ParticleEngineAccessor;
@@ -15,7 +16,6 @@ import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.vector.FiguraVec3;
-import org.moon.figura.math.vector.FiguraVec6;
 import org.moon.figura.utils.LuaUtils;
 
 @LuaWhitelist
@@ -37,10 +37,10 @@ public class ParticleAPI {
 
     private LuaParticle generate(String id, double x, double y, double z, double w, double t, double h) {
         try {
-            ParticleOptions options = ParticleArgument.readParticle(new StringReader(id));
+            ParticleOptions options = ParticleArgument.readParticle(new StringReader(id), BuiltInRegistries.PARTICLE_TYPE.asLookup());
             Particle p = getParticleEngine().figura$makeParticle(options, x, y, z, w, t, h);
             if (p == null) throw new LuaError("Could not parse particle \"" + id + "\"");
-            return new LuaParticle(p, owner);
+            return new LuaParticle(id, p, owner);
         } catch (Exception e) {
             throw new LuaError(e.getMessage());
         }
@@ -49,10 +49,6 @@ public class ParticleAPI {
     @LuaWhitelist
     @LuaMethodDoc(
             overloads = {
-                    @LuaMethodOverload(
-                            argumentTypes = {String.class, FiguraVec6.class},
-                            argumentNames = {"name", "posVel"}
-                    ),
                     @LuaMethodOverload(
                             argumentTypes = {String.class, FiguraVec3.class},
                             argumentNames = {"name", "pos"}
@@ -90,17 +86,31 @@ public class ParticleAPI {
 
         LuaParticle particle = generate(id, pos.x, pos.y, pos.z, vel.x, vel.y, vel.z);
         particle.spawn();
-
-        pos.free();
-        vel.free();
-
         return particle;
     }
 
     @LuaWhitelist
     @LuaMethodDoc("particles.remove_particles")
-    public void removeParticles() {
+    public ParticleAPI removeParticles() {
         getParticleEngine().figura$clearParticles(owner.owner);
+        return this;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = String.class,
+                    argumentNames = "id"
+            ),
+            value = "particles.is_present"
+    )
+    public boolean isPresent(String id) {
+        try {
+            ParticleOptions options = ParticleArgument.readParticle(new StringReader(id), BuiltInRegistries.PARTICLE_TYPE.asLookup());
+            return getParticleEngine().figura$makeParticle(options, 0, 0, 0, 0, 0, 0) != null;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     @LuaWhitelist

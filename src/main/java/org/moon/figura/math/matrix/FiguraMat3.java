@@ -1,8 +1,7 @@
 package org.moon.figura.math.matrix;
 
-import com.mojang.math.Matrix3f;
+import org.joml.Matrix3f;
 import org.luaj.vm2.LuaError;
-import org.lwjgl.BufferUtils;
 import org.moon.figura.lua.LuaNotNil;
 import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.docs.LuaMethodDoc;
@@ -11,10 +10,6 @@ import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.vector.FiguraVec2;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.utils.LuaUtils;
-import org.moon.figura.utils.caching.CacheStack;
-import org.moon.figura.utils.caching.CacheUtils;
-
-import java.nio.FloatBuffer;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -23,69 +18,42 @@ import java.nio.FloatBuffer;
 )
 public class FiguraMat3 extends FiguraMatrix<FiguraMat3, FiguraVec3> {
 
-    private static final FloatBuffer copyingBuffer = BufferUtils.createFloatBuffer(3 * 3);
-
-    public static FiguraMat3 fromMatrix3f(Matrix3f mat) {
-        copyingBuffer.clear();
-        mat.store(copyingBuffer);
-        return of(copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get(),
-                copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get(),
-                copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get());
+    public FiguraMat3 set(Matrix3f mat) {
+        return set(
+                mat.m00(), mat.m01(), mat.m02(),
+                mat.m10(), mat.m11(), mat.m12(),
+                mat.m20(), mat.m21(), mat.m22()
+        );
     }
 
     public Matrix3f toMatrix3f() {
-        writeToBuffer();
-        Matrix3f result = new Matrix3f();
-        result.load(copyingBuffer);
-        return result;
+        return new Matrix3f(
+                (float) v11, (float) v21, (float) v31,
+                (float) v12, (float) v22, (float) v32,
+                (float) v13, (float) v23, (float) v33
+        );
     }
 
     public void copyDataTo(Matrix3f vanillaMatrix) {
-        writeToBuffer();
-        vanillaMatrix.load(copyingBuffer);
-    }
-
-    private void writeToBuffer() {
-        copyingBuffer.clear();
-        copyingBuffer
-                .put((float) v11).put((float) v21).put((float) v31)
-                .put((float) v12).put((float) v22).put((float) v32)
-                .put((float) v13).put((float) v23).put((float) v33);
+        vanillaMatrix.set(
+                (float) v11, (float) v21, (float) v31,
+                (float) v12, (float) v22, (float) v32,
+                (float) v13, (float) v23, (float) v33
+        );
     }
 
     //----------------------------IMPLEMENTATION BELOW-----------------------//
 
     //Values are named as v(ROW)(COLUMN), both 1-indexed like in actual math
-    public double v11, v12, v13, v21, v22, v23, v31, v32, v33;
+    public double v11 = 1, v12, v13, v21, v22 = 1, v23, v31, v32, v33 = 1;
 
-    @Override
-    public CacheUtils.Cache<FiguraMat3> getCache() {
-        return CACHE;
-    }
-    private static final CacheUtils.Cache<FiguraMat3> CACHE = CacheUtils.getCache(FiguraMat3::new, 250);
     public static FiguraMat3 of() {
-        return CACHE.getFresh();
+        return new FiguraMat3();
     }
     public static FiguraMat3 of(double n11, double n21, double n31,
                                 double n12, double n22, double n32,
                                 double n13, double n23, double n33) {
         return of().set(n11, n21, n31, n12, n22, n32, n13, n23, n33);
-    }
-    public static class Stack extends CacheStack<FiguraMat3, FiguraMat3> {
-        public Stack() {
-            this(CACHE);
-        }
-        public Stack(CacheUtils.Cache<FiguraMat3> cache) {
-            super(cache);
-        }
-        @Override
-        protected void modify(FiguraMat3 valueToModify, FiguraMat3 modifierArg) {
-            valueToModify.rightMultiply(modifierArg);
-        }
-        @Override
-        protected void copy(FiguraMat3 from, FiguraMat3 to) {
-            to.set(from);
-        }
     }
 
     @Override
@@ -468,7 +436,7 @@ public class FiguraMat3 extends FiguraMatrix<FiguraMat3, FiguraVec3> {
             value = "matrix_n.scale"
     )
     public FiguraMat3 scale(Object x, Double y, Double z) {
-        return scale(LuaUtils.parseVec3("scale", x, y, z, 1, 1, 1));
+        return scale(LuaUtils.parseOneArgVec("scale", x, y, z, 1d));
     }
 
     public FiguraMat3 translate(double x, double y) {
@@ -677,10 +645,7 @@ public class FiguraMat3 extends FiguraMatrix<FiguraMat3, FiguraVec3> {
 
     public FiguraVec2 apply(FiguraVec3 vec) {
         FiguraVec3 result = this.times(vec);
-        FiguraVec2 ret = FiguraVec2.of(result.x, result.y);
-        vec.free();
-        result.free();
-        return ret;
+        return FiguraVec2.of(result.x, result.y);
     }
 
     @LuaWhitelist
@@ -781,8 +746,7 @@ public class FiguraMat3 extends FiguraMatrix<FiguraMat3, FiguraVec3> {
     }
 
     @LuaWhitelist
-    public void __newindex(String string, Object value) {
-        if (string == null) return;
+    public void __newindex(@LuaNotNil String string, Object value) {
         if (value instanceof FiguraVec3 vec3) {
             switch (string) {
                 case "1", "c1" -> {

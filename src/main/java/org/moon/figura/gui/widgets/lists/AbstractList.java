@@ -1,7 +1,7 @@
 package org.moon.figura.gui.widgets.lists;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.client.gui.components.Widget;
+import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import org.moon.figura.gui.widgets.AbstractContainerElement;
 import org.moon.figura.gui.widgets.ScrollBarWidget;
@@ -23,7 +23,7 @@ public abstract class AbstractList extends AbstractContainerElement {
         updateScissors(1, 1, -2, -2);
 
         children.add(scrollBar = new ScrollBarWidget(x + width - 14, y + 4, 10, height - 8, 0d));
-        scrollBar.visible = false;
+        scrollBar.setVisible(false);
     }
 
     public void updateScissors(int xOffset, int yOffset, int endXOffset, int endYOffset) {
@@ -34,13 +34,13 @@ public abstract class AbstractList extends AbstractContainerElement {
     }
 
     public boolean isInsideScissors(double mouseX, double mouseY) {
-        return UIHelper.isMouseOver(x + scissorsX, y + scissorsY, width + scissorsWidth, height + scissorsHeight, mouseX, mouseY);
+        return UIHelper.isMouseOver(getX() + scissorsX, getY() + scissorsY, getWidth() + scissorsWidth, getHeight() + scissorsHeight, mouseX, mouseY);
     }
 
     @Override
     public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
         for (GuiEventListener child : children) {
-            if (child instanceof Widget widget && !contents().contains(child))
+            if (child instanceof Renderable widget && !contents().contains(child))
                 widget.render(stack, mouseX, mouseY, delta);
         }
     }

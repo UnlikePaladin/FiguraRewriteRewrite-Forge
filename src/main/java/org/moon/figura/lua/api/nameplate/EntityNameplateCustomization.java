@@ -1,10 +1,12 @@
 package org.moon.figura.lua.api.nameplate;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.LightTexture;
 import org.moon.figura.lua.LuaWhitelist;
-import org.moon.figura.lua.docs.LuaFieldDoc;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
+import org.moon.figura.math.vector.FiguraVec2;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.math.vector.FiguraVec4;
 import org.moon.figura.utils.ColorUtils;
@@ -17,20 +19,42 @@ import org.moon.figura.utils.LuaUtils;
 )
 public class EntityNameplateCustomization extends NameplateCustomization {
 
-    private FiguraVec3 position;
-    private FiguraVec3 scale;
-    public Integer background;
-    public Double alpha;
+    private FiguraVec3 pivot, position, scale;
+    public Integer background, outlineColor, light;
+
+    public boolean visible = true;
+    public boolean shadow, outline;
 
     @LuaWhitelist
-    @LuaFieldDoc("nameplate_entity.visible")
-    public boolean visible = true;
+    @LuaMethodDoc("nameplate_entity.get_pivot")
+    public FiguraVec3 getPivot() {
+        return this.pivot;
+    }
+
     @LuaWhitelist
-    @LuaFieldDoc("nameplate_entity.shadow")
-    public boolean shadow;
+    @LuaMethodDoc(
+            overloads = {
+                    @LuaMethodOverload(
+                            argumentTypes = FiguraVec3.class,
+                            argumentNames = "pivot"
+                    ),
+                    @LuaMethodOverload(
+                            argumentTypes = {Double.class, Double.class, Double.class},
+                            argumentNames = {"x", "y", "z"}
+                    )
+            },
+            aliases = "pivot",
+            value = "nameplate_entity.set_pivot"
+    )
+    public EntityNameplateCustomization setPivot(Object x, Double y, Double z) {
+        this.pivot = LuaUtils.nullableVec3("setPivot", x, y, z);
+        return this;
+    }
+
     @LuaWhitelist
-    @LuaFieldDoc("nameplate_entity.outline")
-    public boolean outline;
+    public EntityNameplateCustomization pivot(Object x, Double y, Double z) {
+        return setPivot(x, y, z);
+    }
 
     @LuaWhitelist
     @LuaMethodDoc("nameplate_entity.get_pos")
@@ -50,10 +74,17 @@ public class EntityNameplateCustomization extends NameplateCustomization {
                             argumentNames = {"x", "y", "z"}
                     )
             },
+            aliases = "pos",
             value = "nameplate_entity.set_pos"
     )
-    public void setPos(Object x, Double y, Double z) {
-        this.position = x == null ? null : LuaUtils.parseVec3("setPos", x, y, z);
+    public EntityNameplateCustomization setPos(Object x, Double y, Double z) {
+        this.position = LuaUtils.nullableVec3("setPos", x, y, z);
+        return this;
+    }
+
+    @LuaWhitelist
+    public EntityNameplateCustomization pos(Object x, Double y, Double z) {
+        return setPos(x, y, z);
     }
 
     @LuaWhitelist
@@ -74,10 +105,49 @@ public class EntityNameplateCustomization extends NameplateCustomization {
                             argumentNames = {"x", "y", "z"}
                     )
             },
+            aliases = "scale",
             value = "nameplate_entity.set_scale"
     )
-    public void setScale(Object x, Double y, Double z) {
-        this.scale = x == null ? null : LuaUtils.parseVec3("setScale", x, y, z, 1, 1, 1);
+    public EntityNameplateCustomization setScale(Object x, Double y, Double z) {
+        this.scale = x == null ? null : LuaUtils.parseOneArgVec("setScale", x, y, z, 1d);
+        return this;
+    }
+
+    @LuaWhitelist
+    public EntityNameplateCustomization scale(Object x, Double y, Double z) {
+        return setScale(x, y, z);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("nameplate_entity.get_background_color")
+    public FiguraVec4 getBackgroundColor() {
+        return this.background == null ? null : ColorUtils.intToARGB(this.background);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = {
+                    @LuaMethodOverload(
+                            argumentTypes = FiguraVec4.class,
+                            argumentNames = "rgba"
+                    ),
+                    @LuaMethodOverload(
+                            argumentTypes = {Double.class, Double.class, Double.class, Double.class},
+                            argumentNames = {"r", "g", "b", "a"}
+                    )
+            },
+            aliases = "backgroundColor",
+            value = "nameplate_entity.set_background_color"
+    )
+    public EntityNameplateCustomization setBackgroundColor(Object r, Double g, Double b, Double a) {
+        FiguraVec4 vec = LuaUtils.parseVec4("setBackgroundColor", r, g, b, a, 0, 0, 0,  Minecraft.getInstance().options.getBackgroundOpacity(0.25f));
+        this.background = ColorUtils.rgbaToIntARGB(vec);
+        return this;
+    }
+
+    @LuaWhitelist
+    public EntityNameplateCustomization backgroundColor(Object r, Double g, Double b, Double a) {
+        return setBackgroundColor(r, g, b, a);
     }
 
     @LuaWhitelist
@@ -85,63 +155,135 @@ public class EntityNameplateCustomization extends NameplateCustomization {
             overloads = {
                     @LuaMethodOverload(
                             argumentTypes = FiguraVec3.class,
-                            argumentNames = "rgb"
-                    ),
-                    @LuaMethodOverload(
-                            argumentTypes = FiguraVec4.class,
-                            argumentNames = "rgba"
-                    ),
-                    @LuaMethodOverload(
-                            argumentTypes = {FiguraVec3.class, Double.class},
-                            argumentNames = {"rgb", "a"}
+                            argumentNames = "color"
                     ),
                     @LuaMethodOverload(
                             argumentTypes = {Double.class, Double.class, Double.class},
                             argumentNames = {"r", "g", "b"}
-                    ),
-                    @LuaMethodOverload(
-                            argumentTypes = {Double.class, Double.class, Double.class, Double.class},
-                            argumentNames = {"r", "g", "b", "a"}
                     )
             },
-            value = "nameplate_entity.set_background_color"
+            aliases = "outlineColor",
+            value = "nameplate_entity.set_outline_color"
     )
-    public void setBackgroundColor(Object r, Double g, Double b, Double a) {
-        if (r == null) {
-            this.background = null;
-            this.alpha = null;
-        } else if (r instanceof FiguraVec3 vec) {
-            this.background = ColorUtils.rgbToInt(vec);
-            this.alpha = g;
-        } else if (r instanceof FiguraVec4 vec) {
-            this.background = ColorUtils.rgbToInt(FiguraVec3.of(vec.x, vec.y, vec.z));
-            this.alpha = vec.w;
-        } else {
-            FiguraVec3 vec = LuaUtils.parseVec3("setBackgroundColor", r, g, b);
-            this.background = ColorUtils.rgbToInt(vec);
-            this.alpha = a;
-        }
+    public EntityNameplateCustomization setOutlineColor(Object x, Double y, Double z) {
+        outlineColor = ColorUtils.rgbToInt(LuaUtils.parseVec3("setOutlineColor", x, y, z));
+        return this;
     }
 
     @LuaWhitelist
-    public Object __index(String arg) {
-        if (arg == null) return null;
-        return switch (arg) {
-            case "visible" -> visible;
-            case "shadow" -> shadow;
-            case "outline" -> outline;
-            default -> null;
-        };
+    public EntityNameplateCustomization outlineColor(Object x, Double y, Double z) {
+        return setOutlineColor(x, y, z);
     }
 
     @LuaWhitelist
-    public void __newindex(String key, boolean value) {
-        if (key == null) return;
-        switch (key) {
-            case "visible" -> visible = value;
-            case "shadow" -> shadow = value;
-            case "outline" -> outline = value;
+    @LuaMethodDoc("nameplate_entity.get_light")
+    public FiguraVec2 getLight() {
+        return light == null ? null : FiguraVec2.of(LightTexture.block(light), LightTexture.sky(light));
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = {
+                    @LuaMethodOverload(
+                            argumentTypes = FiguraVec2.class,
+                            argumentNames = "light"
+                    ),
+                    @LuaMethodOverload(
+                            argumentTypes = {Integer.class, Integer.class},
+                            argumentNames = {"blockLight", "skyLight"}
+                    )
+            },
+            aliases = "light",
+            value = "nameplate_entity.set_light")
+    public EntityNameplateCustomization setLight(Object light, Double skyLight) {
+        if (light == null) {
+            this.light = null;
+            return this;
         }
+
+        FiguraVec2 lightVec = LuaUtils.parseVec2("setLight", light, skyLight);
+        this.light = LightTexture.pack((int) lightVec.x, (int) lightVec.y);
+        return this;
+    }
+
+    @LuaWhitelist
+    public EntityNameplateCustomization light(Object light, Double skyLight) {
+        return setLight(light, skyLight);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("nameplate_entity.is_visible")
+    public boolean isVisible() {
+        return visible;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = Boolean.class,
+                    argumentNames = "visible"
+            ),
+            aliases = "visible",
+            value = "nameplate_entity.set_visible"
+    )
+    public EntityNameplateCustomization setVisible(boolean visible) {
+        this.visible = visible;
+        return this;
+    }
+
+    @LuaWhitelist
+    public EntityNameplateCustomization visible(boolean visible) {
+        return setVisible(visible);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("nameplate_entity.has_outline")
+    public boolean hasOutline() {
+        return outline;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = Boolean.class,
+                    argumentNames = "outline"
+            ),
+            aliases = "outline",
+            value = "nameplate_entity.set_outline"
+    )
+    public EntityNameplateCustomization setOutline(boolean outline) {
+        this.outline = outline;
+        return this;
+    }
+
+    @LuaWhitelist
+    public EntityNameplateCustomization outline(boolean outline) {
+        return setOutline(outline);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("nameplate_entity.has_shadow")
+    public boolean hasShadow() {
+        return shadow;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = Boolean.class,
+                    argumentNames = "shadow"
+            ),
+            aliases = "shadow",
+            value = "nameplate_entity.set_shadow"
+    )
+    public EntityNameplateCustomization setShadow(boolean shadow) {
+        this.shadow = shadow;
+        return this;
+    }
+
+    @LuaWhitelist
+    public EntityNameplateCustomization shadow(boolean shadow) {
+        return setShadow(shadow);
     }
 
     @Override

@@ -2,6 +2,7 @@ package org.moon.figura.lua.api.world;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.biome.Biome;
@@ -11,6 +12,7 @@ import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.vector.FiguraVec3;
+import org.moon.figura.mixin.BiomeAccessor;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.LuaUtils;
 
@@ -29,13 +31,13 @@ public class BiomeAPI {
     private BlockPos pos;
 
     @LuaWhitelist
-    @LuaFieldDoc("biome.name")
-    public final String name;
+    @LuaFieldDoc("biome.id")
+    public final String id;
 
     public BiomeAPI(Biome biome, BlockPos pos) {
         this.biome = biome;
         this.pos = pos;
-        this.name = WorldAPI.getCurrentWorld().registryAccess().registry(Registry.BIOME_REGISTRY).get().getKey(biome).toString();
+        this.id = WorldAPI.getCurrentWorld().registryAccess().registry(Registries.BIOME).get().getKey(biome).toString();
     }
 
     protected BlockPos getBlockPos() {
@@ -60,12 +62,18 @@ public class BiomeAPI {
                             argumentNames = {"x", "y", "z"}
                     )
             },
+            aliases = "pos",
             value = "biome.set_pos"
     )
-    public void setPos(Object x, Double y, Double z) {
+    public BiomeAPI setPos(Object x, Double y, Double z) {
         FiguraVec3 newPos = LuaUtils.parseVec3("setPos", x, y, z);
         pos = newPos.asBlockPos();
-        newPos.free();
+        return this;
+    }
+
+    @LuaWhitelist
+    public BiomeAPI pos(Object x, Double y, Double z) {
+        return setPos(x, y, z);
     }
 
     @LuaWhitelist
@@ -73,7 +81,7 @@ public class BiomeAPI {
     public List<String> getTags() {
         List<String> list = new ArrayList<>();
 
-        Registry<Biome> registry = WorldAPI.getCurrentWorld().registryAccess().registryOrThrow(Registry.BIOME_REGISTRY);
+        Registry<Biome> registry = WorldAPI.getCurrentWorld().registryAccess().registryOrThrow(Registries.BIOME);
         Optional<ResourceKey<Biome>> key = registry.getResourceKey(biome);
 
         if (key.isEmpty())
@@ -94,7 +102,7 @@ public class BiomeAPI {
     @LuaWhitelist
     @LuaMethodDoc("biome.get_precipitation")
     public String getPrecipitation() {
-        return biome.getPrecipitation().name();
+        return biome.getPrecipitationAt(getBlockPos()).name();
     }
 
     @LuaWhitelist
@@ -137,13 +145,13 @@ public class BiomeAPI {
     @LuaWhitelist
     @LuaMethodDoc("biome.get_downfall")
     public float getDownfall() {
-        return biome.getDownfall();
+        return ((BiomeAccessor) (Object) biome).getClimateSettings().downfall();
     }
 
     @LuaWhitelist
     @LuaMethodDoc("biome.is_hot")
     public boolean isHot() {
-        return biome.shouldSnowGolemBurn(getBlockPos());
+        return ((BiomeAccessor) (Object) biome).getTemperature(getBlockPos()) > 1f;
     }
 
     @LuaWhitelist
@@ -159,11 +167,11 @@ public class BiomeAPI {
 
     @LuaWhitelist
     public Object __index(String arg) {
-        return "name".equals(arg) ? name : null;
+        return "id".equals(arg) ? id : null;
     }
 
     @Override
     public String toString() {
-        return name + " (Biome)";
+        return id + " (Biome)";
     }
 }

@@ -17,10 +17,20 @@ import org.moon.figura.utils.TextUtils;
 )
 public class NameplateCustomization {
 
+    private Component json;
     private String text;
 
-    public static Component applyCustomization(String text) {
-        return Emojis.applyEmojis(TextUtils.removeClickableObjects(Badges.noBadges4U(TextUtils.tryParseJson(text))));
+    private Component parseJsonText(String text) {
+        Component component = TextUtils.tryParseJson(text);
+        component = Badges.noBadges4U(component);
+        component = TextUtils.removeClickableObjects(component);
+        component = Emojis.applyEmojis(component);
+        component = Emojis.removeBlacklistedEmojis(component);
+        return component;
+    }
+
+    public Component getJson() {
+        return json;
     }
 
     @LuaWhitelist
@@ -37,10 +47,17 @@ public class NameplateCustomization {
             ),
             value = "nameplate_customization.set_text"
     )
-    public void setText(String text) {
-        if (text != null && TextUtils.tryParseJson(text).getString().length() > 256)
-            throw new LuaError("Text length exceeded limit of 256 characters");
+    public NameplateCustomization setText(String text) {
         this.text = text;
+        if (text != null) {
+            Component component = parseJsonText(text);
+            if (component.getString().length() > 64)
+                throw new LuaError("Text length exceeded limit of 64 characters");
+            json = component;
+        } else {
+            json = null;
+        }
+        return this;
     }
 
     @Override

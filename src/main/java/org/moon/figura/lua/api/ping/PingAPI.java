@@ -2,6 +2,7 @@ package org.moon.figura.lua.api.ping;
 
 import org.luaj.vm2.LuaFunction;
 import org.moon.figura.avatar.Avatar;
+import org.moon.figura.lua.LuaNotNil;
 import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 
@@ -36,12 +37,16 @@ public class PingAPI {
     }
 
     @LuaWhitelist
-    public void __newindex(String key, LuaFunction value) {
-        if (key == null) return;
+    public void __newindex(@LuaNotNil String key, LuaFunction value) {
         int id = (key.hashCode() + 1) * 31;
-        PingFunction func = new PingFunction(id, owner, value);
-        map.put(key, func);
-        idMap.put(id, key);
+        if (value == null) {
+            map.remove(key);
+            idMap.remove(id);
+        } else {
+            PingFunction func = new PingFunction(id, owner, value);
+            map.put(key, func);
+            idMap.put(id, key);
+        }
     }
 
     @Override

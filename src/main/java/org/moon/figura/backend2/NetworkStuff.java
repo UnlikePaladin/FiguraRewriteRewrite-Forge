@@ -3,16 +3,19 @@ package org.moon.figura.backend2;
 import com.google.gson.*;
 import com.mojang.datafixers.util.Pair;
 import net.minecraft.Util;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
+import org.moon.figura.avatar.Badges;
 import org.moon.figura.avatar.UserData;
 import org.moon.figura.avatar.local.CacheAvatarLoader;
 import org.moon.figura.backend2.websocket.C2SMessageHandler;
 import org.moon.figura.backend2.websocket.WebsocketThingy;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.gui.FiguraToast;
 import org.moon.figura.utils.FiguraText;
 import org.moon.figura.utils.RefilledNumber;
@@ -22,9 +25,15 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -34,8 +43,9 @@ public class NetworkStuff {
     protected static final HttpClient client = HttpClient.newHttpClient();
     protected static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
 
-    private static final LinkedList<Request<HttpAPI>> API_REQUESTS = new LinkedList<>();
-    private static final LinkedList<Request<WebsocketThingy>> WS_REQUESTS = new LinkedList<>();
+    private static final ConcurrentLinkedQueue<Request<HttpAPI>> API_REQUESTS = new ConcurrentLinkedQueue<>();
+    private static final ConcurrentLinkedQueue<Request<WebsocketThingy>> WS_REQUESTS = new ConcurrentLinkedQueue<>();
+    private static final List<UUID> SUBSCRIPTIONS = new ArrayList<>();
     private static CompletableFuture<Void> tasks;
 
     private static final int RECONNECT = 6000; //5 min
@@ -51,6 +61,8 @@ public class NetworkStuff {
 
     public static int lastPing, pingsSent, pingsReceived;
 
+    public static Version latestVersion;
+
     //limits
     private static final RefilledNumber
             uploadRate = new RefilledNumber(),
@@ -58,8 +70,6 @@ public class NetworkStuff {
     private static int maxAvatarSize = Integer.MAX_VALUE;
 
     public static void tick() {
-        AuthHandler.tick();
-
         //limits
         uploadRate.tick();
         downloadRate.tick();
@@ -77,26 +87,53 @@ public class NetworkStuff {
                 checkAPI();
         }
 
+        tickSubscriptions();
+
+        //process requests
+        if (isConnected())
+            processRequests();
+
         //pings counter
         if (lastPing > 0 && FiguraMod.ticks - lastPing >= 20)
             lastPing = pingsSent = pingsReceived = 0;
+    }
 
-        //process requests
-        if (isConnected()) {
-            if (!API_REQUESTS.isEmpty()) {
-                Request<HttpAPI> request;
-                while ((request = API_REQUESTS.poll()) != null) {
-                    Request<HttpAPI> finalRequest = request;
-                    async(() -> finalRequest.consumer.accept(api));
-                }
+    private static void tickSubscriptions() {
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        if (connection == null) {
+            unsubscribeAll();
+            return;
+        }
+
+        List<UUID> unsub = new ArrayList<>(SUBSCRIPTIONS);
+        for (UUID uuid : connection.getOnlinePlayerIds()) {
+            unsub.remove(uuid);
+            if (!SUBSCRIPTIONS.contains(uuid)) {
+                SUBSCRIPTIONS.add(uuid);
+                subscribe(uuid);
             }
+        }
 
-            if (!WS_REQUESTS.isEmpty()) {
-                Request<WebsocketThingy> request;
-                while ((request = WS_REQUESTS.poll()) != null) {
-                    Request<WebsocketThingy> finalRequest = request;
-                    async(() -> finalRequest.consumer.accept(ws));
-                }
+        for (UUID uuid : unsub) {
+            SUBSCRIPTIONS.remove(uuid);
+            unsubscribe(uuid);
+        }
+    }
+
+    private static void processRequests() {
+        if (!API_REQUESTS.isEmpty()) {
+            Request<HttpAPI> request;
+            while ((request = API_REQUESTS.poll()) != null) {
+                Request<HttpAPI> finalRequest = request;
+                async(() -> finalRequest.consumer.accept(api));
+            }
+        }
+
+        if (!WS_REQUESTS.isEmpty()) {
+            Request<WebsocketThingy> request;
+            while ((request = WS_REQUESTS.poll()) != null) {
+                Request<WebsocketThingy> finalRequest = request;
+                async(() -> finalRequest.consumer.accept(ws));
             }
         }
     }
@@ -138,7 +175,7 @@ public class NetworkStuff {
     }
 
     protected static void authFail(String reason) {
-        FiguraMod.LOGGER.warn("Failed to auth with the " + FiguraMod.MOD_NAME + " auth server! {}", reason);
+        FiguraMod.LOGGER.warn("Failed to auth with the " + FiguraMod.MOD_NAME + " auth server! {}", reason == null ? "" : reason);
         disconnect(reason);
     }
 
@@ -167,11 +204,11 @@ public class NetworkStuff {
 
 
     private static void queueString(UUID owner, Function<HttpAPI, HttpRequest> request, BiConsumer<Integer, String> consumer) {
-        API_REQUESTS.add(new Request<>(owner, api -> api.runString(request.apply(api), consumer)));
+        API_REQUESTS.add(new Request<>(owner, api -> HttpAPI.runString(request.apply(api), consumer)));
     }
 
     private static void queueStream(UUID owner, Function<HttpAPI, HttpRequest> request, BiConsumer<Integer, InputStream> consumer) {
-        API_REQUESTS.add(new Request<>(owner, api -> api.runStream(request.apply(api), consumer)));
+        API_REQUESTS.add(new Request<>(owner, api -> HttpAPI.runStream(request.apply(api), consumer)));
     }
 
     public static void clear(UUID requestOwner) {
@@ -183,7 +220,7 @@ public class NetworkStuff {
     }
 
     private static void connectAPI(String token) {
-        api = new HttpAPI(client, token);
+        api = new HttpAPI(token);
         checkVersion();
         setLimits();
     }
@@ -200,7 +237,7 @@ public class NetworkStuff {
                 return;
             }
 
-            api.runString(api.checkAuth(), (code, data) -> {
+            HttpAPI.runString(api.checkAuth(), (code, data) -> {
                 if (code != 200)
                     reAuth();
             });
@@ -211,12 +248,13 @@ public class NetworkStuff {
         queueString(Util.NIL_UUID, HttpAPI::getVersion, (code, data) -> {
             responseDebug("checkVersion", code, data);
             JsonObject json = JsonParser.parseString(data).getAsJsonObject();
+            latestVersion = new Version(json.get("prerelease").getAsString());
 
-            int config = Config.UPDATE_CHANNEL.asInt();
+            int config = Configs.UPDATE_CHANNEL.value;
             if (config != 0) {
-                String version = json.get(config == 1 ? "release" : "prerelease").getAsString();
-                if (new Version(version).compareTo(FiguraMod.VERSION) > 0)
-                    FiguraToast.sendToast(FiguraText.of("toast.new_version"), version);
+                Version compare = config == 1 ? new Version(json.get("release").getAsString()) : latestVersion;
+                if (compare.compareTo(FiguraMod.VERSION) > 0)
+                    FiguraToast.sendToast(FiguraText.of("toast.new_version"), compare);
             }
         });
     }
@@ -245,7 +283,7 @@ public class NetworkStuff {
 
             //error
             if (code != 200) {
-                if (code == 404 && Config.CONNECTION_TOASTS.asBool())
+                if (code == 404 && Configs.CONNECTION_TOASTS.value)
                     FiguraToast.sendToast(FiguraText.of("backend.user_not_found"), FiguraToast.ToastType.ERROR);
                 return;
             }
@@ -253,9 +291,6 @@ public class NetworkStuff {
             //success
 
             JsonObject json = JsonParser.parseString(data).getAsJsonObject();
-
-            //id
-            UUID uuid = UUID.fromString(json.get("uuid").getAsString());
 
             //avatars
             ArrayList<Pair<String, Pair<String, UUID>>> avatars = new ArrayList<>();
@@ -269,19 +304,19 @@ public class NetworkStuff {
 
             //badges
             JsonObject badges = json.getAsJsonObject("equippedBadges");
+            Pair<BitSet, BitSet> badgesPair = Badges.emptyBadges();
 
             JsonArray pride = badges.getAsJsonArray("pride");
-            BitSet prideSet = new BitSet();
+            BitSet prideSet = badgesPair.getFirst();
             for (int i = 0; i < pride.size(); i++)
                 prideSet.set(i, pride.get(i).getAsInt() >= 1);
 
             JsonArray special = badges.getAsJsonArray("special");
-            BitSet specialSet = new BitSet();
+            BitSet specialSet = badgesPair.getSecond();
             for (int i = 0; i < special.size(); i++)
                 specialSet.set(i, special.get(i).getAsInt() >= 1);
 
-            user.loadData(avatars, Pair.of(prideSet, specialSet));
-            subscribe(uuid);
+            user.loadData(avatars, badgesPair);
         });
     }
 
@@ -297,17 +332,15 @@ public class NetworkStuff {
             queueString(Util.NIL_UUID, api -> api.uploadAvatar(id, baos.toByteArray()), (code, data) -> {
                 responseDebug("uploadAvatar", code, data);
 
-                if (!Config.CONNECTION_TOASTS.asBool())
-                    return;
+                if (code == 200) {
+                    //TODO - profile screen
+                    equipAvatar(List.of(Pair.of(avatar.owner, id)));
+                    AvatarManager.localUploaded = true;
+                }
 
+                //feedback
                 switch (code) {
-                    case 200 -> {
-                        FiguraToast.sendToast(FiguraText.of("backend.upload_success"));
-
-                        //TODO - profile screen
-                        equipAvatar(List.of(Pair.of(avatar.owner, id)));
-                        AvatarManager.localUploaded = true;
-                    }
+                    case 200 -> FiguraToast.sendToast(FiguraText.of("backend.upload_success"));
                     case 413 -> FiguraToast.sendToast(FiguraText.of("backend.upload_too_big"), FiguraToast.ToastType.ERROR);
                     case 507 -> FiguraToast.sendToast(FiguraText.of("backend.upload_too_many"), FiguraToast.ToastType.ERROR);
                     default -> FiguraToast.sendToast(FiguraText.of("backend.upload_error"), FiguraToast.ToastType.ERROR);
@@ -324,9 +357,6 @@ public class NetworkStuff {
         String id = avatar == null || true ? "avatar" : avatar; //TODO - profile screen
         queueString(Util.NIL_UUID, api -> api.deleteAvatar(id), (code, data) -> {
             responseDebug("deleteAvatar", code, data);
-
-            if (!Config.CONNECTION_TOASTS.asBool())
-                return;
 
             switch (code) {
                 case 200 -> FiguraToast.sendToast(FiguraText.of("backend.delete_success"));
@@ -348,7 +378,7 @@ public class NetworkStuff {
 
         queueString(Util.NIL_UUID, api -> api.setEquipped(GSON.toJson(json)), (code, data) -> {
             responseDebug("equipAvatar", code, data);
-            if (code != 200 && Config.CONNECTION_TOASTS.asBool())
+            if (code != 200 && Configs.CONNECTION_TOASTS.value)
                 FiguraToast.sendToast(FiguraText.of("backend.equip_error"), FiguraToast.ToastType.ERROR);
         });
     }
@@ -416,8 +446,8 @@ public class NetworkStuff {
         }
     }
 
-    public static void subscribe(UUID id) {
-        if (checkUUID(id))
+    private static void subscribe(UUID id) {
+        if (checkUUID(id) || !checkWS())
             return;
 
         WS_REQUESTS.add(new Request<>(Util.NIL_UUID, client -> {
@@ -431,8 +461,8 @@ public class NetworkStuff {
         }));
     }
 
-    public static void unsubscribe(UUID id) {
-        if (checkUUID(id))
+    private static void unsubscribe(UUID id) {
+        if (checkUUID(id) || !checkWS())
             return;
 
         WS_REQUESTS.add(new Request<>(Util.NIL_UUID, client -> {
@@ -444,6 +474,34 @@ public class NetworkStuff {
                 FiguraMod.LOGGER.error("Failed to unsubscribe to " + id, e);
             }
         }));
+    }
+
+    public static void subscribeAll() {
+        for (UUID uuid : SUBSCRIPTIONS)
+            subscribe(uuid);
+    }
+
+    public static void unsubscribeAll() {
+        for (UUID uuid : SUBSCRIPTIONS)
+            unsubscribe(uuid);
+        SUBSCRIPTIONS.clear();
+    }
+
+
+    // -- resources stuff -- //
+
+
+    private static InputStream request(HttpRequest request) throws Exception {
+        HttpResponse<InputStream> response = NetworkStuff.client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        return response.body();
+    }
+
+    public static InputStream getResourcesHashes(String version) throws Exception {
+        return request(HttpRequest.newBuilder(HttpAPI.getUri("/assets/" + version)).timeout(Duration.ofSeconds(15)).build());
+    }
+
+    public static InputStream getResource(String version, String resource) throws Exception {
+        return request(HttpRequest.newBuilder(HttpAPI.getUri("/assets/" + version + "/" + resource)).build());
     }
 
 
@@ -468,9 +526,9 @@ public class NetworkStuff {
 
     private record Request<T>(UUID owner, Consumer<T> consumer) {
         @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                return o instanceof Request request && owner.equals(request.owner);
-            }
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            return o instanceof Request request && owner.equals(request.owner);
         }
+    }
 }

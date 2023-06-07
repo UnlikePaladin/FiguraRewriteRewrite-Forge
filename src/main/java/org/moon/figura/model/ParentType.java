@@ -3,7 +3,7 @@ package org.moon.figura.model;
 import org.moon.figura.math.vector.FiguraVec3;
 
 public enum ParentType {
-    None("NONE"),
+    None("NONE", "Model", "MODEL"),
 
     Head(VanillaModelProvider.HEAD, "HEAD"),
     Body(VanillaModelProvider.BODY, "BODY"),
@@ -12,16 +12,18 @@ public enum ParentType {
     LeftLeg(VanillaModelProvider.LEFT_LEG, FiguraVec3.of(1.9, 12, 0), "LEFT_LEG"),
     RightLeg(VanillaModelProvider.RIGHT_LEG, FiguraVec3.of(-1.9, 12, 0), "RIGHT_LEG"),
 
-    LeftElytra(VanillaModelProvider.LEFT_ELYTRON, FiguraVec3.of(5, 0, 0), "LEFT_ELYTRA", "LeftElytron", "LEFT_ELYTRON"),
-    RightElytra(VanillaModelProvider.RIGHT_ELYTRON, FiguraVec3.of(-5, 0, 0), "RIGHT_ELYTRA", "RightElytron", "RIGHT_ELYTRON"),
+    LeftElytra(true, VanillaModelProvider.LEFT_ELYTRON, FiguraVec3.of(5, 0, 0), "LEFT_ELYTRA", "LeftElytron", "LEFT_ELYTRON"),
+    RightElytra(true, VanillaModelProvider.RIGHT_ELYTRON, FiguraVec3.of(-5, 0, 0), "RIGHT_ELYTRA", "RightElytron", "RIGHT_ELYTRON"),
 
-    Cape(VanillaModelProvider.FAKE_CAPE, "CAPE"),
+    Cape(true, VanillaModelProvider.FAKE_CAPE, FiguraVec3.of(), "CAPE"),
 
     World(true, false, "WORLD"),
-    Hud(true, false, "HUD", "Gui", "GUI"),
-    Camera("CAMERA"),
+    Hud(true, false, "HUD", "HeadsUpDisplay", "Gui", "GUI", "GraphicalUserInterface", "JraficalUserInterface"),
+    Camera("CAMERA", "Billboard", "BILLBOARD"),
     Skull(true, false, "SKULL", "☠"),
     Portrait(true, false, "PORTRAIT"),
+    Arrow(true, false, "ARROW"),
+    Item(true, false, "ITEM"),
 
     LeftItemPivot(false, true,"LEFT_ITEM_PIVOT"),
     RightItemPivot(false, true,"RIGHT_ITEM_PIVOT"),
@@ -35,41 +37,48 @@ public enum ParentType {
     public final FiguraVec3 offset;
     public final String[] aliases;
 
-    //If this parent part renders separately from the rest of the model.
+    //If this parent part renders separately from the rest of the model
     public final boolean isSeparate;
 
-    //If this parent part serves as a modification for a vanilla rendering feature, and *not* to actually render blockbench cubes.
+    //If this parent part serves as a modification for a vanilla rendering feature, and *not* to actually render blockbench cubes
     public final boolean isPivot;
 
+    //If this parent part is a render layer, were parenting matrices should be kept
+    public final boolean isRenderLayer;
+
     ParentType(String... aliases) {
-        this(false, false, null, aliases);
+        this(false, false, false, null, FiguraVec3.of(), aliases);
     }
 
     ParentType(VanillaModelProvider provider, String... aliases) {
-        this(false, false, provider, FiguraVec3.of(), aliases);
+        this(false, false, false, provider, FiguraVec3.of(), aliases);
     }
 
     ParentType(boolean isSeparate, boolean isPivot, String... aliases) {
-        this(isSeparate, isPivot, null, aliases);
-    }
-
-    ParentType(boolean isSeparate, boolean isPivot, VanillaModelProvider provider, String... aliases) {
-        this(isSeparate, isPivot, provider, FiguraVec3.of(), aliases);
+        this(isSeparate, isPivot, false, null, FiguraVec3.of(), aliases);
     }
 
     ParentType(VanillaModelProvider provider, FiguraVec3 offset, String... aliases) {
-        this(false, false, provider, offset, aliases);
+        this(false, false, false, provider, offset, aliases);
     }
 
-    ParentType(boolean isSeparate, boolean isPivot, VanillaModelProvider provider, FiguraVec3 offset, String... aliases) {
+    ParentType(boolean isSeparate, VanillaModelProvider provider, FiguraVec3 offset, String... aliases) {
+        this(isSeparate, false, true, provider, offset, aliases);
+    }
+
+    ParentType(boolean isSeparate, boolean isPivot, boolean isRenderLayer, VanillaModelProvider provider, FiguraVec3 offset, String... aliases) {
         this.isSeparate = isSeparate;
         this.isPivot = isPivot;
+        this.isRenderLayer = isRenderLayer;
         this.provider = provider;
         this.offset = offset;
         this.aliases = aliases;
     }
 
     public static ParentType get(String name) {
+        if (name == null)
+            return None;
+
         for (ParentType parentType : values()) {
             if (name.startsWith(parentType.name()))
                 return parentType;

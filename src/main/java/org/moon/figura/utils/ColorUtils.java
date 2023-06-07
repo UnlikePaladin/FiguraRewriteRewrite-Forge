@@ -15,6 +15,7 @@ public class ColorUtils {
         MAYA_BLUE(0x00F0FF, "maya", "devnull", "limits"),
         SKYE_BLUE(0x99BBEE, "sky", "skye", "skylar"),
         LILY_RED(0xFF2400, "lily", "foxes", "fox"),
+        KIRI_ORANGE(0xFFC400, "kiri"),
 
         CHEESE(0xF8C53A, "largecheese", "large cheese"),
 
@@ -23,7 +24,12 @@ public class ColorUtils {
         LUA_PING(0xA155DA, "luna", "moff", "moth"),
 
         DEFAULT(0x5AAAFF),
-        DISCORD(0x5865F2);
+        DISCORD(0x5865F2),
+        KOFI(0x27AAE0),
+        GITHUB(0xFFFFFF),
+        REDDIT(0xFF4400),
+        MODRINTH(0x1BD96A),
+        CURSEFORGE(0xF16436);
 
         public final int hex;
         public final FiguraVec3 vec;
@@ -50,6 +56,11 @@ public class ColorUtils {
                 }
             }
             return null;
+        }
+
+        public static Colors random() {
+            Colors[] colors = values();
+            return colors[(int) (Math.random() * colors.length)];
         }
     }
 
@@ -195,8 +206,34 @@ public class ColorUtils {
         return hex;
     }
 
+    public static int rgbaToIntARGB(FiguraVec4 rgba) {
+        int hex = (int) (rgba.w * 0xFF);
+        hex = (hex << 8) + (int) (rgba.x * 0xFF);
+        hex = (hex << 8) + (int) (rgba.y * 0xFF);
+        hex = (hex << 8) + (int) (rgba.z * 0xFF);
+        return hex;
+    }
+
+    public static int rgbaToInt(FiguraVec4 rgba) {
+        int hex = (int) (rgba.x * 0xFF);
+        hex = (hex << 8) + (int) (rgba.y * 0xFF);
+        hex = (hex << 8) + (int) (rgba.z * 0xFF);
+        hex = (hex << 8) + (int) (rgba.w * 0xFF);
+        return hex;
+    }
+
     public static FiguraVec4 abgrToRGBA(int color) {
         int[] rgb = ColorUtils.split(color, 4);
         return FiguraVec4.of(rgb[3] / 255f, rgb[2] / 255f, rgb[1] / 255f, rgb[0] / 255f);
+    }
+
+    public static FiguraVec4 intToRGBA(int color) {
+        int[] rgb = ColorUtils.split(color, 4);
+        return FiguraVec4.of(rgb[0] / 255f, rgb[1] / 255f, rgb[2] / 255f, rgb[3] / 255f);
+    }
+
+    public static FiguraVec4 intToARGB(int color) {
+        int[] rgb = ColorUtils.split(color, 4);
+        return FiguraVec4.of(rgb[3] / 255f, rgb[0] / 255f, rgb[1] / 255f, rgb[2] / 255f);
     }
 }

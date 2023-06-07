@@ -7,6 +7,7 @@ import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.state.BlockState;
+import org.moon.figura.avatar.Avatar;
 import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.api.world.BlockStateAPI;
 import org.moon.figura.lua.docs.LuaMethodDoc;
@@ -24,25 +25,37 @@ public class BlockTask extends RenderTask {
 
     private BlockState block;
     private int cachedComplexity;
-    @Override
-    public boolean render(PartCustomization.Stack stack, MultiBufferSource buffer, int light, int overlay) {
-        if (!enabled || block == null || block.isAir())
-            return false;
 
+    public BlockTask(String name, Avatar owner) {
+        super(name, owner);
+    }
+
+    @Override
+    public void render(PartCustomization.PartCustomizationStack stack, MultiBufferSource buffer, int light, int overlay) {
         this.pushOntoStack(stack); //push
         PoseStack poseStack = stack.peek().copyIntoGlobalPoseStack();
         poseStack.scale(16, 16, 16);
 
-        Minecraft.getInstance().getBlockRenderer().renderSingleBlock(block, poseStack, buffer, this.light != null ? this.light : light, this.overlay != null ? this.overlay : overlay);
+        int newLight = this.customization.light != null ? this.customization.light : light;
+        int newOverlay = this.customization.overlay != null ? this.customization.overlay : overlay;
+
+        Minecraft.getInstance().getBlockRenderer().renderSingleBlock(block, poseStack, buffer, newLight, newOverlay);
 
         stack.pop(); //pop
-        return true;
     }
 
     @Override
     public int getComplexity() {
         return cachedComplexity;
     }
+
+    @Override
+    public boolean shouldRender() {
+        return super.shouldRender() && block != null && !block.isAir();
+    }
+
+    // -- lua -- //
+
 
     @LuaWhitelist
     @LuaMethodDoc(
@@ -56,9 +69,10 @@ public class BlockTask extends RenderTask {
                             argumentNames = "block"
                     )
             },
-            value = "block_task.block"
+            aliases = "block",
+            value = "block_task.set_block"
     )
-    public RenderTask block(Object block) {
+    public BlockTask setBlock(Object block) {
         this.block = LuaUtils.parseBlockState("block", block);
         Minecraft client = Minecraft.getInstance();
         RandomSource random = client.level != null ? client.level.random : RandomSource.create();
@@ -71,8 +85,13 @@ public class BlockTask extends RenderTask {
         return this;
     }
 
+    @LuaWhitelist
+    public BlockTask block(Object block) {
+        return setBlock(block);
+    }
+
     @Override
     public String toString() {
-        return "Block Render Task";
+        return name + " (Block Render Task)";
     }
 }

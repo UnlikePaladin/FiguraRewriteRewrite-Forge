@@ -4,28 +4,32 @@ import com.mojang.blaze3d.platform.Window;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.multiplayer.ServerData;
+import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.UUIDUtil;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Vector3f;
 import org.luaj.vm2.LuaError;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.lua.LuaNotNil;
 import org.moon.figura.lua.LuaWhitelist;
-import org.moon.figura.lua.api.entity.EntityAPI;
-import org.moon.figura.lua.api.entity.PlayerAPI;
+import org.moon.figura.lua.api.entity.ViewerAPI;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.vector.FiguraVec2;
 import org.moon.figura.math.vector.FiguraVec3;
-import org.moon.figura.utils.MathUtils;
+import org.moon.figura.mixin.render.ModelManagerAccessor;
+import org.moon.figura.utils.LuaUtils;
 import org.moon.figura.utils.TextUtils;
 import org.moon.figura.utils.Version;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -35,7 +39,8 @@ import java.util.UUID;
 public class ClientAPI {
 
     public static final ClientAPI INSTANCE = new ClientAPI();
-    private static final boolean hasIris = FabricLoader.getInstance().isModLoaded("iris");
+    private static final HashMap<String, Boolean> LOADED_MODS = new HashMap<>();
+    private static final boolean HAS_IRIS = FabricLoader.getInstance().isModLoaded("iris"); //separated to avoid indexing the list every frame
 
     @LuaWhitelist
     @LuaMethodDoc("client.get_fps")
@@ -212,8 +217,17 @@ public class ClientAPI {
     @LuaWhitelist
     @LuaMethodDoc("client.get_camera_rot")
     public static FiguraVec3 getCameraRot() {
+        var quaternion = Minecraft.getInstance().gameRenderer.getMainCamera().rotation();
+        Vector3f vec = new Vector3f();
+        quaternion.getEulerAnglesYXZ(vec);
         double f = 180d / Math.PI;
-        return MathUtils.quaternionToYXZ(Minecraft.getInstance().gameRenderer.getMainCamera().rotation()).multiply(f, -f, f); //degrees, and negate y
+        return FiguraVec3.fromVec3f(vec).multiply(f, -f, f); //degrees, and negate y
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("client.get_camera_dir")
+    public static FiguraVec3 getCameraDir() {
+        return FiguraVec3.fromVec3f(Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector());
     }
 
     @LuaWhitelist
@@ -236,8 +250,32 @@ public class ClientAPI {
             ),
             value = "client.get_text_height"
     )
-    public static int getTextHeight(@LuaNotNil String text) {
-        return Minecraft.getInstance().font.lineHeight * TextUtils.splitText(TextUtils.tryParseJson(text), "\n").size();
+    public static int getTextHeight(String text) {
+        int lineHeight = Minecraft.getInstance().font.lineHeight;
+        return text == null ? lineHeight : lineHeight * TextUtils.splitText(TextUtils.tryParseJson(text), "\n").size();
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = {
+                    @LuaMethodOverload(
+                            argumentTypes = String.class,
+                            argumentNames = "text"
+                    ),
+                    @LuaMethodOverload(
+                            argumentTypes = {String.class, Integer.class, Boolean.class},
+                            argumentNames = {"text", "maxWidth", "wrap"}
+                    )
+            },
+            value = "client.get_text_dimensions"
+    )
+    public static FiguraVec2 getTextDimensions(@LuaNotNil String text, int maxWidth, Boolean wrap) {
+        Component component = TextUtils.tryParseJson(text);
+        Font font = Minecraft.getInstance().font;
+        List<Component> list = TextUtils.formatInBounds(component, font, maxWidth, wrap == null || wrap);
+        int x = TextUtils.getWidth(list, font);
+        int y = list.size() * font.lineHeight;
+        return FiguraVec2.of(x, y);
     }
 
     @LuaWhitelist
@@ -247,15 +285,28 @@ public class ClientAPI {
     }
 
     @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = String.class,
+                    argumentNames = "modID"
+            ),
+            value = "client.is_mod_loaded"
+    )
+    public static boolean isModLoaded(String id) {
+        LOADED_MODS.putIfAbsent(id, FabricLoader.getInstance().isModLoaded(id));
+        return LOADED_MODS.get(id);
+    }
+
+    @LuaWhitelist
     @LuaMethodDoc("client.has_iris")
     public static boolean hasIris() {
-        return hasIris;
+        return HAS_IRIS;
     }
 
     @LuaWhitelist
     @LuaMethodDoc("client.has_iris_shader")
     public static boolean hasIrisShader() {
-        return hasIris && net.irisshaders.iris.api.v0.IrisApi.getInstance().isShaderPackInUse();
+        return HAS_IRIS && net.irisshaders.iris.api.v0.IrisApi.getInstance().isShaderPackInUse();
     }
 
     @LuaWhitelist
@@ -267,8 +318,8 @@ public class ClientAPI {
             value = "client.has_resource"
     )
     public static boolean hasResource(@LuaNotNil String path) {
+        ResourceLocation resource = LuaUtils.parsePath(path);
         try {
-            ResourceLocation resource = new ResourceLocation(path);
             return Minecraft.getInstance().getResourceManager().getResource(resource).isPresent();
         } catch (Exception ignored) {
             return false;
@@ -329,8 +380,96 @@ public class ClientAPI {
 
     @LuaWhitelist
     @LuaMethodDoc("client.get_viewer")
-    public static EntityAPI<?> getViewer() {
-        return PlayerAPI.wrap(Minecraft.getInstance().player);
+    public static ViewerAPI getViewer() {
+        return new ViewerAPI(Minecraft.getInstance().player);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("client.get_server_data")
+    public static Map<String, String> getServerData() {
+        Map<String, String> map = new HashMap<>();
+
+        IntegratedServer iServer = Minecraft.getInstance().getSingleplayerServer();
+        if (iServer != null) {
+            map.put("name", iServer.getWorldData().getLevelName());
+            map.put("ip", iServer.getLocalIp());
+            map.put("motd", iServer.getMotd());
+            return map;
+        }
+
+        ServerData mServer = Minecraft.getInstance().getCurrentServer();
+        if (mServer != null) {
+            map.put("name", mServer.name);
+            map.put("ip", mServer.ip);
+            map.put("motd", mServer.motd.getString());
+        }
+
+        return map;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("client.get_date")
+    public static Map<String, Object> getDate() {
+        Map<String, Object> map = new HashMap<>();
+
+        Calendar calendar = FiguraMod.CALENDAR;
+        Date date = new Date();
+        calendar.setTime(date);
+
+        map.put("day", calendar.get(Calendar.DAY_OF_MONTH));
+        map.put("month", calendar.get(Calendar.MONTH) + 1);
+        map.put("year", calendar.get(Calendar.YEAR));
+        map.put("hour", calendar.get(Calendar.HOUR_OF_DAY));
+        map.put("minute", calendar.get(Calendar.MINUTE));
+        map.put("second", calendar.get(Calendar.SECOND));
+        map.put("millisecond", calendar.get(Calendar.MILLISECOND));
+        map.put("week", calendar.get(Calendar.WEEK_OF_YEAR));
+        map.put("year_day", calendar.get(Calendar.DAY_OF_YEAR));
+        map.put("week_day", calendar.get(Calendar.DAY_OF_WEEK));
+        map.put("daylight_saving", calendar.getTimeZone().inDaylightTime(date));
+
+        SimpleDateFormat format = new SimpleDateFormat("Z|zzzz|G|MMMM|EEEE", Locale.US);
+        String[] f = format.format(date).split("\\|");
+
+        map.put("timezone", f[0]);
+        map.put("timezone_name", f[1]);
+        map.put("era", f[2]);
+        map.put("month_name", f[3]);
+        map.put("day_name", f[4]);
+
+        return map;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("client.get_frame_time")
+    public static double getFrameTime() {
+        return Minecraft.getInstance().getFrameTime();
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("client.list_atlases")
+    public static List<String> listAtlases() {
+        List<String> list = new ArrayList<>();
+        for (ResourceLocation res : ModelManagerAccessor.getVanillaAtlases().keySet())
+            list.add(res.toString());
+        return list;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = String.class,
+                    argumentNames = "path"
+            ),
+            value = "client.get_atlas"
+    )
+    public static TextureAtlasAPI getAtlas(@LuaNotNil String atlas) {
+        ResourceLocation path = LuaUtils.parsePath(atlas);
+        try {
+            return new TextureAtlasAPI(Minecraft.getInstance().getModelManager().getAtlas(path));
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     @Override

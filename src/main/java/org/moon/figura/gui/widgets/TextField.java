@@ -3,28 +3,31 @@ package org.moon.figura.gui.widgets;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import org.moon.figura.utils.FiguraIdentifier;
+import org.moon.figura.utils.FiguraText;
+import org.moon.figura.utils.TextUtils;
 import org.moon.figura.utils.ui.UIHelper;
 
 import java.util.function.Consumer;
 
 public class TextField extends AbstractContainerElement {
 
-    private static final ResourceLocation BACKGROUND = new FiguraIdentifier("textures/gui/text_field.png");
-    private static final int ENABLED_COLOR = ChatFormatting.WHITE.getColor();
-    private static final int DISABLED_COLOR = ChatFormatting.DARK_GRAY.getColor();
+    public static final ResourceLocation BACKGROUND = new FiguraIdentifier("textures/gui/text_field.png");
+    public static final int ENABLED_COLOR = ChatFormatting.WHITE.getColor();
+    public static final int DISABLED_COLOR = ChatFormatting.DARK_GRAY.getColor();
 
-    private final Component hint;
+    private final HintType hint;
     private final EditBox field;
     private int borderColour = 0xFFFFFFFF;
     private boolean enabled = true;
 
-    public TextField(int x, int y, int width, int height, Component hint, Consumer<String> changedListener) {
+    public TextField(int x, int y, int width, int height, HintType hint, Consumer<String> changedListener) {
         super(x, y, width, height);
         this.hint = hint;
 
@@ -46,23 +49,26 @@ public class TextField extends AbstractContainerElement {
         if (!isVisible()) return;
 
         //render background
-        UIHelper.renderSliced(stack, x, y, width, height, !isEnabled() ? 0f : this.isMouseOver(mouseX, mouseY) ? 32f : 16f, 0f, 16, 16, 48, 16, BACKGROUND);
+        UIHelper.renderSliced(stack, getX(), getY(), getWidth(), getHeight(), !isEnabled() ? 0f : this.isMouseOver(mouseX, mouseY) ? 32f : 16f, 0f, 16, 16, 48, 16, BACKGROUND);
 
         //render outline
         if (isFocused())
-            UIHelper.fillOutline(stack, x, y, width, height, borderColour);
+            UIHelper.fillOutline(stack, getX(), getY(), getWidth(), getHeight(), borderColour);
 
         //hint text
-        if (hint != null && field.getValue().isEmpty() && !field.isFocused()) {
-            Minecraft.getInstance().font.drawShadow(
-                    stack, hint.copy().withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC),
-                    this.x + 4, this.y + (height - 8) / 2, 0xFFFFFF
-            );
-        }
-        //input text
-        else {
-            field.renderButton(stack, mouseX, mouseY, delta);
-        }
+        if (hint != null && field.getValue().isEmpty() && !field.isFocused())
+            renderHint(stack);
+
+        //children
+        super.render(stack, mouseX, mouseY, delta);
+    }
+
+    protected void renderHint(PoseStack stack) {
+        Font font = Minecraft.getInstance().font;
+        font.drawShadow(
+                stack, hint.hint.copy().append(TextUtils.ELLIPSIS).withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC),
+                getX() + 4, getY() + (int) ((getHeight() - font.lineHeight + 1) / 2f), 0xFFFFFF
+        );
     }
 
     @Override
@@ -72,17 +78,27 @@ public class TextField extends AbstractContainerElement {
             return false;
 
         //hacky
-        mouseX = Mth.clamp(mouseX, field.x, field.x + field.getWidth() - 1);
-        mouseY = Mth.clamp(mouseY, field.y, field.y + field.getHeight() - 1);
+        mouseX = Mth.clamp(mouseX, field.getX(), field.getX() + field.getWidth() - 1);
+        mouseY = Mth.clamp(mouseY, field.getY(), field.getY() + field.getHeight() - 1);
 
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
-    public void setPos(int x, int y) {
-        this.x = x;
-        this.y = y;
-        this.field.x = x + 4;
-        this.field.y = y + (this.height - 8) / 2;
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        return !field.isFocused();
+    }
+
+    @Override
+    public void setX(int x) {
+        super.setX(x);
+        this.field.setX(x + 4);
+    }
+
+    @Override
+    public void setY(int y) {
+        super.setY(y);
+        this.field.setY(y + (this.getHeight() - 8) / 2);
     }
 
     public void setBorderColour(int borderColour) {
@@ -109,8 +125,11 @@ public class TextField extends AbstractContainerElement {
 
     @Override
     public void setVisible(boolean visible) {
+        if (visible == isVisible())
+            return;
+
         super.setVisible(visible);
-        this.field.setFocus(false);
+        this.field.setFocused(false);
     }
 
     public void setColor(int color) {
@@ -122,11 +141,35 @@ public class TextField extends AbstractContainerElement {
         setColor(ENABLED_COLOR);
     }
 
+    @Override
+    public void setFocused(boolean bl) {
+        this.field.setFocused(bl);
+    }
+
     public boolean isEnabled() {
         return enabled;
     }
 
     public boolean isFocused() {
         return isEnabled() && field.isFocused();
+    }
+
+    public enum HintType {
+        ANY,
+        INT,
+        POSITIVE_INT,
+        FLOAT,
+        POSITIVE_FLOAT,
+        HEX_COLOR,
+        FOLDER_PATH,
+        IP,
+        SEARCH,
+        NAME;
+
+        private final Component hint;
+
+        HintType() {
+            this.hint = FiguraText.of("gui.text_hint." + this.name().toLowerCase());
+        }
     }
 }

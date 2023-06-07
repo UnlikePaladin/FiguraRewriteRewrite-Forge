@@ -8,6 +8,7 @@ import java.util.List;
 //dummy class for gson reflection
 //allows reading the model json way easier
 public class BlockbenchModel {
+    Meta meta;
     Resolution resolution;
     Texture[] textures;
     Element[] elements;
@@ -17,6 +18,10 @@ public class BlockbenchModel {
     //as it can be either an object or a string
     JsonArray outliner;
 
+    public static class Meta {
+        String format_version, model_format;
+    }
+
     public static class Resolution {
         int width, height;
     }
@@ -25,7 +30,6 @@ public class BlockbenchModel {
         String name;
         String relative_path;
         String source;
-        String render_mode;
     }
 
     // -- elements -- //
@@ -41,6 +45,7 @@ public class BlockbenchModel {
         float inflate;
 
         Boolean visibility;
+        Boolean export;
 
         //do not reflection-parse faces nor vertices
         //since those are based on type
@@ -53,6 +58,7 @@ public class BlockbenchModel {
         String name;
         String uuid;
         Boolean visibility;
+        Boolean export;
         float[] origin;
         float[] rotation;
 
@@ -103,6 +109,12 @@ public class BlockbenchModel {
 
         //keyframe data can contain any type of object
         JsonArray data_points;
+
+        //bezier stuff
+        float[] bezier_left_value;
+        float[] bezier_right_value;
+        float[] bezier_left_time;
+        float[] bezier_right_time;
     }
 
     public static class KeyFrameData {

@@ -17,23 +17,32 @@ import org.moon.figura.FiguraMod;
 import org.moon.figura.animation.Animation;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
+import org.moon.figura.avatar.local.CacheAvatarLoader;
 import org.moon.figura.avatar.local.LocalAvatarFetcher;
+import org.moon.figura.avatar.local.LocalAvatarLoader;
 import org.moon.figura.backend2.NetworkStuff;
-import org.moon.figura.config.Config;
-import org.moon.figura.trust.Trust;
-import org.moon.figura.trust.TrustContainer;
-import org.moon.figura.trust.TrustManager;
+import org.moon.figura.config.ConfigManager;
+import org.moon.figura.config.ConfigType;
+import org.moon.figura.lua.api.ConfigAPI;
+import org.moon.figura.permissions.PermissionManager;
+import org.moon.figura.permissions.PermissionPack;
+import org.moon.figura.permissions.Permissions;
+import org.moon.figura.resources.FiguraRuntimeResources;
 import org.moon.figura.utils.FiguraText;
+import org.moon.figura.utils.IOUtils;
 import org.moon.figura.utils.MathUtils;
 
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
-import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.zip.GZIPOutputStream;
 
 public class FiguraDebugCommand {
@@ -56,7 +65,7 @@ public class FiguraDebugCommand {
                 Files.createFile(targetPath);
 
             //write file
-            FileOutputStream fs = new FileOutputStream(targetPath.toFile());
+            OutputStream fs = Files.newOutputStream(targetPath);
             fs.write(fetchStatus(AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID())).getBytes());
             fs.close();
 
@@ -65,7 +74,7 @@ public class FiguraDebugCommand {
                     FiguraText.of("command.debug.success")
                             .append(" ")
                             .append(FiguraText.of("command.click_to_open")
-                                    .setStyle(Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_FILE, targetPath.toFile().toString())).withUnderlined(true))
+                                    .setStyle(Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_FILE, targetPath.toString())).withUnderlined(true))
                             )
             );
             return 1;
@@ -87,11 +96,17 @@ public class FiguraDebugCommand {
         meta.addProperty("localUUID", FiguraMod.getLocalPlayerUUID().toString());
         meta.addProperty("ticks", FiguraMod.ticks);
         meta.addProperty("figuraDirectory", FiguraMod.getFiguraDirectory().toString());
+        meta.addProperty("figuraAvatarDirectory", LocalAvatarFetcher.getLocalAvatarDirectory().toString());
+        meta.addProperty("figuraAvatarDataDirectory", ConfigAPI.getConfigDataDir().toString());
         meta.addProperty("figuraCacheDirectory", FiguraMod.getCacheDirectory().toString());
+        meta.addProperty("figuraAvatarCacheDirectory", CacheAvatarLoader.getAvatarCacheDirectory().toString());
+        meta.addProperty("figuraResourcesDirectory", FiguraRuntimeResources.getRootDirectory().toString());
+        meta.addProperty("figuraAssetsDirectory", FiguraRuntimeResources.getAssetsDirectory().toString());
         meta.addProperty("backendStatus", NetworkStuff.backendStatus);
         meta.addProperty("backendConnected", NetworkStuff.isConnected());
         meta.addProperty("backendDisconnectedReason", NetworkStuff.disconnectedReason);
         meta.addProperty("uploaded", AvatarManager.localUploaded);
+        meta.addProperty("lastLoadedPath", Objects.toString(LocalAvatarLoader.getLastLoadedPath(), null));
         meta.addProperty("panicMode", AvatarManager.panic);
 
         root.add("meta", meta);
@@ -99,42 +114,42 @@ public class FiguraDebugCommand {
         //config
         JsonObject config = new JsonObject();
 
-        for (Config value : Config.values())
+        for (ConfigType<?> value : ConfigManager.REGISTRY)
             if (value.value != null)
-                config.addProperty(value.name(), value.value.toString());
+                config.addProperty(value.id, value.value.toString());
 
         root.add("config", config);
 
-        //trust groups
-        JsonObject trust = new JsonObject();
+        //all permissions
+        JsonObject permissions = new JsonObject();
 
-        for (TrustContainer.GroupContainer group : TrustManager.GROUPS.values()) {
-            JsonObject allTrust = new JsonObject();
+        for (PermissionPack.CategoryPermissionPack group : PermissionManager.CATEGORIES.values()) {
+            JsonObject allPermissions = new JsonObject();
 
             JsonObject standard = new JsonObject();
-            for (Map.Entry<Trust, Integer> entry : group.getTrustSettings().entrySet())
+            for (Map.Entry<Permissions, Integer> entry : group.getPermissions().entrySet())
                 standard.addProperty(entry.getKey().name, entry.getValue());
 
-            allTrust.add("standard", standard);
+            allPermissions.add("standard", standard);
 
-            JsonObject customTrust = new JsonObject();
-            for (Map.Entry<String, Map<Trust, Integer>> entry : group.getCustomTrusts().entrySet()) {
+            JsonObject customPermissions = new JsonObject();
+            for (Map.Entry<String, Map<Permissions, Integer>> entry : group.getCustomPermissions().entrySet()) {
                 JsonObject obj = new JsonObject();
-                for (Map.Entry<Trust, Integer> entry1 : entry.getValue().entrySet())
+                for (Map.Entry<Permissions, Integer> entry1 : entry.getValue().entrySet())
                     obj.addProperty(entry1.getKey().name, entry1.getValue());
 
-                customTrust.add(entry.getKey(), obj);
+                customPermissions.add(entry.getKey(), obj);
             }
 
-            allTrust.add("custom", customTrust);
+            allPermissions.add("custom", customPermissions);
 
-            trust.add(group.name, allTrust);
+            permissions.add(group.name, allPermissions);
         }
 
-        root.add("trust", trust);
+        root.add("permissions", permissions);
 
         //avatars
-        LocalAvatarFetcher.load();
+        LocalAvatarFetcher.loadAvatars();
         root.add("avatars", getAvatarsPaths(LocalAvatarFetcher.ALL_AVATARS));
 
 
@@ -146,29 +161,29 @@ public class FiguraDebugCommand {
 
         JsonObject a = new JsonObject();
 
-        //trust
-        JsonObject aTrust = new JsonObject();
+        //permissions
+        JsonObject aPermissions = new JsonObject();
 
-        aTrust.addProperty("parentTrust", avatar.trust.parent.name);
+        aPermissions.addProperty("category", avatar.permissions.category.name);
 
         JsonObject standard = new JsonObject();
-        for (Map.Entry<Trust, Integer> entry : avatar.trust.getTrustSettings().entrySet())
+        for (Map.Entry<Permissions, Integer> entry : avatar.permissions.getPermissions().entrySet())
             standard.addProperty(entry.getKey().name, entry.getValue());
 
-        aTrust.add("standard", standard);
+        aPermissions.add("standard", standard);
 
-        JsonObject customTrust = new JsonObject();
-        for (Map.Entry<String, Map<Trust, Integer>> entry : avatar.trust.getCustomTrusts().entrySet()) {
+        JsonObject customPermissions = new JsonObject();
+        for (Map.Entry<String, Map<Permissions, Integer>> entry : avatar.permissions.getCustomPermissions().entrySet()) {
             JsonObject obj = new JsonObject();
-            for (Map.Entry<Trust, Integer> entry1 : entry.getValue().entrySet())
+            for (Map.Entry<Permissions, Integer> entry1 : entry.getValue().entrySet())
                 obj.addProperty(entry1.getKey().name, entry1.getValue());
 
-            customTrust.add(entry.getKey(), obj);
+            customPermissions.add(entry.getKey(), obj);
         }
 
-        aTrust.add("custom", customTrust);
+        aPermissions.add("custom", customPermissions);
 
-        a.add("trust", aTrust);
+        a.add("permissions", aPermissions);
 
         //avatar metadata
         JsonObject aMeta = new JsonObject();
@@ -195,6 +210,7 @@ public class FiguraDebugCommand {
         JsonObject inst = new JsonObject();
 
         inst.addProperty("animationComplexity", avatar.animationComplexity);
+        inst.addProperty("animationInstructions", avatar.animation.pre);
         inst.addProperty("complexity", avatar.complexity.pre);
         inst.addProperty("entityInitInstructions", avatar.init.post);
         inst.addProperty("entityRenderInstructions", avatar.render.pre);
@@ -238,7 +254,7 @@ public class FiguraDebugCommand {
         JsonObject avatar = new JsonObject();
 
         for (LocalAvatarFetcher.AvatarPath path : list) {
-            String name = path.getPath().getFileName().toString();
+            String name = IOUtils.getFileNameOrEmpty(path.getPath());
 
             if (path instanceof LocalAvatarFetcher.FolderPath folder)
                 avatar.add(name, getAvatarsPaths(folder.getChildren()));
@@ -253,71 +269,46 @@ public class FiguraDebugCommand {
         JsonObject sizes = new JsonObject();
 
         //metadata
-        sizes.addProperty("metadata", getBytesFromNbt(nbt.getCompound("metadata")));
+        sizes.addProperty("metadata", parseSize(getBytesFromNbt(nbt.getCompound("metadata"))));
 
         //models
-        JsonObject models = new JsonObject();
-
         CompoundTag modelsNbt = nbt.getCompound("models");
         ListTag childrenNbt = modelsNbt.getList("chld", Tag.TAG_COMPOUND);
-
-        for (Tag tag : childrenNbt) {
-            CompoundTag compound = (CompoundTag) tag;
-            models.addProperty(compound.getString("name"), getBytesFromNbt(compound));
-        }
-
+        JsonObject models = parseListSize(childrenNbt, tag -> tag.getString("name"));
         sizes.add("models", models);
-        sizes.addProperty("models_total", getBytesFromNbt(modelsNbt));
-
-        //scripts
-        JsonObject scripts = new JsonObject();
-
-        CompoundTag scriptsNbt = nbt.getCompound("scripts");
-        for (String key : scriptsNbt.getAllKeys())
-            scripts.addProperty(key, getBytesFromNbt(scriptsNbt.get(key)));
-
-        sizes.add("scripts", scripts);
-        sizes.addProperty("scripts_total", getBytesFromNbt(scriptsNbt));
-
-        //sounds
-        JsonObject sounds = new JsonObject();
-
-        CompoundTag soundsNbt = nbt.getCompound("sounds");
-        for (String key : soundsNbt.getAllKeys())
-            sounds.addProperty(key, getBytesFromNbt(soundsNbt.get(key)));
-
-        sizes.add("sounds", sounds);
-        sizes.addProperty("sounds_total", getBytesFromNbt(soundsNbt));
-
-        //textures
-        JsonObject textures = new JsonObject();
-        CompoundTag texturesNbt = nbt.getCompound("textures");
-
-        CompoundTag textureSrc = texturesNbt.getCompound("src");
-        for (String key : textureSrc.getAllKeys())
-            textures.addProperty(key, getBytesFromNbt(textureSrc.get(key)));
-
-        sizes.add("textures", textures);
-        sizes.addProperty("textures_total", getBytesFromNbt(texturesNbt));
+        sizes.addProperty("models_total", parseSize(getBytesFromNbt(modelsNbt)));
 
         //animations
-        JsonObject animations = new JsonObject();
         ListTag animationsNbt = nbt.getList("animations", Tag.TAG_COMPOUND);
-
-        for (Tag tag : animationsNbt) {
-            CompoundTag compound = (CompoundTag) tag;
-            animations.addProperty(compound.getString("mdl") + "." + compound.getString("name"), getBytesFromNbt(compound));
-        }
-
+        JsonObject animations = parseListSize(animationsNbt, tag -> tag.getString("mdl") + "." + tag.getString("name"));
         sizes.add("animations", animations);
-        sizes.addProperty("animations_total", getBytesFromNbt(animationsNbt));
+        sizes.addProperty("animations_total", parseSize(getBytesFromNbt(animationsNbt)));
+
+        //textures
+        CompoundTag texturesNbt = nbt.getCompound("textures");
+        CompoundTag textureSrc = texturesNbt.getCompound("src");
+        JsonObject textures = parseCompoundSize(textureSrc);
+        sizes.add("textures", textures);
+        sizes.addProperty("textures_total", parseSize(getBytesFromNbt(texturesNbt)));
+
+        //scripts
+        CompoundTag scriptsNbt = nbt.getCompound("scripts");
+        JsonObject scripts = parseCompoundSize(scriptsNbt);
+        sizes.add("scripts", scripts);
+        sizes.addProperty("scripts_total", parseSize(getBytesFromNbt(scriptsNbt)));
+
+        //sounds
+        CompoundTag soundsNbt = nbt.getCompound("sounds");
+        JsonObject sounds = parseCompoundSize(soundsNbt);
+        sizes.add("sounds", sounds);
+        sizes.addProperty("sounds_total", parseSize(getBytesFromNbt(soundsNbt)));
 
         //total
-        sizes.addProperty("total", getBytesFromNbt(nbt));
+        sizes.addProperty("total", parseSize(getBytesFromNbt(nbt)));
         return sizes;
     }
 
-    private static String getBytesFromNbt(Tag nbt) {
+    private static int getBytesFromNbt(Tag nbt) {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(new BufferedOutputStream(new GZIPOutputStream(baos)));
@@ -327,9 +318,41 @@ public class FiguraDebugCommand {
             int size = baos.size();
             baos.close();
 
-            return size < 1000 ? size + "b" : MathUtils.asFileSize(size) + " (" + size + "b)";
+            return size;
         } catch (Exception ignored) {
-            return "?";
+            return -1;
         }
+    }
+
+    private static String parseSize(int size) {
+        return size < 1000 ? size + "b" : MathUtils.asFileSize(size) + " (" + size + "b)";
+    }
+
+    private static JsonObject parseListSize(ListTag listNbt, Function<CompoundTag, String> function) {
+        JsonObject target = new JsonObject();
+        HashMap<String, Integer> sizesMap = new HashMap<>();
+
+        for (Tag tag : listNbt) {
+            CompoundTag compound = (CompoundTag) tag;
+            sizesMap.put(function.apply(compound), getBytesFromNbt(compound));
+        }
+        insertJsonSortedData(sizesMap, target);
+
+        return target;
+    }
+
+    private static JsonObject parseCompoundSize(CompoundTag compoundNbt) {
+        JsonObject target = new JsonObject();
+        HashMap<String, Integer> sizesMap = new HashMap<>();
+
+        for (String key : compoundNbt.getAllKeys())
+            sizesMap.put(key, getBytesFromNbt(compoundNbt.get(key)));
+        insertJsonSortedData(sizesMap, target);
+
+        return target;
+    }
+
+    private static void insertJsonSortedData(HashMap<String, Integer> sizesMap, JsonObject json) {
+        sizesMap.entrySet().stream().sorted((Map.Entry.<String, Integer>comparingByValue().reversed())).forEach(e -> json.addProperty(e.getKey(), parseSize(e.getValue())));
     }
 }

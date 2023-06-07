@@ -2,6 +2,8 @@ package org.moon.figura.lua.api.action_wheel;
 
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaFunction;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.Varargs;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.gui.ActionWheel;
 import org.moon.figura.lua.LuaNotNil;
@@ -53,10 +55,11 @@ public class ActionWheelAPI {
             },
             value = "action_wheel.execute"
     )
-    public void execute(Integer index, boolean right) {
+    public ActionWheelAPI execute(Integer index, boolean right) {
         if (index != null && (index < 1 || index > 8))
             throw new LuaError("index must be between 1 and 8");
         if (this.isHost) ActionWheel.execute(index == null ? ActionWheel.getSelected() : index - 1, !right);
+        return this;
     }
 
     @LuaWhitelist
@@ -69,6 +72,19 @@ public class ActionWheelAPI {
     @LuaMethodDoc("action_wheel.get_selected")
     public int getSelected() {
         return this.isHost ? ActionWheel.getSelected() + 1 : 0;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("action_wheel.get_selected_action")
+    public Action getSelectedAction() {
+        if (!this.isHost || this.currentPage == null)
+            return null;
+
+        int selected = ActionWheel.getSelected();
+        if (selected < 0 || selected > 7)
+            return null;
+
+        return this.currentPage.slots()[selected];
     }
 
     @LuaWhitelist
@@ -89,7 +105,7 @@ public class ActionWheelAPI {
             value = "action_wheel.new_page"
     )
     public Page newPage(String title) {
-        Page page = new Page();
+        Page page = new Page(title);
         if (title != null) this.pages.put(title, page);
         return page;
     }
@@ -108,7 +124,7 @@ public class ActionWheelAPI {
             },
             value = "action_wheel.set_page"
     )
-    public void setPage(Object page) {
+    public ActionWheelAPI setPage(Object page) {
         Page currentPage;
         if (page == null) {
             currentPage = null;
@@ -123,19 +139,29 @@ public class ActionWheelAPI {
             throw new LuaError("Invalid page type, expected \"string\" or \"page\"");
         }
 
+        if (currentPage != null && !currentPage.keepSlots)
+            currentPage.setSlotsShift(1);
+
         this.currentPage = currentPage;
+        return this;
     }
 
     @LuaWhitelist
     @LuaMethodDoc(
-            overloads = @LuaMethodOverload(
-                    argumentTypes = String.class,
-                    argumentNames = "pageTitle"
-            ),
+            overloads = {
+                    @LuaMethodOverload(
+                            returnType = LuaTable.class
+                    ),
+                    @LuaMethodOverload(
+                            argumentTypes = String.class,
+                            argumentNames = "pageTitle",
+                            returnType = Page.class
+                    )
+            },
             value = "action_wheel.get_page"
     )
-    public Page getPage(@LuaNotNil String pageTitle) {
-        return this.pages.get(pageTitle);
+    public Object getPage(String pageTitle) {
+        return pageTitle != null ? this.pages.get(pageTitle) : this.pages;
     }
 
     @LuaWhitelist
@@ -144,21 +170,29 @@ public class ActionWheelAPI {
         return this.currentPage;
     }
 
-    public void execute(Avatar avatar, boolean left) {
+    public boolean execute(Avatar avatar, boolean left) {
         LuaFunction function = left ? leftClick : rightClick;
 
         //execute
-        if (function != null)
-            avatar.run(function, avatar.tick);
+        if (function != null) {
+            Varargs result = avatar.run(function, avatar.tick);
+            return result != null && result.arg(1).isboolean() && result.arg(1).checkboolean();
+        }
+
+        return false;
     }
 
-    public void mouseScroll(Avatar avatar, double delta) {
-        if (scroll != null)
-            avatar.run(scroll, avatar.tick, delta);
+    public boolean mouseScroll(Avatar avatar, double delta) {
+        if (scroll != null) {
+            Varargs result = avatar.run(scroll, avatar.tick, delta);
+            return result != null && result.arg(1).isboolean() && result.arg(1).checkboolean();
+        }
+
+        return false;
     }
 
     @LuaWhitelist
-    public Object __index( String arg) {
+    public Object __index(String arg) {
         if (arg == null) return null;
         return switch (arg) {
             case "leftClick" -> leftClick;
@@ -169,13 +203,13 @@ public class ActionWheelAPI {
     }
 
     @LuaWhitelist
-    public void __newindex(String key, Object value) {
-        if (key == null) return;
+    public void __newindex(@LuaNotNil String key, Object value) {
         LuaFunction val = value instanceof LuaFunction f ? f : null;
         switch (key) {
             case "leftClick" -> leftClick = val;
             case "rightClick" -> rightClick = val;
             case "scroll" -> scroll = val;
+            default -> throw new LuaError("Cannot assign value on key \"" + key + "\"");
         }
     }
 

@@ -18,13 +18,17 @@ import org.moon.figura.lua.api.action_wheel.ActionWheelAPI;
 import org.moon.figura.lua.api.entity.EntityAPI;
 import org.moon.figura.lua.api.entity.NullEntity;
 import org.moon.figura.lua.api.event.EventsAPI;
+import org.moon.figura.lua.api.event.LuaEvent;
 import org.moon.figura.lua.api.keybind.KeybindAPI;
 import org.moon.figura.lua.api.nameplate.NameplateAPI;
 import org.moon.figura.lua.api.ping.PingAPI;
 import org.moon.figura.lua.api.vanilla_model.VanillaModelAPI;
+import org.moon.figura.permissions.Permissions;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Stack;
@@ -87,10 +91,6 @@ public class FiguraLuaRuntime {
         setGlobal("figuraMetatables", figuraMetatables);
     }
 
-    public LuaValue run(String name, String src) {
-        return userGlobals.load(src, name, userGlobals).call();
-    }
-
     public void registerClass(Class<?> clazz) {
         typeManager.generateMetatableFor(clazz);
     }
@@ -113,7 +113,7 @@ public class FiguraLuaRuntime {
     }
 
     public Entity getUser() {
-        return entityAPI == null ? null : entityAPI.getEntity();
+        return entityAPI != null && entityAPI.isLoaded() ? entityAPI.getEntity() : null;
     }
 
     // init runtime //
@@ -137,8 +137,8 @@ public class FiguraLuaRuntime {
             String name = arg.checkjstring(1).replaceAll("[/\\\\]", ".");
             if (loadingScripts.contains(name))
                 throw new LuaError("Detected circular dependency in script " + loadingScripts.peek());
-            if (scripts.get(name) == null && arg(2).isfunction())
-                return arg.checkfunction(2).call();
+            if (scripts.get(name) == null && arg.isfunction(2))
+                return arg.checkfunction(2).invoke(LuaValue.valueOf(name));
 
             return INIT_SCRIPT.apply(name);
         }
@@ -152,7 +152,27 @@ public class FiguraLuaRuntime {
         @Override
         public Varargs invoke(Varargs args) {
             try {
-                return runtime.userGlobals.load(args.arg(1).checkjstring(), "loadstring", runtime.userGlobals);
+                // Get source provider function or get string value and create input stream out of that
+                LuaValue val = args.arg(1);
+                InputStream ld;
+                if (val.isfunction()) {
+                    ld = new FuncStream(val.checkfunction());
+                } else if (val.isstring()) {
+                    ld = new ByteArrayInputStream(val.checkstring().m_bytes);
+                } else {
+                    throw new LuaError("chunk source is neither a string nor function");
+                }
+
+                // Get chunk name (this is what it will display as in the source name, like script)
+                val = args.arg(2);
+                String chunkName = val.isstring() ? val.tojstring() : "loadstring";
+
+                // get environment in which will be used to get global values from, does not make extra lookups outside this table
+                val = args.arg(3);
+                LuaTable environment = val.istable() ? val.checktable() : runtime.userGlobals;
+
+                // create the function from arguments
+                return runtime.userGlobals.load(ld, chunkName, "t", environment);
             } catch (LuaError e) {
                 return varargsOf(NIL, e.getMessageObject());
             }
@@ -161,6 +181,36 @@ public class FiguraLuaRuntime {
         @Override
         public String tojstring() {
             return "function: loadstring";
+        }
+        
+        // Class that creates input stream from 
+        private static class FuncStream extends InputStream {
+            private final LuaFunction function;
+            // start at the end of empty string so next index will get first result
+            private String string = "";
+            private int index = 0;
+
+            public FuncStream(LuaFunction function) {
+                this.function = function;
+            }
+
+            @Override
+            public int read() {
+                // if next index is out of bounds
+                if (++index >= string.length()) {
+                    // reset index
+                    index = 0;
+                    // fetch next functon value
+                    Varargs result = function.invoke();
+                    // check if we hit the end, that is nil, no value or empty string
+                    if (!result.isstring(1) || result.arg1().length() < 1)
+                        return -1;
+                    // get string from result of calling function
+                    string = new String(result.checkstring(1).m_bytes, StandardCharsets.UTF_8);
+                }
+                // return next index
+                return string.charAt(index);
+            }
         }
     };
     private void loadExtraLibraries() {
@@ -198,6 +248,51 @@ public class FiguraLuaRuntime {
                         return __type;
                 }
                 return LuaString.valueOf(arg.typename());
+            }
+
+            @Override
+            public String tojstring(){
+                return typename() + ": type";
+            }
+        });
+
+        //Change the pairs() function
+        LuaFunction globalPairs = userGlobals.get("pairs").checkfunction();
+        setGlobal("pairs", new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs varargs) {
+                LuaValue arg1 = varargs.arg1();
+                if (arg1.type() == LuaValue.TTABLE && arg1.getmetatable() != null) {
+                    LuaValue __pairs = arg1.getmetatable().rawget("__pairs");
+                    if (__pairs.isfunction())
+                        return __pairs.invoke(varargs);
+                }
+                return globalPairs.invoke(varargs);
+            }
+
+            @Override
+            public String tojstring() {
+                return typename() + ": pairs";
+            }
+        });
+
+        //Change the ipairs() function
+        LuaFunction globalIPairs = userGlobals.get("ipairs").checkfunction();
+        setGlobal("ipairs", new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs varargs) {
+                LuaValue arg1 = varargs.arg1();
+                if (arg1.type() == LuaValue.TTABLE && arg1.getmetatable() != null) {
+                    LuaValue __ipairs = arg1.getmetatable().rawget("__ipairs");
+                    if (__ipairs.isfunction())
+                        return __ipairs.invoke(varargs);
+                }
+                return globalIPairs.invoke(varargs);
+            }
+
+            @Override
+            public String tojstring() {
+                return typename() + ": ipairs";
             }
         });
     }
@@ -250,7 +345,10 @@ public class FiguraLuaRuntime {
         this.loadingScripts.push(name);
 
         //load
-        Varargs value = userGlobals.load(src, name).invoke(LuaValue.valueOf(name));
+        int split = name.lastIndexOf('.');
+        String path = split == -1 ? "" : name.substring(0, split);
+        String fileName = split == -1 ? name : name.substring(split + 1);
+        Varargs value = userGlobals.load(src, name).invoke(LuaValue.varargsOf(LuaValue.valueOf(path), LuaValue.valueOf(fileName)));
         if (value == LuaValue.NIL)
             value = LuaValue.TRUE;
 
@@ -300,6 +398,7 @@ public class FiguraLuaRuntime {
         public LuaValue call() {
             FiguraMod.LOGGER.warn("Avatar {} bypassed resource limits with {} instructions", owner.owner, getInstructions());
             LuaError error = new LuaError("Script overran resource limits!");
+            owner.noPermissions.add(Permissions.INIT_INST);
             setInstructionLimit(1);
             throw error;
         }
@@ -311,5 +410,50 @@ public class FiguraLuaRuntime {
 
     public int getInstructions() {
         return userGlobals.running.state.bytecodes;
+    }
+
+    public void takeInstructions(int amount) {
+        userGlobals.running.state.bytecodes += amount;
+    }
+
+    // script execution //
+
+    public LuaValue load(String name, String src) {
+        return userGlobals.load(src, name, userGlobals);
+    }
+
+    public Varargs run(Object toRun, Avatar.Instructions limit, Object... args) {
+        //parse args
+        LuaValue[] values = new LuaValue[args.length];
+        for (int i = 0; i < values.length; i++)
+            values[i] = typeManager.javaToLua(args[i]).arg1();
+
+        Varargs val = LuaValue.varargsOf(values);
+
+        //set instructions limit
+        setInstructionLimit(limit.remaining);
+
+        //get and call event
+        try {
+            Varargs ret;
+            if (toRun instanceof LuaEvent event)
+                ret = event.call(val);
+            else if (toRun instanceof String event)
+                ret = events.__index(event).call(val);
+            else if (toRun instanceof LuaValue func)
+                ret = func.invoke(val);
+            else
+                throw new IllegalArgumentException("Internal event error - Invalid type to run! (" + toRun.getClass().getSimpleName() + ")");
+
+            //use instructions
+            limit.use(getInstructions());
+            //and return the value
+            return ret;
+        } catch (Exception | StackOverflowError e) {
+            error(e);
+        }
+
+        //failsafe return
+        return null;
     }
 }

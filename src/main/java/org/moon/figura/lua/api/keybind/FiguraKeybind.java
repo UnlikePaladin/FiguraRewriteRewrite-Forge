@@ -29,22 +29,16 @@ public class FiguraKeybind {
 
     private InputConstants.Key key;
     private boolean isDown, override;
+    private boolean enabled = true;
+    private boolean gui;
 
     @LuaWhitelist
-    @LuaFieldDoc("keybind.on_press")
-    public LuaFunction onPress;
+    @LuaFieldDoc("keybind.press")
+    public LuaFunction press;
 
     @LuaWhitelist
-    @LuaFieldDoc("keybind.on_release")
-    public LuaFunction onRelease;
-
-    @LuaWhitelist
-    @LuaFieldDoc("keybind.enabled")
-    public boolean enabled = true;
-
-    @LuaWhitelist
-    @LuaFieldDoc("keybind.gui")
-    public boolean gui;
+    @LuaFieldDoc("keybind.release")
+    public LuaFunction release;
 
     public FiguraKeybind(Avatar owner, String name, InputConstants.Key key) {
         this.owner = owner;
@@ -57,22 +51,22 @@ public class FiguraKeybind {
         this.key = this.defaultKey;
     }
 
-    public boolean setDown(boolean bl) {
+    public boolean setDown(boolean pressed, int modifiers) {
         //events
-        if (isDown != bl) {
+        if (isDown != pressed) {
             Varargs result = null;
 
-            if (bl) {
-                if (onPress != null)
-                    result = owner.run(onPress, owner.tick, this);
-            } else if (onRelease != null) {
-                result = owner.run(onRelease, owner.tick, this);
+            if (pressed) {
+                if (press != null)
+                    result = owner.run(press, owner.tick, modifiers, this);
+            } else if (release != null) {
+                result = owner.run(release, owner.tick, modifiers, this);
             }
 
             override = result != null && result.arg(1).isboolean() && result.checkboolean(1);
         }
 
-        this.isDown = bl;
+        this.isDown = pressed;
         return override;
     }
 
@@ -94,25 +88,25 @@ public class FiguraKeybind {
         }
     }
 
-    public static boolean set(List<FiguraKeybind> bindings, InputConstants.Key key, boolean pressed) {
+    public static boolean set(List<FiguraKeybind> bindings, InputConstants.Key key, boolean pressed, int modifiers) {
         boolean overrided = false;
         for (FiguraKeybind keybind : bindings) {
             if (keybind.key == key && keybind.enabled && (keybind.gui || Minecraft.getInstance().screen == null))
-                overrided = keybind.setDown(pressed) || overrided;
+                overrided = keybind.setDown(pressed, modifiers) || overrided;
         }
         return overrided;
     }
 
     public static void releaseAll(List<FiguraKeybind> bindings) {
         for (FiguraKeybind keybind : bindings)
-            keybind.setDown(false);
+            keybind.setDown(false, -1);
     }
 
     public static void updateAll(List<FiguraKeybind> bindings) {
         for (FiguraKeybind keybind : bindings) {
             int value = keybind.key.getValue();
             if (keybind.enabled && keybind.key.getType() == InputConstants.Type.KEYSYM && value != InputConstants.UNKNOWN.getValue())
-                keybind.setDown(InputConstants.isKeyDown(Minecraft.getInstance().getWindow().getWindow(), value));
+                keybind.setDown(InputConstants.isKeyDown(Minecraft.getInstance().getWindow().getWindow(), value), -1);
         }
     }
 
@@ -123,16 +117,65 @@ public class FiguraKeybind {
         return false;
     }
 
+
+    // -- lua -- //
+
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = LuaFunction.class,
+                    argumentNames = "function"
+            ),
+            aliases = "onPress",
+            value = "keybind.set_on_press"
+    )
+    public FiguraKeybind setOnPress(LuaFunction function) {
+        this.press = function;
+        return this;
+    }
+
+    @LuaWhitelist
+    public FiguraKeybind onPress(LuaFunction function) {
+        return setOnPress(function);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = LuaFunction.class,
+                    argumentNames = "function"
+            ),
+            aliases = "onRelease",
+            value = "keybind.set_on_release"
+    )
+    public FiguraKeybind setOnRelease(LuaFunction function) {
+        this.release = function;
+        return this;
+    }
+
+    @LuaWhitelist
+    public FiguraKeybind onRelease(LuaFunction function) {
+        return setOnRelease(function);
+    }
+
     @LuaWhitelist
     @LuaMethodDoc(
             overloads = @LuaMethodOverload(
                     argumentTypes = String.class,
                     argumentNames = "key"
             ),
+            aliases = "key",
             value = "keybind.set_key"
     )
-    public void setKey(@LuaNotNil String key) {
+    public FiguraKeybind setKey(@LuaNotNil String key) {
         this.key = parseStringKey(key);
+        return this;
+    }
+
+    @LuaWhitelist
+    public FiguraKeybind key(@LuaNotNil String key) {
+        return setKey(key);
     }
 
     @LuaWhitelist
@@ -160,33 +203,83 @@ public class FiguraKeybind {
     }
 
     @LuaWhitelist
+    @LuaMethodDoc("keybind.get_id")
+    public int getID() {
+        return this.key.getValue();
+    }
+
+    @LuaWhitelist
     @LuaMethodDoc("keybind.is_pressed")
     public boolean isPressed() {
         return (this.gui || Minecraft.getInstance().screen == null) && this.isDown;
     }
 
     @LuaWhitelist
+    @LuaMethodDoc("keybind.is_enabled")
+    public boolean isEnabled() {
+        return this.enabled;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = Boolean.class,
+                    argumentNames = "bool"
+            ),
+            aliases = "enabled",
+            value = "keybind.set_enabled"
+    )
+    public FiguraKeybind setEnabled(boolean bool) {
+        this.enabled = bool;
+        return this;
+    }
+
+    @LuaWhitelist
+    public FiguraKeybind enabled(boolean bool) {
+        return setEnabled(bool);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("keybind.is_gui_enabled")
+    public boolean isGuiEnabled() {
+        return this.gui;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = Boolean.class,
+                    argumentNames = "bool"
+            ),
+            aliases = "gui",
+            value = "keybind.set_gui"
+    )
+    public FiguraKeybind setGUI(boolean bool) {
+        this.gui = bool;
+        return this;
+    }
+
+    @LuaWhitelist
+    public FiguraKeybind gui(boolean bool) {
+        return setGUI(bool);
+    }
+
+    @LuaWhitelist
     public Object __index(String arg) {
         if (arg == null) return null;
         return switch (arg) {
-            case "onPress" -> onPress;
-            case "onRelease" -> onRelease;
-            case "enabled" -> enabled;
-            case "gui" -> gui;
+            case "press" -> press;
+            case "release" -> release;
             default -> null;
         };
     }
 
     @LuaWhitelist
-    public void __newindex(String key, Object value) {
-        if (key == null) return;
-        LuaFunction func = value instanceof LuaFunction f ? f : null;
-        boolean bool = value instanceof Boolean b ? b : false;
+    public void __newindex(@LuaNotNil String key, LuaFunction value) {
         switch (key) {
-            case "onPress" -> onPress = func;
-            case "onRelease" -> onRelease = func;
-            case "enabled" -> enabled = bool;
-            case "gui" -> gui = bool;
+            case "press" -> press = value;
+            case "release" -> release = value;
+            default -> throw new LuaError("Cannot assign value on key \"" + key + "\"");
         }
     }
 

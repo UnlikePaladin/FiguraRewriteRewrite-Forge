@@ -1,16 +1,16 @@
 package org.moon.figura.gui.widgets.lists;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.events.GuiEventListener;
-import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
-import org.moon.figura.FiguraMod;
+import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.avatar.local.LocalAvatarFetcher;
-import org.moon.figura.gui.widgets.TextField;
-import org.moon.figura.gui.widgets.TexturedButton;
+import org.moon.figura.gui.screens.AbstractPanelScreen;
+import org.moon.figura.gui.screens.AvatarWizardScreen;
+import org.moon.figura.gui.widgets.Button;
+import org.moon.figura.gui.widgets.SearchBar;
 import org.moon.figura.gui.widgets.avatar.AbstractAvatarWidget;
 import org.moon.figura.gui.widgets.avatar.AvatarFolderWidget;
 import org.moon.figura.gui.widgets.avatar.AvatarWidget;
@@ -30,8 +30,6 @@ public class AvatarList extends AbstractList {
     private final HashMap<Path, AbstractAvatarWidget> avatars = new HashMap<>();
     private final ArrayList<AbstractAvatarWidget> avatarList = new ArrayList<>();
 
-    private final AvatarWidget unselect;
-
     private int totalHeight = 0;
     private String filter = "";
 
@@ -39,42 +37,58 @@ public class AvatarList extends AbstractList {
 
     // -- Constructors -- //
 
-    public AvatarList(int x, int y, int width, int height) {
+    public AvatarList(int x, int y, int width, int height, AbstractPanelScreen parentScreen) {
         super(x, y, width, height);
 
-        unselect = new AvatarWidget(0, this.width - 22, null, this) {
-            @Override
-            public boolean mouseClicked(double mouseX, double mouseY, int button) {
-                boolean bool = super.mouseClicked(mouseX, mouseY, button);
-                context.setVisible(false);
-                return bool;
-            }
+        //search bar
+        children.add(new SearchBar(x + 4, y + 4, width - 8, 20, s -> {
+            if (!filter.equals(s))
+                scrollBar.setScrollProgress(0f);
+            filter = s;
+        }));
 
-            @Override
-            public Component getName() {
-                return FiguraText.of("gui.wardrobe.unselect").withStyle(ChatFormatting.GRAY);
-            }
-        };
+        //new avatar
+        children.add(new Button(
+                x + width / 2 - 46, y + 28,
+                20, 20, 0, 0, 20,
+                new FiguraIdentifier("textures/gui/new_avatar.png"),
+                60, 20,
+                FiguraText.of("gui.wardrobe.new_avatar.tooltip"),
+                button -> Minecraft.getInstance().setScreen(new AvatarWizardScreen(parentScreen)))
+        );
 
-        children.add(new TextField(x + 4, y + 4, width - 32, 20, FiguraText.of("gui.search"), s -> filter = s));
-        children.add(new TexturedButton(
-                x + width - 24, y + 4,
+        //unselect
+        children.add(new Button(
+                x + width / 2 - 10, y + 28,
+                20, 20, 0, 0, 20,
+                new FiguraIdentifier("textures/gui/unselect.png"),
+                60, 20,
+                FiguraText.of("gui.wardrobe.unselect.tooltip"),
+                button -> {
+                    AvatarManager.loadLocalAvatar(null);
+                    selectedEntry = null;
+                })
+        );
+
+        //root folder
+        children.add(new Button(
+                x + width / 2 + 26, y + 28,
                 20, 20, 0, 0, 20,
                 new FiguraIdentifier("textures/gui/folder.png"),
                 60, 20,
                 FiguraText.of("gui.wardrobe.folder.tooltip"),
-                button -> Util.getPlatform().openFile(LocalAvatarFetcher.getLocalAvatarDirectory().toFile()))
+                button -> Util.getPlatform().openUri(LocalAvatarFetcher.getLocalAvatarDirectory().toUri()))
         );
 
         //scrollbar
-        this.scrollBar.y = y + 28;
-        this.scrollBar.setHeight(height - 32);
+        this.scrollBar.setY(y + 48);
+        this.scrollBar.setHeight(height - 52);
 
         //scissors
-        this.updateScissors(1, 24, -2, -25);
+        this.updateScissors(1, 49, -2, -50);
 
         //initial load
-        LocalAvatarFetcher.load();
+        LocalAvatarFetcher.loadAvatars();
         loadContents();
 
         scrollToSelected();
@@ -84,47 +98,51 @@ public class AvatarList extends AbstractList {
     @Override
     public void tick() {
         //update list
-        if (FiguraMod.ticks % 20 == 0)
-            LocalAvatarFetcher.load();
         loadContents();
         super.tick();
     }
 
     @Override
     public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
+        int x = getX();
+        int y = getY();
+        int width = getWidth();
+        int height = getHeight();
+
         //background and scissors
-        UIHelper.renderSliced(stack, x, y, width, height, UIHelper.OUTLINE);
+        UIHelper.renderSliced(stack, x, y, width, height, UIHelper.OUTLINE_FILL);
         UIHelper.setupScissor(x + scissorsX, y + scissorsY, width + scissorsWidth, height + scissorsHeight);
 
         //scrollbar
         totalHeight = 2;
         for (AbstractAvatarWidget avatar : avatarList)
-            totalHeight += avatar.height + 2;
+            totalHeight += avatar.getHeight() + 2;
         int entryHeight = avatarList.isEmpty() ? 0 : totalHeight / avatarList.size();
 
-        scrollBar.visible = totalHeight > height - 32;
-        scrollBar.setScrollRatio(entryHeight, totalHeight - (height - 32));
+        scrollBar.setVisible(totalHeight > height - 49);
+        scrollBar.setScrollRatio(entryHeight, totalHeight - (height - 49));
 
         //render list
-        int xOffset = scrollBar.visible ? 4 : 11;
-        int yOffset = scrollBar.visible ? (int) -(Mth.lerp(scrollBar.getScrollProgress(), -29, totalHeight - height)) : 32;
+        int xOffset = scrollBar.isVisible() ? 4 : 11;
+        int yOffset = scrollBar.isVisible() ? (int) -(Mth.lerp(scrollBar.getScrollProgress(), -49, totalHeight - height)) : 49;
         boolean hidden = false;
 
         for (AbstractAvatarWidget avatar : avatarList) {
             if (hidden) continue;
 
-            avatar.setPos(x + xOffset, y + yOffset);
+            avatar.setX(x + xOffset);
+            avatar.setY(y + yOffset);
 
-            if (avatar.y + avatar.height > y + scissorsY)
+            if (avatar.getY() + avatar.getHeight() > y + scissorsY)
                 avatar.render(stack, mouseX, mouseY, delta);
 
-            yOffset += avatar.height + 2;
+            yOffset += avatar.getHeight() + 2;
             if (yOffset > height)
                 hidden = true;
         }
 
         //reset scissor
-        RenderSystem.disableScissor();
+        UIHelper.disableScissor();
 
         //render children
         super.render(stack, mouseX, mouseY, delta);
@@ -150,7 +168,7 @@ public class AvatarList extends AbstractList {
 
             //add to the avatar list
             avatars.computeIfAbsent(path, p -> {
-                int width = this.width - 22;
+                int width = this.getWidth() - 22;
                 AbstractAvatarWidget entry = avatar instanceof LocalAvatarFetcher.FolderPath folder ? new AvatarFolderWidget(0, width, folder, this) : new AvatarWidget(0, width, avatar, this);
 
                 avatarList.add(entry);
@@ -174,44 +192,35 @@ public class AvatarList extends AbstractList {
                 return avatar1.compareTo(avatar2);
             return 0;
         });
-
-        //add unselect button
-        if (filter.isEmpty()) {
-            avatars.computeIfAbsent(Path.of(""), path -> {
-                avatarList.add(0, unselect);
-                children.add(2, unselect); //after text field and scrollbar
-                return unselect;
-            });
-        }
     }
 
     public void updateScroll() {
         //store old scroll pos
-        double pastScroll = (totalHeight - height) * scrollBar.getScrollProgress();
+        double pastScroll = (totalHeight - getHeight()) * scrollBar.getScrollProgress();
 
         //get new height
         totalHeight = 2;
         for (AbstractAvatarWidget avatar : avatarList)
-            totalHeight += avatar.height + 2;
+            totalHeight += avatar.getHeight() + 2;
 
         //set new scroll percentage
-        scrollBar.setScrollProgress(pastScroll / (totalHeight - height));
+        scrollBar.setScrollProgress(pastScroll / (totalHeight - getHeight()));
     }
 
     public void scrollToSelected() {
         double y = 0;
 
         //get height
-        totalHeight = 2;
+        totalHeight = 0;
         for (AbstractAvatarWidget avatar : avatarList) {
             if (avatar.equals(selectedEntry))
                 y = totalHeight;
             else
-                totalHeight += avatar.height + 2;
+                totalHeight += avatar.getHeight() + 2;
         }
 
         //set scroll
-        scrollBar.setScrollProgress(y / totalHeight);
+        scrollBar.setScrollProgressNoAnim(y / totalHeight);
     }
 
     @Override

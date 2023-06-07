@@ -5,17 +5,18 @@ import com.mojang.datafixers.util.Pair;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.arguments.blocks.BlockStateArgument;
 import net.minecraft.commands.arguments.item.ItemArgument;
-import net.minecraft.core.RegistryAccess;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import org.luaj.vm2.LuaError;
 import org.moon.figura.lua.api.world.BlockStateAPI;
 import org.moon.figura.lua.api.world.ItemStackAPI;
+import org.moon.figura.lua.api.world.WorldAPI;
 import org.moon.figura.math.vector.FiguraVec2;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.math.vector.FiguraVec4;
-import org.moon.figura.math.vector.FiguraVec6;
 
 public class LuaUtils {
 
@@ -37,10 +38,7 @@ public class LuaUtils {
     public static Pair<FiguraVec3, FiguraVec3> parse2Vec3(String methodName, Object x, Object y, Number z, Object w, Number t, Number h) {
         FiguraVec3 a, b;
 
-        if (x instanceof FiguraVec6 vec1) {
-            a = FiguraVec3.of(vec1.x, vec1.y, vec1.z);
-            b = FiguraVec3.of(vec1.w, vec1.t, vec1.h);
-        } else if (x instanceof FiguraVec3 vec1) {
+        if (x instanceof FiguraVec3 vec1) {
             a = vec1.copy();
             if (y instanceof FiguraVec3 vec2) {
                 b = vec2.copy();
@@ -92,6 +90,15 @@ public class LuaUtils {
         throw new LuaError("Illegal argument to " + methodName + "(): " + x.getClass().getSimpleName());
     }
 
+    public static FiguraVec3 parseOneArgVec(String methodName, Object x, Number y, Number z, double defaultArg) {
+        double d = x instanceof Number n ? n.doubleValue() : defaultArg;
+        return parseVec3(methodName, x, y, z, d, d, d);
+    }
+
+    public static FiguraVec3 nullableVec3(String methodName, Object x, Number y, Number z) {
+        return x == null ? null : parseVec3(methodName, x, y, z);
+    }
+
     public static FiguraVec2 parseVec2(String methodName, Object x, Number y) {
         return parseVec2(methodName, x, y, 0, 0);
     }
@@ -114,7 +121,8 @@ public class LuaUtils {
             return wrapper.itemStack;
         else if (item instanceof String string) {
             try {
-                return ItemArgument.item(new CommandBuildContext(RegistryAccess.BUILTIN.get())).parse(new StringReader(string)).createItemStack(1, false);
+                Level level = WorldAPI.getCurrentWorld();
+                return ItemArgument.item(CommandBuildContext.simple(level.registryAccess(), level.enabledFeatures())).parse(new StringReader(string)).createItemStack(1, false);
             } catch (Exception e) {
                 throw new LuaError("Could not parse item stack from string: " + string);
             }
@@ -130,12 +138,21 @@ public class LuaUtils {
             return wrapper.blockState;
         else if (block instanceof String string) {
             try {
-                return BlockStateArgument.block(new CommandBuildContext(RegistryAccess.BUILTIN.get())).parse(new StringReader(string)).getState();
+                Level level = WorldAPI.getCurrentWorld();
+                return BlockStateArgument.block(CommandBuildContext.simple(level.registryAccess(), level.enabledFeatures())).parse(new StringReader(string)).getState();
             } catch (Exception e) {
                 throw new LuaError("Could not parse block state from string: " + string);
             }
         }
 
         throw new LuaError("Illegal argument to " + methodName + "(): " + block);
+    }
+
+    public static ResourceLocation parsePath(String path) {
+        try {
+            return new ResourceLocation(path);
+        } catch (Exception e) {
+            throw new LuaError(e.getMessage());
+        }
     }
 }

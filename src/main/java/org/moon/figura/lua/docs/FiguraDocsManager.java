@@ -12,56 +12,57 @@ import net.minecraft.network.chat.*;
 import org.luaj.vm2.*;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.animation.Animation;
-import org.moon.figura.lua.api.ConfigAPI;
-import org.moon.figura.lua.api.particle.LuaParticle;
-import org.moon.figura.model.FiguraModelPart;
-import org.moon.figura.model.rendering.texture.FiguraTexture;
-import org.moon.figura.model.rendertasks.BlockTask;
-import org.moon.figura.model.rendertasks.ItemTask;
-import org.moon.figura.model.rendertasks.RenderTask;
-import org.moon.figura.model.rendertasks.TextTask;
-import org.moon.figura.lua.api.action_wheel.*;
-import org.moon.figura.lua.api.nameplate.EntityNameplateCustomization;
-import org.moon.figura.lua.api.nameplate.NameplateCustomizationGroup;
-import org.moon.figura.lua.api.particle.ParticleAPI;
-import org.moon.figura.lua.api.ping.PingAPI;
-import org.moon.figura.lua.api.ping.PingFunction;
-import org.moon.figura.lua.api.sound.LuaSound;
-import org.moon.figura.lua.api.sound.SoundAPI;
-import org.moon.figura.lua.api.TextureAPI;
-import org.moon.figura.math.matrix.FiguraMat2;
-import org.moon.figura.math.matrix.FiguraMat3;
-import org.moon.figura.math.matrix.FiguraMat4;
-import org.moon.figura.math.matrix.FiguraMatrix;
-import org.moon.figura.math.vector.*;
+import org.moon.figura.entries.FiguraAPI;
 import org.moon.figura.lua.api.*;
+import org.moon.figura.lua.api.action_wheel.Action;
+import org.moon.figura.lua.api.action_wheel.ActionWheelAPI;
+import org.moon.figura.lua.api.action_wheel.Page;
 import org.moon.figura.lua.api.entity.EntityAPI;
 import org.moon.figura.lua.api.entity.LivingEntityAPI;
 import org.moon.figura.lua.api.entity.PlayerAPI;
+import org.moon.figura.lua.api.entity.ViewerAPI;
 import org.moon.figura.lua.api.event.EventsAPI;
 import org.moon.figura.lua.api.event.LuaEvent;
 import org.moon.figura.lua.api.keybind.FiguraKeybind;
 import org.moon.figura.lua.api.keybind.KeybindAPI;
 import org.moon.figura.lua.api.math.MatricesAPI;
 import org.moon.figura.lua.api.math.VectorsAPI;
+import org.moon.figura.lua.api.nameplate.EntityNameplateCustomization;
 import org.moon.figura.lua.api.nameplate.NameplateAPI;
 import org.moon.figura.lua.api.nameplate.NameplateCustomization;
+import org.moon.figura.lua.api.nameplate.NameplateCustomizationGroup;
+import org.moon.figura.lua.api.particle.LuaParticle;
+import org.moon.figura.lua.api.particle.ParticleAPI;
+import org.moon.figura.lua.api.ping.PingAPI;
+import org.moon.figura.lua.api.ping.PingFunction;
+import org.moon.figura.lua.api.sound.LuaSound;
+import org.moon.figura.lua.api.sound.SoundAPI;
 import org.moon.figura.lua.api.vanilla_model.VanillaGroupPart;
 import org.moon.figura.lua.api.vanilla_model.VanillaModelAPI;
 import org.moon.figura.lua.api.vanilla_model.VanillaModelPart;
+import org.moon.figura.lua.api.vanilla_model.VanillaPart;
 import org.moon.figura.lua.api.world.BiomeAPI;
 import org.moon.figura.lua.api.world.BlockStateAPI;
 import org.moon.figura.lua.api.world.ItemStackAPI;
 import org.moon.figura.lua.api.world.WorldAPI;
+import org.moon.figura.math.matrix.FiguraMat2;
+import org.moon.figura.math.matrix.FiguraMat3;
+import org.moon.figura.math.matrix.FiguraMat4;
+import org.moon.figura.math.matrix.FiguraMatrix;
+import org.moon.figura.math.vector.FiguraVec2;
+import org.moon.figura.math.vector.FiguraVec3;
+import org.moon.figura.math.vector.FiguraVec4;
+import org.moon.figura.math.vector.FiguraVector;
+import org.moon.figura.model.FiguraModelPart;
+import org.moon.figura.model.rendering.Vertex;
+import org.moon.figura.model.rendering.texture.FiguraTexture;
+import org.moon.figura.model.rendertasks.*;
 import org.moon.figura.utils.FiguraText;
 
-import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class FiguraDocsManager {
 
@@ -109,7 +110,7 @@ public class FiguraDocsManager {
 
     // -- docs generator data -- //
 
-    private static final Map<String, List<Class<?>>> GLOBAL_CHILDREN = new HashMap<>() {{
+    private static final Map<String, Collection<Class<?>>> GLOBAL_CHILDREN = new HashMap<>() {{
         put("action_wheel", List.of(
                 ActionWheelAPI.class,
                 Page.class,
@@ -117,6 +118,7 @@ public class FiguraDocsManager {
         ));
 
         put("animations", List.of(
+                AnimationAPI.class,
                 Animation.class
         ));
 
@@ -136,22 +138,26 @@ public class FiguraDocsManager {
 
         put("vanilla_model", List.of(
                 VanillaModelAPI.class,
+                VanillaPart.class,
                 VanillaModelPart.class,
                 VanillaGroupPart.class
         ));
 
         put("models", List.of(
+                Vertex.class,
                 FiguraModelPart.class,
                 RenderTask.class,
                 BlockTask.class,
                 ItemTask.class,
-                TextTask.class
+                TextTask.class,
+                SpriteTask.class
         ));
 
         put("player", List.of(
                 EntityAPI.class,
                 LivingEntityAPI.class,
-                PlayerAPI.class
+                PlayerAPI.class,
+                ViewerAPI.class
         ));
 
         put("events", List.of(
@@ -168,9 +174,7 @@ public class FiguraDocsManager {
                 VectorsAPI.class,
                 FiguraVec2.class,
                 FiguraVec3.class,
-                FiguraVec4.class,
-                FiguraVec5.class,
-                FiguraVec6.class
+                FiguraVec4.class
         ));
 
         put("matrices", List.of(
@@ -213,7 +217,8 @@ public class FiguraDocsManager {
 
         put("textures", List.of(
                 TextureAPI.class,
-                FiguraTexture.class
+                FiguraTexture.class,
+                TextureAtlasAPI.class
         ));
 
         put("config", List.of(
@@ -231,7 +236,7 @@ public class FiguraDocsManager {
 
     public static void init() {
         //generate children override
-        for (Map.Entry<String, List<Class<?>>> packageEntry : GLOBAL_CHILDREN.entrySet()) {
+        for (Map.Entry<String, Collection<Class<?>>> packageEntry : GLOBAL_CHILDREN.entrySet()) {
             for (Class<?> documentedClass : packageEntry.getValue()) {
                 FiguraDoc.ClassDoc doc = generateDocFor(documentedClass, "globals " + packageEntry.getKey());
                 if (doc != null)
@@ -249,6 +254,11 @@ public class FiguraDocsManager {
         //generate globals
         Class<?> globalClass = FiguraGlobalsDocs.class;
         global = new FiguraDoc.ClassDoc(globalClass, globalClass.getAnnotation(LuaTypeDoc.class), GENERATED_CHILDREN);
+    }
+
+    public static void initEntryPoints(Set<FiguraAPI> set) {
+        for (FiguraAPI api : set)
+            GLOBAL_CHILDREN.put(api.getName(), api.getDocsClasses());
     }
 
     private static FiguraDoc.ClassDoc generateDocFor(Class<?> documentedClass, String pack) {
@@ -331,7 +341,7 @@ public class FiguraDocsManager {
                 Files.createFile(targetPath);
 
             //write file
-            FileOutputStream fs = new FileOutputStream(targetPath.toFile());
+            OutputStream fs = Files.newOutputStream(targetPath);
             fs.write(exportAsJsonString(translate).getBytes());
             fs.close();
 
@@ -340,7 +350,7 @@ public class FiguraDocsManager {
                     FiguraText.of("command.docs_export.success")
                             .append(" ")
                             .append(FiguraText.of("command.click_to_open")
-                                    .setStyle(Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_FILE, targetPath.toFile().toString())).withUnderlined(true))
+                                    .setStyle(Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_FILE, targetPath.toString())).withUnderlined(true))
                             )
             );
             return 1;

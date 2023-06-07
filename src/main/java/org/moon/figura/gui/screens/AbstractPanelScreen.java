@@ -2,25 +2,32 @@ package org.moon.figura.gui.screens;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.gui.widgets.ContextMenu;
+import org.moon.figura.gui.widgets.FiguraRemovable;
 import org.moon.figura.gui.widgets.FiguraTickable;
 import org.moon.figura.gui.widgets.PanelSelectorWidget;
-import org.moon.figura.gui.widgets.TextField;
+import org.moon.figura.mixin.gui.ScreenAccessor;
 import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.ui.UIHelper;
 
+import java.util.List;
+
 public abstract class AbstractPanelScreen extends Screen {
 
-    public static final ResourceLocation BACKGROUND = new FiguraIdentifier("textures/gui/background.png");
+    public static final List<ResourceLocation> BACKGROUNDS = List.of(
+            new FiguraIdentifier("textures/gui/background/background_0.png"),
+            new FiguraIdentifier("textures/gui/background/background_1.png"),
+            new FiguraIdentifier("textures/gui/background/background_2.png")
+    );
 
     //variables
     protected final Screen parentScreen;
-    protected final int index;
     public PanelSelectorWidget panels;
 
     //overlays
@@ -31,37 +38,50 @@ public abstract class AbstractPanelScreen extends Screen {
     private static final String EGG = "ĉĉĈĈćĆćĆBAā";
     private String egg = EGG;
 
-    protected AbstractPanelScreen(Screen parentScreen, Component title, int index) {
+    protected AbstractPanelScreen(Screen parentScreen, Component title) {
         super(title);
         this.parentScreen = parentScreen;
-        this.index = index;
     }
+
+    public Class<? extends Screen> getSelectedPanel() {
+        return this.getClass();
+    };
 
     @Override
     protected void init() {
         super.init();
 
         //add panel selector
-        this.addRenderableWidget(panels = new PanelSelectorWidget(parentScreen, 0, 0, width, index));
+        this.addRenderableWidget(panels = new PanelSelectorWidget(parentScreen, 0, 0, width, getSelectedPanel()));
+
+        //clear overlays
+        contextMenu = null;
+        tooltip = null;
     }
 
     @Override
     public void tick() {
-        for (GuiEventListener listener : this.children()) {
-            if (listener instanceof FiguraTickable tickable)
+        for (Renderable renderable : this.renderables()) {
+            if (renderable instanceof FiguraTickable tickable)
                 tickable.tick();
         }
 
+        renderables().removeIf(r -> r instanceof FiguraRemovable removable && removable.isRemoved());
+
         super.tick();
+    }
+
+    public List<Renderable> renderables() {
+        return ((ScreenAccessor) this).getRenderables();
     }
 
     @Override
     public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
         //setup figura framebuffer
-        UIHelper.useFiguraGuiFramebuffer();
+        //UIHelper.useFiguraGuiFramebuffer();
 
         //render background
-        this.renderBackground(delta);
+        this.renderBackground(stack, delta);
 
         //render contents
         super.render(stack, mouseX, mouseY, delta);
@@ -70,15 +90,16 @@ public abstract class AbstractPanelScreen extends Screen {
         this.renderOverlays(stack, mouseX, mouseY, delta);
 
         //restore vanilla framebuffer
-        UIHelper.useVanillaFramebuffer();
+        //UIHelper.useVanillaFramebuffer();
     }
 
-    public void renderBackground(float delta) {
+    public void renderBackground(PoseStack stack, float delta) {
         //render
-        double scale = this.minecraft.getWindow().getGuiScale();
-        float textureSize = (float) (64f / scale);
-        double speed = 1d / 0.5 * scale / Config.BACKGROUND_SCROLL_SPEED.asFloat();
-        UIHelper.renderAnimatedBackground(BACKGROUND, 0, 0, this.width, this.height, textureSize, textureSize, speed, delta);
+        float speed = Configs.BACKGROUND_SCROLL_SPEED.tempValue * 0.125f;
+        for (ResourceLocation background : BACKGROUNDS) {
+            UIHelper.renderAnimatedBackground(stack, background, 0, 0, this.width, this.height, 64, 64, speed, delta);
+            speed /= 0.5;
+        }
     }
 
     public void renderOverlays(PoseStack stack, int mouseX, int mouseY, float delta) {
@@ -90,8 +111,9 @@ public abstract class AbstractPanelScreen extends Screen {
             contextMenu.render(stack, mouseX, mouseY, delta);
             stack.popPose();
         }
+
         //render tooltip
-        else if (tooltip != null)
+        if (tooltip != null)
             UIHelper.renderTooltip(stack, tooltip, mouseX, mouseY, true);
 
         tooltip = null;
@@ -104,13 +126,29 @@ public abstract class AbstractPanelScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        //fix mojang focusing for text fields
-        for (GuiEventListener listener : this.children()) {
-            if (listener instanceof TextField field)
-                field.getField().setFocus(field.isEnabled() && field.isMouseOver(mouseX, mouseY));
+        //context menu first
+        if (this.contextMenuClick(mouseX, mouseY, button))
+            return true;
+
+        GuiEventListener widget = null;
+
+        //update children focused
+        for (GuiEventListener children : List.copyOf(this.children())) {
+            boolean clicked = children.mouseClicked(mouseX, mouseY, button);
+            children.setFocused(clicked);
+            if (clicked) widget = children;
         }
 
-        return this.contextMenuClick(mouseX, mouseY, button) || super.mouseClicked(mouseX, mouseY, button);
+        //set this focused
+        if (getFocused() != widget)
+            setFocused(widget);
+
+        if (widget != null) {
+            if (button == 0) this.setDragging(true);
+            return true;
+        }
+
+        return false;
     }
 
     public boolean contextMenuClick(double mouseX, double mouseY, int button) {
@@ -119,8 +157,8 @@ public abstract class AbstractPanelScreen extends Screen {
             //attempt to click on the context menu
             boolean clicked = contextMenu.mouseClicked(mouseX, mouseY, button);
 
-            //then try to click on the parent container and suppress it
-            //let the parent handle the context menu visibility
+            //then try to click on the category container and suppress it
+            //let the category handle the context menu visibility
             if (!clicked && contextMenu.parent != null && contextMenu.parent.mouseClicked(mouseX, mouseY, button))
                 return true;
 
@@ -142,7 +180,13 @@ public abstract class AbstractPanelScreen extends Screen {
     @Override
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         //better check for mouse released when outside element boundaries
-        return this.getFocused() != null && this.getFocused().mouseReleased(mouseX, mouseY, button);
+        boolean bool = this.getFocused() != null && this.getFocused().mouseReleased(mouseX, mouseY, button);
+
+        //remove focused when clicking
+        if (bool) setFocused(null);
+
+        this.setDragging(false);
+        return bool;
     }
 
     @Override
@@ -165,10 +209,18 @@ public abstract class AbstractPanelScreen extends Screen {
         egg += (char) keyCode;
         egg = egg.substring(1);
         if (EGG.equals(egg)) {
-            Minecraft.getInstance().setScreen(new GameScreen(this, index));
+            Minecraft.getInstance().setScreen(new GameScreen(this));
             return true;
-        } else {
-            return super.keyPressed(keyCode, scanCode, modifiers);
         }
+
+        if (children().contains(panels) && panels.cycleTab(keyCode))
+            return true;
+
+        if (keyCode == 256 && contextMenu != null && contextMenu.isVisible()) {
+            contextMenu.setVisible(false);
+            return true;
+        }
+
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 }

@@ -17,7 +17,7 @@ import org.moon.figura.utils.MathUtils;
 import org.moon.figura.utils.TextUtils;
 import org.moon.figura.utils.ui.UIHelper;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -32,13 +32,16 @@ public class AvatarInfoWidget implements FiguraWidget, FiguraTickable, GuiEventL
             FiguraText.of("gui.complexity").withStyle(ChatFormatting.UNDERLINE)
     );
 
-    public int x, y;
-    public int width, height;
+    private int x, y;
+    private int width, height;
     private boolean visible = true;
     private final int maxSize;
 
     private final Font font;
-    private final List<Component> values = Arrays.asList(new Component[TITLES.size()]);
+    private final List<Component> values = new ArrayList<>() {{
+        for (Component ignored : TITLES)
+            this.add(UNKNOWN);
+    }};
 
     public AvatarInfoWidget(int x, int y, int width, int maxSize) {
         this.x = x;
@@ -61,8 +64,8 @@ public class AvatarInfoWidget implements FiguraWidget, FiguraTickable, GuiEventL
         //update values
         Avatar avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
         if (avatar != null && avatar.nbt != null) {
-            values.set(0, Component.literal(avatar.name).setStyle(accent)); //name
-            values.set(1, avatar.authors.isBlank() ? UNKNOWN : Component.literal(avatar.authors).setStyle(accent)); //authors
+            values.set(0, avatar.name == null || avatar.name.isBlank() ? UNKNOWN : Component.literal(avatar.name).setStyle(accent)); //name
+            values.set(1, avatar.authors == null || avatar.authors.isBlank() ? UNKNOWN : Component.literal(avatar.authors).setStyle(accent)); //authors
             values.set(2, Component.literal(MathUtils.asFileSize(avatar.fileSize)).setStyle(accent)); //size
             values.set(3, Component.literal(String.valueOf(avatar.complexity.pre)).setStyle(accent)); //complexity
         } else {
@@ -87,10 +90,14 @@ public class AvatarInfoWidget implements FiguraWidget, FiguraTickable, GuiEventL
         Component authors = values.get(1);
         List<Component> authorLines = authors == null ? Collections.emptyList() : TextUtils.splitText(authors, "\n");
         int authorUsedLines = Math.min(authorLines.size(), authorFreeLines);
-        this.height = height * TITLES.size() * 2 + 4 + height * (authorUsedLines - 1);
+
+        //set new widget height
+        int newHeight = height * TITLES.size() * 2 + 4 + height * (authorUsedLines - 1);
+        this.height = Math.min(newHeight + height, maxSize);
+        y += (this.height - newHeight) / 2;
 
         //render background
-        UIHelper.renderSliced(stack, this.x, this.y, this.width, this.height, UIHelper.OUTLINE);
+        UIHelper.renderSliced(stack, this.x, this.y, this.width, this.height, UIHelper.OUTLINE_FILL);
 
         //render texts
         for (int i = 0; i < TITLES.size(); i++) {
@@ -149,5 +156,53 @@ public class AvatarInfoWidget implements FiguraWidget, FiguraTickable, GuiEventL
     @Override
     public void setVisible(boolean visible) {
         this.visible = visible;
+    }
+
+    @Override
+    public void setFocused(boolean bl) {}
+
+    @Override
+    public boolean isFocused() {
+        return false;
+    }
+
+    @Override
+    public int getX() {
+        return x;
+    }
+
+    @Override
+    public void setX(int x) {
+        this.x = x;
+    }
+
+    @Override
+    public int getY() {
+        return y;
+    }
+
+    @Override
+    public void setY(int y) {
+        this.y = y;
+    }
+
+    @Override
+    public int getWidth() {
+        return width;
+    }
+
+    @Override
+    public void setWidth(int width) {
+        this.width = width;
+    }
+
+    @Override
+    public int getHeight() {
+        return height;
+    }
+
+    @Override
+    public void setHeight(int height) {
+        this.height = height;
     }
 }

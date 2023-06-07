@@ -6,20 +6,20 @@ import com.google.gson.JsonObject;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.renderer.block.model.ItemTransforms;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.PlayerModelPart;
+import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.UseAnim;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.animation.Animation;
 import org.moon.figura.mixin.input.KeyMappingAccessor;
 import org.moon.figura.mixin.render.GameRendererAccessor;
 import org.moon.figura.model.ParentType;
-import org.moon.figura.model.rendering.texture.EntityRenderMode;
+import org.moon.figura.model.rendering.EntityRenderMode;
 import org.moon.figura.model.rendering.texture.FiguraTextureSet;
 import org.moon.figura.model.rendering.texture.RenderTypes;
 import org.moon.figura.utils.ColorUtils;
@@ -52,8 +52,8 @@ public class FiguraListDocs {
         for (Pose value : Pose.values())
             add(value.name());
     }};
-    private static final LinkedHashSet<String> ITEM_RENDER_TYPES = new LinkedHashSet<>() {{
-        for (ItemTransforms.TransformType value : ItemTransforms.TransformType.values())
+    private static final LinkedHashSet<String> ITEM_DISPLAY_MODES = new LinkedHashSet<>() {{
+        for (ItemDisplayContext value : ItemDisplayContext.values())
             add(value.name());
     }};
     private static final LinkedHashSet<String> POST_EFFECTS = new LinkedHashSet<>() {{
@@ -97,7 +97,7 @@ public class FiguraListDocs {
         TEXTURE_TYPES(() -> FiguraListDocs.TEXTURE_TYPES, "TextureTypes", "texture_types", 1),
         KEY_IDS(() -> new LinkedHashSet<>() {{this.addAll(KeyMappingAccessor.getAll().keySet());}}, "KeyIDs", "key_ids", 2),
         ENTITY_POSES(() -> FiguraListDocs.ENTITY_POSES, "EntityPoses", "entity_poses", 2),
-        ITEM_RENDER_TYPES(() -> FiguraListDocs.ITEM_RENDER_TYPES, "ItemRenderTypes", "item_render_types", 1),
+        ITEM_RENDER_TYPES(() -> FiguraListDocs.ITEM_DISPLAY_MODES, "ItemDisplayModes", "item_display_modes", 1),
         POST_EFFECTS(() -> FiguraListDocs.POST_EFFECTS, "PostEffects", "post_effects", 2),
         PLAY_STATES(() -> FiguraListDocs.PLAY_STATES, "PlayStates", "play_states", 1),
         LOOP_MODES(() -> FiguraListDocs.LOOP_MODES, "LoopModes", "loop_modes", 1),

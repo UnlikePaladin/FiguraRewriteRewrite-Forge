@@ -1,10 +1,11 @@
 package org.moon.figura.model.rendering.texture;
 
+import com.mojang.blaze3d.pipeline.RenderCall;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.client.renderer.texture.SimpleTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import org.luaj.vm2.LuaError;
@@ -18,14 +19,15 @@ import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
+import org.moon.figura.math.matrix.FiguraMat4;
 import org.moon.figura.math.vector.FiguraVec2;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.math.vector.FiguraVec4;
+import org.moon.figura.mixin.render.TextureManagerAccessor;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.LuaUtils;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
@@ -37,12 +39,11 @@ import java.util.UUID;
         name = "Texture",
         value = "texture"
 )
-public class FiguraTexture extends AbstractTexture implements Closeable {
+public class FiguraTexture extends SimpleTexture {
 
     /**
      * The ID of the texture, used to register to Minecraft.
      */
-    public final ResourceLocation textureID;
     private boolean registered = false;
     private boolean dirty = true;
     private boolean modified = false;
@@ -57,6 +58,8 @@ public class FiguraTexture extends AbstractTexture implements Closeable {
     private boolean isClosed = false;
 
     public FiguraTexture(Avatar owner, String name, byte[] data) {
+        super(new FiguraIdentifier("avatar_tex/" + owner.owner + "/" + UUID.randomUUID()));
+
         //Read image from wrapper
         NativeImage image;
         try {
@@ -70,45 +73,26 @@ public class FiguraTexture extends AbstractTexture implements Closeable {
         }
 
         this.texture = image;
-        this.textureID = new FiguraIdentifier("avatar_tex/" + owner.owner + "/" + UUID.randomUUID());
+        this.name = name;
+        this.owner = owner;
+    }
+
+    public FiguraTexture(Avatar owner, String name, int width, int height) {
+        super(new FiguraIdentifier("avatar_tex/" + owner.owner + "/" + UUID.randomUUID()));
+        this.texture = new NativeImage(width, height, true);
         this.name = name;
         this.owner = owner;
     }
 
     public FiguraTexture(Avatar owner, String name, NativeImage image) {
+        super(new FiguraIdentifier("avatar_tex/" + owner.owner + "/custom/" + UUID.randomUUID()));
         this.texture = image;
-        this.textureID = new FiguraIdentifier("avatar_tex/" + owner.owner + "/custom/" + UUID.randomUUID());
         this.name = name;
         this.owner = owner;
     }
 
     @Override
     public void load(ResourceManager manager) throws IOException {}
-
-    //Called when a texture is first created and when it reloads
-    //Registers the texture to minecraft, and uploads it to GPU.
-    public void registerAndUpload() {
-        if (!registered) {
-            //Register texture under the ID, so Minecraft's rendering can use it.
-            Minecraft.getInstance().getTextureManager().register(textureID, this);
-            registered = true;
-        }
-
-        if (dirty) {
-            //Upload texture to GPU.
-            TextureUtil.prepareImage(this.getId(), texture.getWidth(), texture.getHeight());
-            texture.upload(0, 0, 0, false);
-            dirty = false;
-        }
-    }
-
-    public int getWidth() {
-        return texture.getWidth();
-    }
-
-    public int getHeight() {
-        return texture.getHeight();
-    }
 
     @Override
     public void close() {
@@ -122,22 +106,61 @@ public class FiguraTexture extends AbstractTexture implements Closeable {
         if (backup != null)
             backup.close();
 
-        //Cache GLID and then release it on GPU
-        RenderSystem.recordRenderCall(() -> TextureUtil.releaseTextureId(this.id));
+        this.releaseId();
+        ((TextureManagerAccessor) Minecraft.getInstance().getTextureManager()).getByPath().remove(this.location);
     }
 
-    public void saveCache() throws IOException {
-        Path path = FiguraMod.getCacheDirectory().resolve("saved_texture.png");
-        texture.writeToFile(path);
+    public void uploadIfDirty() {
+        if (!registered) {
+            Minecraft.getInstance().getTextureManager().register(this.location, this);
+            registered = true;
+        }
+
+        if (dirty && !isClosed) {
+            dirty = false;
+
+            RenderCall runnable = () -> {
+                //Upload texture to GPU.
+                TextureUtil.prepareImage(this.getId(), texture.getWidth(), texture.getHeight());
+                texture.upload(0, 0, 0, false);
+            };
+
+            if (RenderSystem.isOnRenderThreadOrInit()) {
+                runnable.execute();
+            } else {
+                RenderSystem.recordRenderCall(runnable);
+            }
+        }
+    }
+
+    public void writeTexture(Path dest) throws IOException {
+        texture.writeToFile(dest);
     }
 
     private void backupImage() {
         this.modified = true;
-        if (this.backup == null) {
-            backup = new NativeImage(texture.format(), texture.getWidth(), texture.getHeight(), true);
-            backup.copyFrom(texture);
-        }
+        if (this.backup == null)
+            backup = copy();
     }
+
+    public NativeImage copy() {
+        NativeImage image = new NativeImage(texture.format(), texture.getWidth(), texture.getHeight(), true);
+        image.copyFrom(texture);
+        return image;
+    }
+
+    public int getWidth() {
+        return texture.getWidth();
+    }
+
+    public int getHeight() {
+        return texture.getHeight();
+    }
+
+    public ResourceLocation getLocation() {
+        return this.location;
+    }
+
 
     // -- lua stuff -- //
 
@@ -150,6 +173,12 @@ public class FiguraTexture extends AbstractTexture implements Closeable {
     @LuaMethodDoc("texture.get_name")
     public String getName() {
         return name;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("texture.get_path")
+    public String getPath() {
+        return getLocation().toString();
     }
 
     @LuaWhitelist
@@ -189,14 +218,21 @@ public class FiguraTexture extends AbstractTexture implements Closeable {
                             argumentNames = {"x", "y", "r", "g", "b", "a"}
                     )
             },
+            aliases = "pixel",
             value = "texture.set_pixel")
-    public void setPixel(int x, int y, Object r, Double g, Double b, Double a) {
+    public FiguraTexture setPixel(int x, int y, Object r, Double g, Double b, Double a) {
         try {
             backupImage();
             texture.setPixelRGBA(x, y, ColorUtils.rgbaToIntABGR(parseColor("setPixel", r, g, b, a)));
+            return this;
         } catch (Exception e) {
             throw new LuaError(e.getMessage());
         }
+    }
+
+    @LuaWhitelist
+    public FiguraTexture pixel(int x, int y, Object r, Double g, Double b, Double a) {
+        return setPixel(x, y, r, g, b, a);
     }
 
     @LuaWhitelist
@@ -216,10 +252,11 @@ public class FiguraTexture extends AbstractTexture implements Closeable {
                     )
             },
             value = "texture.fill")
-    public void fill(int x, int y, int width, int height, Object r, Double g, Double b, Double a) {
+    public FiguraTexture fill(int x, int y, int width, int height, Object r, Double g, Double b, Double a) {
         try {
             backupImage();
             texture.fillRect(x, y, width, height, ColorUtils.rgbaToIntABGR(parseColor("fill", r, g, b, a)));
+            return this;
         } catch (Exception e) {
             throw new LuaError(e.getMessage());
         }
@@ -227,17 +264,19 @@ public class FiguraTexture extends AbstractTexture implements Closeable {
 
     @LuaWhitelist
     @LuaMethodDoc("texture.update")
-    public void update() {
+    public FiguraTexture update() {
         this.dirty = true;
+        return this;
     }
 
     @LuaWhitelist
     @LuaMethodDoc("texture.restore")
-    public void restore() {
+    public FiguraTexture restore() {
         if (modified) {
             this.texture.copyFrom(backup);
             this.modified = false;
         }
+        return this;
     }
 
     @LuaWhitelist
@@ -258,7 +297,7 @@ public class FiguraTexture extends AbstractTexture implements Closeable {
             ),
             value = "texture.apply_func"
     )
-    public void applyFunc(int x, int y, int width, int height, @LuaNotNil LuaFunction function) {
+    public FiguraTexture applyFunc(int x, int y, int width, int height, @LuaNotNil LuaFunction function) {
         for (int i = y; i < y + height; i++) {
             for (int j = x; j < x + width; j++) {
                 FiguraVec4 color = getPixel(j, i);
@@ -267,6 +306,31 @@ public class FiguraTexture extends AbstractTexture implements Closeable {
                     setPixel(j, i, result.checkuserdata(FiguraVec4.class), null, null, null);
             }
         }
+        return this;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = {Integer.class, Integer.class, Integer.class, Integer.class, FiguraMat4.class},
+                    argumentNames = {"x", "y", "width", "height", "matrix"}
+            ),
+            value = "texture.apply_matrix"
+    )
+    public FiguraTexture applyMatrix(int x, int y, int width, int height, @LuaNotNil FiguraMat4 matrix) {
+        for (int i = y; i < y + height; i++) {
+            for (int j = x; j < x + width; j++) {
+                FiguraVec4 color = getPixel(j, i);
+                color.transform(matrix);
+                setPixel(j, i, color, null, null, null);
+            }
+        }
+        return this;
+    }
+
+    @LuaWhitelist
+    public Object __index(String arg) {
+        return "name".equals(arg) ? name : null;
     }
 
     @Override
