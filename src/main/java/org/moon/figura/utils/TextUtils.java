@@ -6,7 +6,6 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.locale.Language;
 import net.minecraft.network.chat.*;
 import net.minecraft.util.FormattedCharSequence;
-import org.moon.figura.ducks.StyleSerializerAccessor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +19,8 @@ public class TextUtils {
     public static final Component TAB = FiguraText.of("tab");
     public static final Component ELLIPSIS = FiguraText.of("ellipsis");
     public static final Component UNKNOWN = Component.literal("�").withStyle(Style.EMPTY.withFont(Style.DEFAULT_FONT));
+
+    public static boolean allowScriptEvents;
 
     public static List<Component> splitText(FormattedText text, String regex) {
         //list to return
@@ -77,7 +78,6 @@ public class TextUtils {
             //check if its valid json text
             JsonParser.parseString(text);
 
-            StyleSerializerAccessor.allowScriptEvents = true;
             //attempt to parse json
             finalText = Component.Serializer.fromJsonLenient(text);
 
@@ -87,9 +87,6 @@ public class TextUtils {
         } catch (Exception ignored) {
             //on any exception, make the text as-is
             finalText = Component.literal(text);
-        }
-        finally {
-            StyleSerializerAccessor.allowScriptEvents = false;
         }
 
         //return text

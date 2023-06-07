@@ -70,8 +70,6 @@ public class EventsAPI {
     @LuaFieldDoc("events.use_item")
     public final LuaEvent USE_ITEM = new LuaEvent();
     @LuaWhitelist
-    @LuaFieldDoc("events.chat_component_click")
-    public final LuaEvent CHAT_COMPONENT_CLICK = new LuaEvent();
     @LuaFieldDoc("events.arrow_render")
     public final LuaEvent ARROW_RENDER = new LuaEvent();
     @LuaWhitelist

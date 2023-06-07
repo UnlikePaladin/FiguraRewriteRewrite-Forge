@@ -1,7 +1,10 @@
 package org.moon.figura.lua;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.network.chat.*;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.minecraft.world.entity.EntityType;
 import org.luaj.vm2.*;
 import org.luaj.vm2.lib.VarArgFunction;
@@ -171,17 +174,24 @@ public class FiguraLuaPrinter {
     private static final Function<FiguraLuaRuntime, LuaValue> PRINT_JSON_FUNCTION = runtime -> new VarArgFunction() {
         @Override
         public Varargs invoke(Varargs args) {
-            if (!Configs.LOG_OTHERS.value && !FiguraMod.isLocal(runtime.owner.owner))
+            boolean local = FiguraMod.isLocal(runtime.owner.owner);
+            if (!Configs.LOG_OTHERS.value && !local)
                 return NIL;
+
+            TextUtils.allowScriptEvents = true;
 
             MutableComponent text = Component.empty();
             for (int i = 0; i < args.narg(); i++)
                 text.append(TextUtils.tryParseJson(args.arg(i + 1).tojstring()));
 
-            sendLuaChatMessage(
-                    TextUtils.removeClickableObjects(text,
-                    p -> p.getAction() != ClickEvent.Action.getByName("script_event") || !FiguraMod.isLocal(runtime.owner.owner))
-            );
+            TextUtils.allowScriptEvents = false;
+
+            if (!local) {
+                sendLuaChatMessage(TextUtils.removeClickableObjects(text));
+            } else {
+                sendLuaChatMessage(text);
+            }
+
             return LuaValue.valueOf(text.getString());
         }
 

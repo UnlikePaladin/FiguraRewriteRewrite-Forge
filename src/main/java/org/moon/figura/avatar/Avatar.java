@@ -422,11 +422,6 @@ public class Avatar {
         if (loaded) run("CHAR_TYPED", tick, chars, modifiers, codePoint);
     }
 
-    public void chatComponentClickEvent(String uservalue) {
-        if (loaded)
-            run("CHAT_COMPONENT_CLICK", tick, uservalue);
-    }
-
     // -- rendering events -- //
 
     private void render() {

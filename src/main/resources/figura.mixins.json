@@ -8,7 +8,6 @@
   "client": [
     "BiomeAccessor",
     "BlockBehaviourAccessor",
-    "ClickEventActionMixin",
     "ClientLevelInvoker",
     "EntityAccessor",
     "EntityMixin",
@@ -18,7 +17,6 @@
     "MinecraftMixin",
     "ReloadableResourceManagerMixin",
     "SkullBlockEntityAccessor",
-    "StyleSerializerMixin",
 
     "gui.ChatComponentAccessor",
     "gui.ChatComponentMixin",
