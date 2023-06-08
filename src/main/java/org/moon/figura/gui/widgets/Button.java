@@ -110,7 +110,7 @@ public class Button extends net.minecraft.client.gui.components.Button implement
     protected void renderVanillaBackground(PoseStack stack, int mouseX, int mouseY, float delta) {
         Component message = getMessage();
         setMessage(Component.empty());
-        super.renderWidget(stack, mouseX, mouseY, delta);
+        super.renderButton(stack, mouseX, mouseY, delta);
         setMessage(message);
     }
 

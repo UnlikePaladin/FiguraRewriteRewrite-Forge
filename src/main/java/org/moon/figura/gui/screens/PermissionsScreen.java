@@ -207,9 +207,9 @@ public class PermissionsScreen extends AbstractPanelScreen {
             }
 
             @Override
-            public void renderWidget(PoseStack stack, int mouseX, int mouseY, float delta) {
+            public void renderButton(PoseStack stack, int mouseX, int mouseY, float delta) {
                 //super.renderDefaultTexture(stack, delta);
-                super.renderWidget(stack, mouseX, mouseY, delta);
+                super.renderButton(stack, mouseX, mouseY, delta);
             }
         });
         precisePermissions.setUnderline(false);
