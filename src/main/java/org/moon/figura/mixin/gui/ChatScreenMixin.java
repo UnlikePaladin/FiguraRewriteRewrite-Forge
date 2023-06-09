@@ -13,7 +13,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(ChatScreen.class)
 public class ChatScreenMixin {
@@ -36,7 +35,7 @@ public class ChatScreenMixin {
     }
 
     @Inject(at = @At("RETURN"), method = "handleChatInput")
-    private void afterHandleChatInput(String text, boolean addToHistory, CallbackInfoReturnable<Boolean> cir) {
+    private void afterHandleChatInput(String string, boolean bl, CallbackInfo ci) {
         FiguraRunCommand.canRun = false;
     }
 
