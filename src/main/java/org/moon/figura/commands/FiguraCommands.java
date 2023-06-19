@@ -55,32 +55,32 @@ public class FiguraCommands {
         event.getDispatcher().register(root);
     }
 
-    protected static Avatar checkAvatar(CommandContext<FabricClientCommandSource> context) {
+    protected static Avatar checkAvatar(CommandContext<CommandSourceStack> context) {
         Avatar avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
         if (avatar == null) {
-            context.getSource().sendError(new FiguraText("command.no_avatar_error"));
+            context.getSource().sendFailure(new FiguraText("command.no_avatar_error"));
             return null;
         }
         return avatar;
     }
 
-    protected static FiguraLuaRuntime getRuntime(CommandContext<FabricClientCommandSource> context) {
+    protected static FiguraLuaRuntime getRuntime(CommandContext<CommandSourceStack> context) {
         Avatar avatar = checkAvatar(context);
         if (avatar == null)
             return null;
         if (avatar.luaRuntime == null || avatar.scriptError) {
-            context.getSource().sendError(new FiguraText("command.no_script_error"));
+            context.getSource().sendFailure(new FiguraText("command.no_script_error"));
             return null;
         }
         return avatar.luaRuntime;
     }
 
-    protected static AvatarRenderer getRenderer(CommandContext<FabricClientCommandSource> context) {
+    protected static AvatarRenderer getRenderer(CommandContext<CommandSourceStack> context) {
         Avatar avatar = checkAvatar(context);
         if (avatar == null)
             return null;
         if (avatar.renderer == null) {
-            context.getSource().sendError(new FiguraText("command.no_renderer_error"));
+            context.getSource().sendFailure(new FiguraText("command.no_renderer_error"));
             return null;
         }
         return avatar.renderer;

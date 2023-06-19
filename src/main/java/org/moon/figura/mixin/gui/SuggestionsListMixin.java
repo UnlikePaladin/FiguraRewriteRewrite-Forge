@@ -11,8 +11,7 @@ import org.moon.figura.ducks.SuggestionsListAccessor;
 import org.moon.figura.gui.Emojis;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.ModifyArgs;
-import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 
 @Mixin(CommandSuggestions.SuggestionsList.class)
 public class SuggestionsListMixin implements SuggestionsListAccessor {
@@ -21,16 +20,10 @@ public class SuggestionsListMixin implements SuggestionsListAccessor {
 
     @Unique private boolean figuraList;
 
-    @ModifyArgs(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/Font;drawShadow(Lcom/mojang/blaze3d/vertex/PoseStack;Ljava/lang/String;FFI)I"))
-    private void voidTextDraw(Args args) {
+    @ModifyArg(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/Font;drawShadow(Lcom/mojang/blaze3d/vertex/PoseStack;Ljava/lang/String;FFI)I"), index = 2)
+    private float voidTextDraw(PoseStack stack, String text, float x, float y, int color) {
         if (!figuraList)
-            return;
-
-        PoseStack stack = args.get(0);
-        String text = args.get(1);
-        float x = args.get(2);
-        float y = args.get(3);
-        int color = args.get(4);
+            return x;
         Font font = Minecraft.getInstance().font;
 
         //get emoji
@@ -38,14 +31,15 @@ public class SuggestionsListMixin implements SuggestionsListAccessor {
 
         //dont render if no emoji was applied
         if (emoji.getString().equals(text))
-            return;
-
-        //change text x
-        args.set(2, x + 8 + font.width(" "));
+            return x;
 
         //render emoji
         font.drawShadow(stack, emoji, x + 4 - (int) (font.width(emoji) / 2f), y, color);
+
+        //change text x
+        return (x + 8 + font.width(" "));
     }
+
 
     @Override
     @Intrinsic
