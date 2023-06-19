@@ -15,6 +15,7 @@ import org.moon.figura.exporters.BlockBenchModel.Group;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.utils.*;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

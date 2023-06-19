@@ -4,6 +4,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.ClientCommandSourceStack;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -55,32 +56,32 @@ public class FiguraCommands {
         event.getDispatcher().register(root);
     }
 
-    protected static Avatar checkAvatar(CommandContext<FabricClientCommandSource> context) {
+    protected static Avatar checkAvatar(CommandContext<CommandSourceStack> context) {
         Avatar avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
         if (avatar == null) {
-            context.getSource().sendError(FiguraText.of("command.no_avatar_error"));
+            context.getSource().sendFailure(FiguraText.of("command.no_avatar_error"));
             return null;
         }
         return avatar;
     }
 
-    protected static FiguraLuaRuntime getRuntime(CommandContext<FabricClientCommandSource> context) {
+    protected static FiguraLuaRuntime getRuntime(CommandContext<CommandSourceStack> context) {
         Avatar avatar = checkAvatar(context);
         if (avatar == null)
             return null;
         if (avatar.luaRuntime == null || avatar.scriptError) {
-            context.getSource().sendError(FiguraText.of("command.no_script_error"));
+            context.getSource().sendFailure(FiguraText.of("command.no_script_error"));
             return null;
         }
         return avatar.luaRuntime;
     }
 
-    protected static AvatarRenderer getRenderer(CommandContext<FabricClientCommandSource> context) {
+    protected static AvatarRenderer getRenderer(CommandContext<CommandSourceStack> context) {
         Avatar avatar = checkAvatar(context);
         if (avatar == null)
             return null;
         if (avatar.renderer == null) {
-            context.getSource().sendError(FiguraText.of("command.no_renderer_error"));
+            context.getSource().sendFailure(FiguraText.of("command.no_renderer_error"));
             return null;
         }
         return avatar.renderer;

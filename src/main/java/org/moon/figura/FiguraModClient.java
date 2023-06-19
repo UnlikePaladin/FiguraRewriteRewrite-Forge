@@ -8,12 +8,14 @@ import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.avatar.local.CacheAvatarLoader;
 import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.avatar.local.LocalAvatarLoader;
 import org.moon.figura.config.ConfigManager;
 import org.moon.figura.config.Configs;
 import org.moon.figura.config.ModMenuConfig;
+import org.moon.figura.entries.EntryPointManager;
 import org.moon.figura.forge.GUIActionWheelOverlay;
 import org.moon.figura.forge.GUIOverlay;
 import org.moon.figura.gui.Emojis;
@@ -29,11 +31,11 @@ public class FiguraModClient {
     @SubscribeEvent
     public static void onInitializeClient(FMLClientSetupEvent event) {
         //init managers
+        EntryPointManager.init();
         ConfigManager.init();
         PermissionManager.init();
         LocalAvatarFetcher.init();
         CacheAvatarLoader.init();
-        FiguraAPIManager.init();
         FiguraDocsManager.init();
         FiguraRuntimeResources.init();
         ModMenuConfig.registerConfigScreen();
@@ -44,6 +46,7 @@ public class FiguraModClient {
         event.registerReloadListener(LocalAvatarLoader.AVATAR_LISTENER);
         event.registerReloadListener(Emojis.RESOURCE_LISTENER);
         event.registerReloadListener(AvatarWizard.RESOURCE_LISTENER);
+        event.registerReloadListener(AvatarManager.RESOURCE_RELOAD_EVENT);
     }
 
     @SubscribeEvent

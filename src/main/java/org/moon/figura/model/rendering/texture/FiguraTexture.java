@@ -140,7 +140,7 @@ public class FiguraTexture extends SimpleTexture {
 
     public static void deleteCache() {
         Path path = FiguraMod.getCacheDirectory().resolve("saved_texture.png");
-        IOUtils.deleteFile(path.toFile());
+        IOUtils.deleteFile(path);
     }
 
     private void backupImage() {
