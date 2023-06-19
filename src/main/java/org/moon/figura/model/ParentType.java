@@ -3,7 +3,7 @@ package org.moon.figura.model;
 import org.moon.figura.math.vector.FiguraVec3;
 
 public enum ParentType {
-    None("NONE"),
+    None("NONE", "Model", "MODEL"),
 
     Head(VanillaModelProvider.HEAD, "HEAD"),
     Body(VanillaModelProvider.BODY, "BODY"),
@@ -12,8 +12,8 @@ public enum ParentType {
     LeftLeg(VanillaModelProvider.LEFT_LEG, FiguraVec3.of(1.9, 12, 0), "LEFT_LEG"),
     RightLeg(VanillaModelProvider.RIGHT_LEG, FiguraVec3.of(-1.9, 12, 0), "RIGHT_LEG"),
 
-    LeftElytra(true, VanillaModelProvider.LEFT_ELYTRON, FiguraVec3.of(5, 0, -2), "LEFT_ELYTRA", "LeftElytron", "LEFT_ELYTRON"),
-    RightElytra(true, VanillaModelProvider.RIGHT_ELYTRON, FiguraVec3.of(-5, 0, -2), "RIGHT_ELYTRA", "RightElytron", "RIGHT_ELYTRON"),
+    LeftElytra(true, VanillaModelProvider.LEFT_ELYTRON, FiguraVec3.of(5, 0, 0), "LEFT_ELYTRA", "LeftElytron", "LEFT_ELYTRON"),
+    RightElytra(true, VanillaModelProvider.RIGHT_ELYTRON, FiguraVec3.of(-5, 0, 0), "RIGHT_ELYTRA", "RightElytron", "RIGHT_ELYTRON"),
 
     Cape(true, VanillaModelProvider.FAKE_CAPE, FiguraVec3.of(), "CAPE"),
 
@@ -23,6 +23,7 @@ public enum ParentType {
     Skull(true, false, "SKULL", "☠"),
     Portrait(true, false, "PORTRAIT"),
     Arrow(true, false, "ARROW"),
+    Item(true, false, "ITEM"),
 
     LeftItemPivot(false, true,"LEFT_ITEM_PIVOT"),
     RightItemPivot(false, true,"RIGHT_ITEM_PIVOT"),
@@ -75,6 +76,9 @@ public enum ParentType {
     }
 
     public static ParentType get(String name) {
+        if (name == null)
+            return None;
+
         for (ParentType parentType : values()) {
             if (name.startsWith(parentType.name()))
                 return parentType;

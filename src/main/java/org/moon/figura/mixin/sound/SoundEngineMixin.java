@@ -3,6 +3,7 @@ package org.moon.figura.mixin.sound;
 import com.mojang.blaze3d.audio.Channel;
 import com.mojang.blaze3d.audio.Library;
 import net.minecraft.client.Options;
+import net.minecraft.client.gui.components.SubtitleOverlay;
 import net.minecraft.client.sounds.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceProvider;
@@ -10,15 +11,15 @@ import net.minecraft.sounds.SoundSource;
 import org.jetbrains.annotations.Nullable;
 import org.moon.figura.ducks.ChannelHandleAccessor;
 import org.moon.figura.ducks.SoundEngineAccessor;
+import org.moon.figura.ducks.SubtitleOverlayAccessor;
+import org.moon.figura.lua.api.sound.FiguraSoundListener;
 import org.moon.figura.lua.api.sound.LuaSound;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.UUID;
+import java.util.*;
 
 @Mixin(SoundEngine.class)
 public abstract class SoundEngineMixin implements SoundEngineAccessor {
@@ -29,20 +30,40 @@ public abstract class SoundEngineMixin implements SoundEngineAccessor {
     @Shadow private boolean loaded;
 
     @Shadow protected abstract float getVolume(@Nullable SoundSource category);
+    @Shadow @Final private List<SoundEventListener> listeners;
+    @Shadow public abstract void addEventListener(SoundEventListener listener);
 
     @Unique
     private ChannelAccess figuraChannel;
     @Unique
-    private final ArrayList<LuaSound> figuraHandlers = new ArrayList<>();
+    private final List<LuaSound> figuraHandlers = Collections.synchronizedList(new ArrayList<>());
 
     @Inject(at = @At("RETURN"), method = "<init>")
     private void soundEngineInit(SoundManager soundManager, Options options, ResourceProvider resourceProvider, CallbackInfo ci) {
         figuraChannel = new ChannelAccess(this.library, this.executor);
+        addEventListener(new FiguraSoundListener());
     }
 
     @Inject(at = @At("RETURN"), method = "tick")
     private void tick(boolean bl, CallbackInfo ci) {
         figuraChannel.scheduleTick();
+    }
+
+    @Inject(at = @At("RETURN"), method = "tickNonPaused")
+    private void tickNonPaused(CallbackInfo ci) {
+        Iterator<LuaSound> iterator = figuraHandlers.iterator();
+        while (iterator.hasNext()) {
+            LuaSound sound = iterator.next();
+            ChannelAccess.ChannelHandle handle = sound.getHandle();
+            if (handle == null) {
+                iterator.remove();
+            } else if (getVolume(SoundSource.PLAYERS) <= 0f) {
+                handle.execute(Channel::stop);
+                iterator.remove();
+            } else if (handle.isStopped()) {
+                iterator.remove();
+            }
+        }
     }
 
     @Inject(at = @At("RETURN"), method = "stopAll")
@@ -78,6 +99,12 @@ public abstract class SoundEngineMixin implements SoundEngineAccessor {
     @Override @Intrinsic
     public void figura$addSound(LuaSound sound) {
         figuraHandlers.add(sound);
+        for (SoundEventListener listener : this.listeners) {
+            if (listener instanceof SubtitleOverlay overlay)
+                ((SubtitleOverlayAccessor) overlay).figura$PlaySound(sound);
+            else if (listener instanceof FiguraSoundListener figuraListener)
+                figuraListener.figuraPlaySound(sound);
+        }
     }
 
     @Override @Intrinsic
@@ -125,5 +152,17 @@ public abstract class SoundEngineMixin implements SoundEngineAccessor {
     @Override @Intrinsic
     public SoundBufferLibrary figura$getSoundBuffers() {
         return this.soundBuffers;
+    }
+
+    @Override @Intrinsic
+    public boolean figura$isPlaying(UUID owner) {
+        if (!this.loaded)
+            return false;
+        for (LuaSound sound : figuraHandlers) {
+            ChannelHandleAccessor accessor = (ChannelHandleAccessor) sound.getHandle();
+            if (sound.isPlaying() && accessor != null && accessor.getOwner().equals(owner))
+                return true;
+        }
+        return false;
     }
 }

@@ -3,7 +3,6 @@ package org.moon.figura.model.rendering;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.datafixers.util.Pair;
-import it.unimi.dsi.fastutil.floats.FloatArrayList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
@@ -31,10 +30,9 @@ import org.moon.figura.model.rendertasks.RenderTask;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.ui.UIHelper;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Consumer;
 
 public class ImmediateAvatarRenderer extends AvatarRenderer {
 
@@ -48,7 +46,7 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         super(avatar);
 
         //Vertex data, read model parts
-        root = FiguraModelPartReader.read(avatar, avatar.nbt.getCompound("models"), textureSets);
+        root = FiguraModelPartReader.read(avatar, avatar.nbt.getCompound("models"), textureSets, false);
 
         sortParts();
     }
@@ -98,7 +96,7 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
 
         //iris fix
         int irisConfig = UIHelper.paperdoll || !ClientAPI.hasIris() ? 0 : Configs.IRIS_COMPATIBILITY_FIX.value;
-        doIrisEmissiveFix = irisConfig >= 2 && (ClientAPI.hasIrisShader() || (avatar.renderMode != EntityRenderMode.RENDER && avatar.renderMode != EntityRenderMode.WORLD));
+        doIrisEmissiveFix = (irisConfig >= 2 && ClientAPI.hasIrisShader()) || (avatar.renderMode != EntityRenderMode.RENDER && avatar.renderMode != EntityRenderMode.WORLD);
         offsetRenderLayers = irisConfig >= 1;
 
         //custom textures
@@ -109,7 +107,7 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
 
         //Set shouldRenderPivots
         int config = Configs.RENDER_DEBUG_PARTS_PIVOT.value;
-        if (!Minecraft.getInstance().getEntityRenderDispatcher().shouldRenderHitBoxes() || (!avatar.isHost && config < 3))
+        if (!Minecraft.getInstance().getEntityRenderDispatcher().shouldRenderHitBoxes() || (!avatar.isHost && config < 2))
             shouldRenderPivots = 0;
         else
             shouldRenderPivots = config;
@@ -123,52 +121,52 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         int[] remainingComplexity = new int[] {prev};
 
         //render all model parts
-        if (currentFilterScheme.parentType.isSeparate) {
-            List<FiguraModelPart> parts = separatedParts.get(currentFilterScheme.parentType);
-            if (parts != null) {
-                boolean renderLayer = currentFilterScheme.parentType.isRenderLayer;
-                if (!renderLayer) {
-                    PartCustomization customization = setupRootCustomization(vertOffset);
-                    customizationStack.push(customization); //push root
-                    customizationStack.push(root.customization); //push "models"
+        if (root.customization.visible == null || root.customization.visible) {
+            if (currentFilterScheme.parentType.isSeparate) {
+                List<FiguraModelPart> parts = separatedParts.get(currentFilterScheme.parentType);
+                if (parts != null) {
+                    boolean renderLayer = !currentFilterScheme.parentType.isRenderLayer;
+                    if (renderLayer) {
+                        PartCustomization customization = setupRootCustomization(vertOffset);
+                        customizationStack.push(customization); //push root
+                        customizationStack.push(root.customization); //push "models"
+                    }
+
+                    for (FiguraModelPart part : parts) {
+                        if (currentFilterScheme.parentType == ParentType.Item && part != itemToRender)
+                            continue;
+
+                        boolean saved = part.savedCustomization != null;
+                        if (saved) customizationStack.push(part.savedCustomization);
+
+                        renderPart(part, remainingComplexity, currentFilterScheme.initialValue);
+
+                        if (saved) customizationStack.pop();
+                    }
+
+                    if (renderLayer) {
+                        customizationStack.pop(); //pop "models"
+                        customizationStack.pop(); //pop root
+                    }
                 }
-
-                for (FiguraModelPart part : parts) {
-                    if (part.savedCustomization != null)
-                        customizationStack.push(part.savedCustomization);
-
-                    renderPart(part, remainingComplexity, true);
-
-                    if (part.savedCustomization != null)
-                        customizationStack.pop();
-                }
-
-                if (!renderLayer) {
-                    customizationStack.pop(); //pop "models"
-                    customizationStack.pop(); //pop root
-                }
+            } else {
+                PartCustomization customization = setupRootCustomization(vertOffset);
+                customizationStack.push(customization);
+                renderPart(root, remainingComplexity, currentFilterScheme.initialValue);
+                customizationStack.pop();
             }
-        } else {
-            PartCustomization customization = setupRootCustomization(vertOffset);
-            customizationStack.push(customization);
 
-            Boolean initialValue = currentFilterScheme.initialValueForPart(root);
-            if (initialValue != null)
-                renderPart(root, remainingComplexity, initialValue);
+            //push vertices to vertex consumer
+            FiguraMod.pushProfiler("draw");
+            FiguraMod.pushProfiler("primary");
+            VERTEX_BUFFER.consume(true, bufferSource);
+            FiguraMod.popPushProfiler("secondary");
+            VERTEX_BUFFER.consume(false, bufferSource);
+            FiguraMod.popProfiler(2);
 
-            customizationStack.pop();
+            //finish rendering
+            checkEmpty();
         }
-
-        //push vertices to vertex consumer
-        FiguraMod.pushProfiler("draw");
-        FiguraMod.pushProfiler("primary");
-        VERTEX_BUFFER.consume(true, bufferSource);
-        FiguraMod.popPushProfiler("secondary");
-        VERTEX_BUFFER.consume(false, bufferSource);
-        FiguraMod.popProfiler(2);
-
-        //finish rendering
-        checkEmpty();
 
         this.isRendering = false;
         if (this.dirty)
@@ -189,13 +187,9 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         customization.positionMatrix.translate(0, vertOffset, 0);
         customization.normalMatrix.rotateZ(180);
 
-        FiguraMat4 posMat = FiguraMat4.fromMatrix4f(matrices.last().pose());
-        FiguraMat3 normalMat = FiguraMat3.fromMatrix3f(matrices.last().normal());
-
         customization.positionMatrix.multiply(posMat);
         customization.normalMatrix.multiply(normalMat);
 
-        customization.render = true;
         customization.light = light;
         customization.alpha = alpha;
         customization.overlay = overlay;
@@ -214,7 +208,7 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         //test the current filter scheme
         FiguraMod.pushProfiler("predicate");
         Boolean thisPassedPredicate = currentFilterScheme.test(part.parentType, prevPredicate);
-        if (thisPassedPredicate == null) {
+        if (thisPassedPredicate == null || (custom.visible != null && !custom.visible)) {
             if (part.parentType.isRenderLayer)
                 part.savedCustomization = customizationStack.peek();
             FiguraMod.popProfiler(2);
@@ -229,18 +223,18 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
         part.applyExtraTransforms(customizationStack.peek());
 
         //visibility
-        FiguraMod.popPushProfiler("checkVisibility");
+        FiguraMod.popPushProfiler("checkVanillaVisible");
+        if (!ignoreVanillaVisibility && custom.vanillaVisible != null && !custom.vanillaVisible) {
+            FiguraMod.popPushProfiler("removeVanillaTransforms");
+            part.resetVanillaTransforms();
+            FiguraMod.popProfiler(2);
+            return true;
+        }
 
-        if (thisPassedPredicate) {
-            Boolean vanillaVisible = custom.vanillaVisible == null ? customizationStack.peek().vanillaVisible : custom.vanillaVisible;
-            if (currentFilterScheme.initialValue && vanillaVisible != null && !vanillaVisible) {
-                custom.render = false;
-            } else {
-                Boolean visible = custom.visible == null ? customizationStack.peek().visible : custom.visible;
-                custom.render = (visible == null || visible) && (!currentFilterScheme.initialValue || vanillaVisible == null || vanillaVisible);
-            }
-        } else {
-            custom.render = false;
+        //pre render function
+        if (part.preRender != null) {
+            FiguraMod.popPushProfiler("preRenderFunction");
+            avatar.run(part.preRender, avatar.render, part);
         }
 
         //recalculate stuff
@@ -271,11 +265,9 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
             custom.normalMatrix.set(normalCopy);
         }
 
-        FiguraMod.popProfiler();
-
         if (thisPassedPredicate) {
             //recalculate world matrices
-            FiguraMod.pushProfiler("worldMatrices");
+            FiguraMod.popPushProfiler("worldMatrices");
             if (allowMatrixUpdate) {
                 FiguraMat4 mat = partToWorldMatrices(custom);
                 part.savedPartToWorldMat.set(mat);
@@ -292,24 +284,24 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
                 int sky = l.getBrightness(LightLayer.SKY, pos.asBlockPos());
                 customizationStack.peek().light = LightTexture.pack(block, sky);
             }
-            FiguraMod.popProfiler();
+        }
+
+        //mid render function
+        if (part.midRender != null) {
+            FiguraMod.popPushProfiler("midRenderFunction");
+            avatar.run(part.midRender, avatar.render, part);
         }
 
         //render this
-        FiguraMod.pushProfiler("pushVertices");
-        if (!part.pushVerticesImmediate(this, remainingComplexity)) {
-            customizationStack.pop();
-            FiguraMod.popProfiler(2);
-            return false;
-        }
+        FiguraMod.popPushProfiler("pushVertices");
+        boolean breakRender = thisPassedPredicate && !part.pushVerticesImmediate(this, remainingComplexity);
 
         //render extras
         FiguraMod.popPushProfiler("extras");
-        if (thisPassedPredicate) {
-            boolean render = customizationStack.peek().render;
-            boolean renderPivot = shouldRenderPivots > 0 && (shouldRenderPivots % 2 == 0 || render);
-            boolean renderTasks = render && allowRenderTasks && !part.renderTasks.isEmpty();
-            boolean renderPivotParts = render && part.parentType.isPivot && allowPivotParts;
+        if (!breakRender && thisPassedPredicate) {
+            boolean renderPivot = shouldRenderPivots > 0;
+            boolean renderTasks = !part.renderTasks.isEmpty();
+            boolean renderPivotParts = part.parentType.isPivot && allowPivotParts;
 
             if (renderPivot || renderTasks || renderPivotParts) {
                 //fix pivots
@@ -335,22 +327,23 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
                     int overlay = peek.overlay;
                     allowSkullRendering = false;
                     for (RenderTask task : part.renderTasks.values()) {
+                        if (!task.shouldRender())
+                            continue;
                         int neededComplexity = task.getComplexity();
                         if (neededComplexity > remainingComplexity[0])
-                            continue;
+                            break;
                         FiguraMod.pushProfiler(task.getName());
-                        if (task.render(customizationStack, bufferSource, light, overlay))
-                            remainingComplexity[0] -= neededComplexity;
+                        task.render(customizationStack, bufferSource, light, overlay);
+                        remainingComplexity[0] -= neededComplexity;
                         FiguraMod.popProfiler();
                     }
                     allowSkullRendering = true;
                 }
 
                 //render pivot parts
-                if (renderPivotParts) {
+                if (renderPivotParts && part.parentType.isPivot) {
                     FiguraMod.popPushProfiler("savePivotParts");
-                    if (part.parentType.isPivot && allowPivotParts)
-                        savePivotTransform(part.parentType, peek);
+                    savePivotTransform(part.parentType, peek);
                 }
 
                 customizationStack.pop();
@@ -360,22 +353,28 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
 
         //render children
         FiguraMod.popPushProfiler("children");
-        for (FiguraModelPart child : part.children)
+        for (FiguraModelPart child : part.children) {
             if (!renderPart(child, remainingComplexity, thisPassedPredicate)) {
-                customizationStack.pop();
-                FiguraMod.popProfiler(2);
-                return false;
+                breakRender = true;
+                break;
             }
+        }
 
         //reset the parent
         FiguraMod.popPushProfiler("removeVanillaTransforms");
         part.resetVanillaTransforms();
 
+        //post render function
+        if (part.postRender != null) {
+            FiguraMod.popPushProfiler("postRenderFunction");
+            avatar.run(part.postRender, avatar.render, part);
+        }
+
         //pop
         customizationStack.pop();
         FiguraMod.popProfiler(2);
 
-        return true;
+        return !breakRender;
     }
 
     protected void renderPivot(FiguraModelPart part, PartCustomization customization) {
@@ -464,11 +463,6 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
             return;
 
         PartCustomization customization = customizationStack.peek();
-        if (!customization.render) {
-            //Refund complexity for invisible parts
-            remainingComplexity[0] += faceCount;
-            return;
-        }
 
         VertexData primary = getTexture(customization, textureSet, true);
         VertexData secondary = getTexture(customization, textureSet, false);
@@ -517,7 +511,7 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
             return ret;
 
         if (offsetRenderLayers && !primary && types.isOffset())
-            ret.vertexOffset = -0.005f;
+            ret.vertexOffset = -0.0005f;
 
         //Switch to cutout with fullbright if the iris emissive fix is enabled
         if (doIrisEmissiveFix && types == RenderTypes.EMISSIVE) {
@@ -534,45 +528,49 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
     private static final FiguraVec3 normal = FiguraVec3.of();
     private static final FiguraVec3 uv = FiguraVec3.of(0, 0, 1);
     private void pushToBuffer(int faceCount, VertexData vertexData, PartCustomization customization, FiguraTextureSet textureSet, List<Vertex> vertices) {
-        FloatArrayList buffer = VERTEX_BUFFER.getBufferFor(vertexData.renderType, vertexData.primary);
+        int vertCount = faceCount * 4;
 
         FiguraVec3 uvFixer = FiguraVec3.of();
         uvFixer.set(textureSet.getWidth(), textureSet.getHeight(), 1); //Dividing by this makes uv 0 to 1
 
-        double overlay = customization.overlay;
-        double light = vertexData.fullBright ? LightTexture.FULL_BRIGHT : customization.light;
+        int overlay = customization.overlay;
+        int light = vertexData.fullBright ? LightTexture.FULL_BRIGHT : customization.light;
 
-        for (int i = 0; i < faceCount * 4; i++) {
-            Vertex vertex = vertices.get(i);
+        VERTEX_BUFFER.getBufferFor(vertexData.renderType, vertexData.primary, vertexConsumer -> {
+            for (int i = 0; i < vertCount; i++) {
+                Vertex vertex = vertices.get(i);
 
-            pos.set(vertex.x, vertex.y, vertex.z, 1);
-            pos.transform(customization.positionMatrix);
-            pos.add(pos.normalized().scale(vertexData.vertexOffset));
-            normal.set(vertex.nx, vertex.ny, vertex.nz);
-            normal.transform(customization.normalMatrix);
-            uv.set(vertex.u, vertex.v, 1);
-            uv.divide(uvFixer);
-            uv.transform(customization.uvMatrix);
+                pos.set(vertex.x, vertex.y, vertex.z, 1);
+                pos.transform(customization.positionMatrix);
+                pos.add(pos.normalized().scale(vertexData.vertexOffset));
+                normal.set(vertex.nx, vertex.ny, vertex.nz);
+                normal.transform(customization.normalMatrix);
+                uv.set(vertex.u, vertex.v, 1);
+                uv.divide(uvFixer);
+                uv.transform(customization.uvMatrix);
 
-            buffer.add((float) pos.x);
-            buffer.add((float) pos.y);
-            buffer.add((float) pos.z);
+                vertexConsumer.vertex(
+                        (float) pos.x,
+                        (float) pos.y,
+                        (float) pos.z,
 
-            buffer.add((float) vertexData.color.x);
-            buffer.add((float) vertexData.color.y);
-            buffer.add((float) vertexData.color.z);
-            buffer.add((float) customization.alpha);
+                        (float) vertexData.color.x,
+                        (float) vertexData.color.y,
+                        (float) vertexData.color.z,
+                        customization.alpha,
 
-            buffer.add((float) uv.x);
-            buffer.add((float) uv.y);
+                        (float) uv.x,
+                        (float) uv.y,
 
-            buffer.add((float) overlay);
-            buffer.add((float) light);
+                        overlay,
+                        light,
 
-            buffer.add((float) normal.x);
-            buffer.add((float) normal.y);
-            buffer.add((float) normal.z);
-        }
+                        (float) normal.x,
+                        (float) normal.y,
+                        (float) normal.z
+                );
+            }
+        });
     }
 
     private static class VertexData {
@@ -584,47 +582,22 @@ public class ImmediateAvatarRenderer extends AvatarRenderer {
     }
 
     protected static class VertexBuffer {
-        private final HashMap<RenderType, FloatArrayList> primaryBuffers = new HashMap<>();
-        private final HashMap<RenderType, FloatArrayList> secondaryBuffers = new HashMap<>();
+        private final HashMap<RenderType, List<Consumer<VertexConsumer>>> primaryBuffers = new LinkedHashMap<>();
+        private final HashMap<RenderType, List<Consumer<VertexConsumer>>> secondaryBuffers = new LinkedHashMap<>();
 
-        public FloatArrayList getBufferFor(RenderType renderType, boolean primary) {
-            HashMap<RenderType, FloatArrayList> buffer = primary ? primaryBuffers : secondaryBuffers;
-            return buffer.computeIfAbsent(renderType, renderType1 -> new FloatArrayList());
+        public void getBufferFor(RenderType renderType, boolean primary, Consumer<VertexConsumer> consumer) {
+            HashMap<RenderType, List<Consumer<VertexConsumer>>> buffer = primary ? primaryBuffers : secondaryBuffers;
+            List<Consumer<VertexConsumer>> list = buffer.computeIfAbsent(renderType, renderType1 -> new ArrayList<>());
+            list.add(consumer);
         }
 
         public void consume(boolean primary, MultiBufferSource bufferSource) {
-            HashMap<RenderType, FloatArrayList> map = primary ? primaryBuffers : secondaryBuffers;
-            for (Map.Entry<RenderType, FloatArrayList> entry : map.entrySet()) {
-                VertexConsumer consumer = bufferSource.getBuffer(entry.getKey());
-                FloatArrayList vertex = entry.getValue();
-
-                for (int i = 0; i < vertex.size(); ) {
-                    consumer.vertex(
-                            //pos
-                            vertex.getFloat(i++),
-                            vertex.getFloat(i++),
-                            vertex.getFloat(i++),
-
-                            //color
-                            vertex.getFloat(i++),
-                            vertex.getFloat(i++),
-                            vertex.getFloat(i++),
-                            vertex.getFloat(i++),
-
-                            //uv
-                            vertex.getFloat(i++),
-                            vertex.getFloat(i++),
-
-                            //overlay, light
-                            (int) vertex.getFloat(i++),
-                            (int) vertex.getFloat(i++),
-
-                            //normal
-                            vertex.getFloat(i++),
-                            vertex.getFloat(i++),
-                            vertex.getFloat(i++)
-                    );
-                }
+            HashMap<RenderType, List<Consumer<VertexConsumer>>> map = primary ? primaryBuffers : secondaryBuffers;
+            for (Map.Entry<RenderType, List<Consumer<VertexConsumer>>> entry : map.entrySet()) {
+                VertexConsumer vertexConsumer = bufferSource.getBuffer(entry.getKey());
+                List<Consumer<VertexConsumer>> consumers = entry.getValue();
+                for (Consumer<VertexConsumer> consumer : consumers)
+                    consumer.accept(vertexConsumer);
             }
             map.clear();
         }

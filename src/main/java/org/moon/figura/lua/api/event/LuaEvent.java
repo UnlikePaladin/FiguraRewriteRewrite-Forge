@@ -3,6 +3,7 @@ package org.moon.figura.lua.api.event;
 import com.google.common.collect.HashMultimap;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaFunction;
+import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.Varargs;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.lua.LuaNotNil;
@@ -56,16 +57,26 @@ public class LuaEvent {
     //If piped, the result of one function is passed through to the next, repeatedly, eventually returning the result.
     public Varargs call(Varargs args) {
         flushQueue();
+
+        if (piped)
+            return callPiped(args);
+
+        LuaTable result = new LuaTable();
+        for (LuaFunction function : functions) {
+            FiguraMod.pushProfiler(function.name());
+            Varargs val = function.invoke(args);
+            for (int i = 0; i < val.narg(); i++)
+                result.insert(0, val.arg(i + 1));
+            FiguraMod.popProfiler();
+        }
+        return result.unpack();
+    }
+
+    private Varargs callPiped(Varargs args) {
         Varargs vars = args;
         for (LuaFunction function : functions) {
             FiguraMod.pushProfiler(function.name());
-            if (piped) {
-                vars = function.invoke(vars);
-            } else {
-                Varargs value = function.invoke(args);
-                if (value.arg(1).isboolean() && value.arg(1).checkboolean())
-                    vars = value;
-            }
+            vars = function.invoke(vars);
             FiguraMod.popProfiler();
         }
         return vars;
@@ -105,24 +116,37 @@ public class LuaEvent {
 
     @LuaWhitelist
     @LuaMethodDoc(
-            overloads = @LuaMethodOverload(
-                    argumentTypes = String.class,
-                    argumentNames = "name"
-            ),
+            overloads = {
+                    @LuaMethodOverload(
+                            argumentTypes = String.class,
+                            argumentNames = "name"
+                    ),
+                    @LuaMethodOverload(
+                            argumentTypes = LuaFunction.class,
+                            argumentNames = "function"
+                    )
+            },
             value = "event.remove"
     )
-    public int remove(@LuaNotNil String name) {
+    public int remove(@LuaNotNil Object toRemove) {
         flushQueue();
+        if (toRemove instanceof LuaFunction func) {
+            removalQueue.add(func);
+            names.values().remove(func);
+            return 1;
+        } else if (toRemove instanceof String name) {
+            int removed = 0;
 
-        int removed = 0;
+            Set<LuaFunction> set = names.removeAll(name);
+            for (LuaFunction function : set) {
+                if (removalQueue.add(function))
+                    removed++;
+            }
 
-        Set<LuaFunction> set = names.removeAll(name);
-        for (LuaFunction function : set) {
-            if (removalQueue.add(function))
-                removed++;
+            return removed;
+        } else {
+            throw new LuaError("Illegal argument to remove(): " + toRemove.getClass().getSimpleName());
         }
-
-        return removed;
     }
 
     @LuaWhitelist

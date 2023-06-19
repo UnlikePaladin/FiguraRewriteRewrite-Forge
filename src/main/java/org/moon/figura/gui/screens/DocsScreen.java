@@ -10,15 +10,16 @@ import org.moon.figura.utils.TextUtils;
 
 public class DocsScreen extends AbstractPanelScreen {
 
-    public static final Component TITLE = FiguraText.of("gui.panels.title.docs");
+    private final Screen sourcePanel;
 
-    public DocsScreen(Screen parentScreen) {
-        super(parentScreen, TITLE, DocsScreen.class);
+    public DocsScreen(AbstractPanelScreen parentScreen) {
+        super(parentScreen.parentScreen, FiguraText.of("gui.panels.title.docs"));
+        sourcePanel = parentScreen;
     }
 
     @Override
-    public Component getTitle() {
-        return TITLE;
+    public Class<? extends Screen> getSelectedPanel() {
+        return sourcePanel.getClass();
     }
 
     @Override

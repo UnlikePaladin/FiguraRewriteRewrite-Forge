@@ -3,7 +3,6 @@ package org.moon.figura.model.rendering.texture;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.Util;
-import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 
@@ -19,50 +18,50 @@ public enum RenderTypes {
     TRANSLUCENT(RenderType::entityTranslucent),
     TRANSLUCENT_CULL(RenderType::entityTranslucentCull),
 
-    EMISSIVE(RenderType::eyes, false, true),
-    EMISSIVE_SOLID(resourceLocation -> RenderType.beaconBeam(resourceLocation, false), false, true),
-    EYES(RenderType::eyes, false, true),
+    EMISSIVE(RenderType::eyes, true),
+    EMISSIVE_SOLID(resourceLocation -> RenderType.beaconBeam(resourceLocation, false), true),
+    EYES(RenderType::eyes, true),
 
-    END_PORTAL(t -> RenderType.endPortal(), true, true),
-    END_GATEWAY(t -> RenderType.endGateway(), true, true),
-    TEXTURED_PORTAL(FiguraRenderType.TEXTURED_PORTAL, false, true),
+    END_PORTAL(t -> RenderType.endPortal(), false),
+    END_GATEWAY(t -> RenderType.endGateway(), false),
+    TEXTURED_PORTAL(FiguraRenderType.TEXTURED_PORTAL),
 
-    GLINT(t -> RenderType.entityGlintDirect(), true),
-    GLINT2(t -> RenderType.glintDirect(), true),
+    GLINT(t -> RenderType.entityGlintDirect(), false, false),
+    GLINT2(t -> RenderType.glintDirect(), false, false),
+    TEXTURED_GLINT(FiguraRenderType.TEXTURED_GLINT, true, false),
 
-    LINES(t -> RenderType.lines(), true),
-    LINES_STRIP(t -> RenderType.lineStrip(), true),
-    SOLID(t -> FiguraRenderType.SOLID, true),
+    LINES(t -> RenderType.lines(), false),
+    LINES_STRIP(t -> RenderType.lineStrip(), false),
+    SOLID(t -> FiguraRenderType.SOLID, false),
 
     BLURRY(FiguraRenderType.BLURRY);
 
     private final Function<ResourceLocation, RenderType> func;
-    private final boolean force;
-    private final boolean offset;
+    private final boolean texture, offset;
 
     RenderTypes(Function<ResourceLocation, RenderType> func) {
-        this(func, false, false);
+        this(func, true);
     }
 
-    RenderTypes(Function<ResourceLocation, RenderType> func, boolean force) {
-        this(func, force, false);
+    RenderTypes(Function<ResourceLocation, RenderType> func, boolean texture) {
+        this(func, texture, true);
     }
 
-    RenderTypes(Function<ResourceLocation, RenderType> func, boolean force, boolean offset) {
+    RenderTypes(Function<ResourceLocation, RenderType> func, boolean texture, boolean offset) {
         this.func = func;
-        this.force = force;
+        this.texture = texture;
         this.offset = offset;
-    }
-
-    public RenderType get(ResourceLocation id) {
-        if (force)
-            return func.apply(id);
-
-        return id == null || func == null ? null : func.apply(id);
     }
 
     public boolean isOffset() {
         return offset;
+    }
+
+    public RenderType get(ResourceLocation id) {
+        if (!texture)
+            return func.apply(id);
+
+        return id == null || func == null ? null : func.apply(id);
     }
 
     private static class FiguraRenderType extends RenderType {
@@ -78,7 +77,7 @@ public enum RenderTypes {
                 256,
                 RenderType.CompositeState.builder()
                         .setShaderState(RENDERTYPE_LINES_SHADER)
-                        .setLineState(new RenderStateShard.LineStateShard(OptionalDouble.empty()))
+                        .setLineState(new LineStateShard(OptionalDouble.empty()))
                         .setLayeringState(VIEW_OFFSET_Z_LAYERING)
                         .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                         .setOutputState(ITEM_ENTITY_TARGET)
@@ -117,12 +116,32 @@ public enum RenderTypes {
                         true,
                         CompositeState.builder()
                                 .setShaderState(RENDERTYPE_ENTITY_TRANSLUCENT_SHADER)
-                                .setTextureState(new RenderStateShard.TextureStateShard(texture, true, false))
+                                .setTextureState(new TextureStateShard(texture, true, false))
                                 .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                                 .setCullState(NO_CULL)
                                 .setLightmapState(LIGHTMAP)
                                 .setOverlayState(OVERLAY)
                                 .createCompositeState(true)
+                )
+        );
+
+        public static final Function<ResourceLocation, RenderType> TEXTURED_GLINT = Util.memoize(
+                texture -> create(
+                        "figura_textured_glint_direct",
+                        DefaultVertexFormat.POSITION_TEX,
+                        VertexFormat.Mode.QUADS,
+                        256,
+                        false,
+                        false,
+                    RenderType.CompositeState.builder()
+                            .setShaderState(RENDERTYPE_ENTITY_GLINT_DIRECT_SHADER)
+                            .setTextureState(new TextureStateShard(texture, false, false))
+                            .setWriteMaskState(COLOR_WRITE)
+                            .setCullState(NO_CULL)
+                            .setDepthTestState(EQUAL_DEPTH_TEST)
+                            .setTransparencyState(GLINT_TRANSPARENCY)
+                            .setTexturingState(ENTITY_GLINT_TEXTURING)
+                            .createCompositeState(false)
                 )
         );
     }

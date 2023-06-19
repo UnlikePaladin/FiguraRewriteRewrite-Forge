@@ -36,22 +36,23 @@ public class ItemTask extends RenderTask {
     }
 
     @Override
-    public boolean render(PartCustomization.PartCustomizationStack stack, MultiBufferSource buffer, int light, int overlay) {
-        if (!enabled || item == null || item.isEmpty())
-            return false;
-
+    public void render(PartCustomization.PartCustomizationStack stack, MultiBufferSource buffer, int light, int overlay) {
         this.pushOntoStack(stack);
         PoseStack poseStack = stack.peek().copyIntoGlobalPoseStack();
         poseStack.scale(-16, 16, -16);
 
         LivingEntity entity = owner.renderer.entity instanceof LivingEntity living ? living : null;
+        int newLight = this.customization.light != null ? this.customization.light : light;
+        int newOverlay = this.customization.overlay != null ? this.customization.overlay : overlay;
+        int seed = entity != null ? entity.getId() + displayMode.ordinal() : 0;
+
         Minecraft.getInstance().getItemRenderer().renderStatic(
                 entity, item, displayMode, left,
                 poseStack, buffer, WorldAPI.getCurrentWorld(),
-                this.light != null ? this.light : light, this.overlay != null ? this.overlay : overlay, entity != null ? entity.getId() + displayMode.ordinal() : 0);
+                newLight, newOverlay, seed
+        );
 
         stack.pop();
-        return true;
     }
 
     @Override
@@ -59,6 +60,10 @@ public class ItemTask extends RenderTask {
         return cachedComplexity;
     }
 
+    @Override
+    public boolean shouldRender() {
+        return super.shouldRender() && item != null && !item.isEmpty();
+    }
 
     // -- lua -- //
 

@@ -1,27 +1,27 @@
 package org.moon.figura.gui.widgets.avatar;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
+import org.jetbrains.annotations.NotNull;
+import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.gui.FiguraToast;
 import org.moon.figura.gui.widgets.AbstractContainerElement;
+import org.moon.figura.gui.widgets.Button;
 import org.moon.figura.gui.widgets.ContextMenu;
-import org.moon.figura.gui.widgets.TexturedButton;
 import org.moon.figura.gui.widgets.lists.AvatarList;
 import org.moon.figura.utils.FiguraText;
 import org.moon.figura.utils.ui.UIHelper;
 
-import java.io.File;
-
 public abstract class AbstractAvatarWidget extends AbstractContainerElement implements Comparable<AbstractAvatarWidget> {
 
-    protected static final Component SPACING = Component.literal("  ");
-    protected static final Component FAVOURITE = Component.literal("★").withStyle(Style.EMPTY.withFont(UIHelper.UI_FONT));
+    protected static final int SPACING = 6;
+    protected static final Component FAVOURITE = Component.literal("★").withStyle(Style.EMPTY.withFont(UIHelper.UI_FONT).withColor(ChatFormatting.YELLOW));
     protected static final Component ADD_FAVOURITE = FiguraText.of("gui.context.favorite.add");
     protected static final Component REMOVE_FAVOURITE = FiguraText.of("gui.context.favorite.remove");
 
@@ -30,7 +30,7 @@ public abstract class AbstractAvatarWidget extends AbstractContainerElement impl
     protected final ContextMenu context;
 
     protected LocalAvatarFetcher.AvatarPath avatar;
-    protected TexturedButton button;
+    protected Button button;
     protected String filter = "";
     protected boolean favourite;
 
@@ -42,18 +42,22 @@ public abstract class AbstractAvatarWidget extends AbstractContainerElement impl
         this.context = new ContextMenu(this);
         this.favourite = avatar.isFavourite();
 
-        context.addAction(favourite ? REMOVE_FAVOURITE : ADD_FAVOURITE, button -> {
+        context.addAction(favourite ? REMOVE_FAVOURITE : ADD_FAVOURITE, null, button -> {
             favourite = !favourite;
             avatar.setFavourite(favourite);
             button.setMessage(favourite ? REMOVE_FAVOURITE : ADD_FAVOURITE);
             context.updateDimensions();
         });
-        context.addAction(FiguraText.of("gui.context.open_folder"), button -> {
-            File f = avatar.getPath().toFile();
-            Util.getPlatform().openFile(f.isDirectory() ? f : f.getParentFile());
+        context.addAction(FiguraText.of("gui.context.open_folder"), null, button -> {
+            try {
+                Util.getPlatform().openUri(avatar.getFSPath().toUri());
+            } catch (Exception e) {
+                FiguraMod.debug("failed to open avatar folder: ", e.getMessage());
+                Util.getPlatform().openUri(LocalAvatarFetcher.getLocalAvatarDirectory().toUri());
+            }
         });
-        context.addAction(FiguraText.of("gui.context.copy_path"), button -> {
-            Minecraft.getInstance().keyboardHandler.setClipboard(avatar.getPath().toString());
+        context.addAction(FiguraText.of("gui.context.copy_path"), null, button -> {
+            Minecraft.getInstance().keyboardHandler.setClipboard(avatar.getFSPath().toString());
             FiguraToast.sendToast(FiguraText.of("toast.clipboard"));
         });
     }
@@ -68,8 +72,8 @@ public abstract class AbstractAvatarWidget extends AbstractContainerElement impl
         if (favourite) {
             Font font = Minecraft.getInstance().font;
             int width = font.width(FAVOURITE);
-            int x = this.x + this.width - width;
-            int y = this.y + 2;
+            int x = this.getX() + this.getWidth() - width;
+            int y = this.getY() + 2;
 
             font.draw(stack, FAVOURITE, x, y, 0xFFFFFF);
 
@@ -88,7 +92,8 @@ public abstract class AbstractAvatarWidget extends AbstractContainerElement impl
 
         //context menu on right click
         if (button == 1) {
-            context.setPos((int) mouseX, (int) mouseY);
+            context.setX((int) mouseX);
+            context.setY((int) mouseY);
             context.setVisible(true);
             UIHelper.setContext(context);
             return true;
@@ -109,28 +114,21 @@ public abstract class AbstractAvatarWidget extends AbstractContainerElement impl
     public void update(LocalAvatarFetcher.AvatarPath path, String filter) {
         this.avatar = path;
         this.filter = filter.toLowerCase();
-        updateName();
-    }
-
-    public void updateName() {
-        MutableComponent text = Component.empty();
-
-        for (int i = 0; i < depth; i++)
-            text.append(SPACING);
-        text.append(getName());
-
-        this.button.setMessage(text);
     }
 
     public Component getName() {
         return Component.literal(avatar.getName());
     }
 
-    public void setPos(int x, int y) {
-        this.x = x;
-        this.y = y;
-
+    @Override
+    public void setX(int x) {
+        super.setX(x);
         this.button.setX(x);
+    }
+
+    @Override
+    public void setY(int y) {
+        super.setY(y);
         this.button.setY(y);
     }
 
@@ -144,7 +142,7 @@ public abstract class AbstractAvatarWidget extends AbstractContainerElement impl
     }
 
     @Override
-    public int compareTo(AbstractAvatarWidget other) {
+    public int compareTo(@NotNull AbstractAvatarWidget other) {
         //compare favourite
         if (this.favourite && !other.favourite)
             return -1;

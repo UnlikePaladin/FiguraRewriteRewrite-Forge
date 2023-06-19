@@ -1,4 +1,4 @@
-package org.moon.figura.lua;
+package org.moon.figura.entries;
 
 import org.moon.figura.avatar.Avatar;
 
@@ -21,4 +21,9 @@ public interface FiguraAPI {
      * @return a list containing all your whitelisted classes
      */
     Collection<Class<?>> getWhitelistedClasses();
+
+    /**
+     * @return a list containing all your classes that are documented
+     */
+    Collection<Class<?>> getDocsClasses();
 }

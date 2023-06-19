@@ -16,8 +16,17 @@ public class ReloadableResourceManagerMixin {
     @ModifyVariable(at = @At(value = "HEAD"), method = "createReload", argsOnly = true)
     private List<PackResources> createReload(List<PackResources> packs) {
         List<PackResources> list = new ArrayList<>(packs);
+
+        int index = 0;
+        for (int i = 0; i < list.size(); i++) {
+            String id = list.get(i).packId();
+            if ("Fabric Mods".equals(id) || "vanilla".equals(id))
+                index = i + 1;
+        }
+
         FiguraRuntimeResources.joinFuture();
-        list.add(FiguraRuntimeResources.PACK);
+        list.add(index, FiguraRuntimeResources.PACK);
+
         return list;
     }
 }

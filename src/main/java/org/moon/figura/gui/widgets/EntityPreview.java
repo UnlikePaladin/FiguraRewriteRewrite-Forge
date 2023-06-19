@@ -2,11 +2,11 @@ package org.moon.figura.gui.widgets;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
-import org.joml.Quaternionf;
-import org.moon.figura.gui.screens.AbstractPanelScreen;
+import org.moon.figura.FiguraMod;
 import org.moon.figura.gui.screens.AvatarScreen;
 import org.moon.figura.model.rendering.EntityRenderMode;
 import org.moon.figura.utils.FiguraIdentifier;
@@ -41,7 +41,7 @@ public class EntityPreview extends AbstractContainerElement {
     private float dragDeltaX, dragDeltaY;
     private float dragAnchorX, dragAnchorY;
 
-    public EntityPreview(int x, int y, int width, int height, float scale, float pitch, float yaw, LivingEntity entity, AbstractPanelScreen parentScreen) {
+    public EntityPreview(int x, int y, int width, int height, float scale, float pitch, float yaw, LivingEntity entity, Screen parentScreen) {
         super(x, y, width, height);
 
         this.scale = scale;
@@ -75,6 +75,11 @@ public class EntityPreview extends AbstractContainerElement {
         if (!this.isVisible())
             return;
 
+        int x = getX();
+        int y = getY();
+        int width = getWidth();
+        int height = getHeight();
+
         if (!button.isToggled()) {
             //border
             UIHelper.renderSliced(stack, x, y, width, height, UIHelper.OUTLINE_FILL);
@@ -92,20 +97,10 @@ public class EntityPreview extends AbstractContainerElement {
             UIHelper.drawEntity(x + modelX, y + modelY, scale + scaledValue, angleX, angleY, entity, stack, EntityRenderMode.FIGURA_GUI);
             stack.popPose();
         } else {
-            stack.pushPose();
-
-            //transforms
-            stack.translate(x + modelX, y + modelY, 0f);
-            float scale = this.scale / 35;
-            stack.scale(scale, scale, scale);
-
-            float xRot = Mth.wrapDegrees((angleX - pitch) * 2) / 2f;
-            float yRot = Mth.wrapDegrees((angleY - yaw) * 2) / 2f;
-            stack.mulPose(new Quaternionf().rotateXYZ((float) Math.toRadians(xRot), (float) Math.toRadians(yRot), 0f));
-
             //draw
-            UIHelper.renderTexture(stack, -24, -32, 48, 64, UNKNOWN);
-            stack.popPose();
+            int s = Math.min(width, height) * 2 / 3;
+            UIHelper.setupTexture(UNKNOWN);
+            UIHelper.blit(stack, x + (width - s) / 2, y + (height - s) / 2, s, s, 0f, 64 * ((int) (FiguraMod.ticks / 3f) % 8), 64, 64, 64, 512);
         }
 
         UIHelper.disableScissor();
@@ -164,8 +159,8 @@ public class EntityPreview extends AbstractContainerElement {
                 angleY = yaw;
                 scaledValue = 0f;
                 scaledPrecise = 0f;
-                modelX = width / 2;
-                modelY = height / 2;
+                modelX = getWidth() / 2;
+                modelY = getHeight() / 2;
                 return true;
             }
         }
