@@ -142,6 +142,12 @@ public class EntityAPI<T extends Entity> {
     }
 
     @LuaWhitelist
+    @LuaMethodDoc("entity.is_cute")
+    public boolean isCute() {
+        return true;
+    }
+
+    @LuaWhitelist
     @LuaMethodDoc("entity.get_velocity")
     public FiguraVec3 getVelocity() {
         checkEntity();
@@ -373,6 +379,20 @@ public class EntityAPI<T extends Entity> {
         for (Entity passenger : entity.getPassengers())
             list.add(wrap(passenger));
         return list;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("entity.get_controlling_passenger")
+    public EntityAPI<?> getControllingPassenger() {
+        checkEntity();
+        return wrap(entity.getControllingPassenger());
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("entity.get_controlled_vehicle")
+    public EntityAPI<?> getControlledVehicle() {
+        checkEntity();
+        return wrap(entity.getRootVehicle());
     }
 
     @LuaWhitelist

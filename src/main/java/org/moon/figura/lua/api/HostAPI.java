@@ -3,12 +3,14 @@ package org.moon.figura.lua.api;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.brigadier.StringReader;
 import com.mojang.datafixers.util.Pair;
+import net.minecraft.client.GuiMessage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.ChatScreen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.commands.arguments.SlotArgument;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
@@ -26,6 +28,7 @@ import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.mixin.LivingEntityAccessor;
+import org.moon.figura.mixin.gui.ChatComponentAccessor;
 import org.moon.figura.mixin.gui.ChatScreenAccessor;
 import org.moon.figura.model.rendering.texture.FiguraTexture;
 import org.moon.figura.utils.ColorUtils;
@@ -227,6 +230,65 @@ public class HostAPI {
 
     @LuaWhitelist
     @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = Integer.class,
+                    argumentNames = "index"
+            ),
+            value = "host.get_chat_message"
+    )
+    public Map<String, Object> getChatMessage(int index) {
+        if (!isHost())
+            return null;
+
+        index--;
+        List<GuiMessage<Component>> messages = ((ChatComponentAccessor) this.minecraft.gui.getChat()).getAllMessages();
+        if (index < 0 || index >= messages.size())
+            return null;
+
+        GuiMessage<Component> message = messages.get(index);
+        Map<String, Object> map = new HashMap<>();
+
+        map.put("addedTime", message.getAddedTime());
+        map.put("message", message.getMessage().getString());
+        map.put("json", message.getMessage());
+
+        return map;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = {
+                    @LuaMethodOverload(
+                            argumentTypes = Integer.class,
+                            argumentNames = "index"
+                    ),
+                    @LuaMethodOverload(
+                            argumentTypes = {Integer.class, String.class},
+                            argumentNames = {"index", "newMessage"}
+                    )
+            },
+            value = "host.set_chat_message")
+    public HostAPI setChatMessage(int index, String newMessage) {
+        if (!isHost()) return this;
+
+        index--;
+        List<GuiMessage<Component>> messages = ((ChatComponentAccessor) this.minecraft.gui.getChat()).getAllMessages();
+        if (index < 0 || index >= messages.size())
+            return this;
+
+        if (newMessage == null)
+            messages.remove(index);
+        else {
+            GuiMessage<Component> old = messages.get(index);
+            messages.set(index, new GuiMessage<>(this.minecraft.gui.getGuiTicks(), TextUtils.tryParseJson(newMessage), old.getId()));
+        }
+
+        this.minecraft.gui.getChat().rescaleChat();
+        return this;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
             overloads = {
                     @LuaMethodOverload,
                     @LuaMethodOverload(
@@ -374,24 +436,6 @@ public class HostAPI {
     @LuaMethodDoc("host.is_container_open")
     public boolean isContainerOpen() {
         return isHost() && this.minecraft.screen instanceof AbstractContainerScreen;
-    }
-
-    @LuaWhitelist
-    @LuaMethodDoc(
-            overloads = @LuaMethodOverload(
-                    argumentTypes = FiguraTexture.class,
-                    argumentNames = "texture"
-            ),
-            value = "host.save_texture")
-    public HostAPI saveTexture(@LuaNotNil FiguraTexture texture) {
-        if (isHost()) {
-            try {
-                texture.saveCache();
-            } catch (Exception e) {
-                throw new LuaError(e.getMessage());
-            }
-        }
-        return this;
     }
 
     @LuaWhitelist

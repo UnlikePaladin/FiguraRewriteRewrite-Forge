@@ -11,8 +11,8 @@ import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.gui.screens.PermissionsScreen;
+import org.moon.figura.gui.widgets.SearchBar;
 import org.moon.figura.gui.widgets.SwitchButton;
-import org.moon.figura.gui.widgets.TextField;
 import org.moon.figura.gui.widgets.permissions.AbstractPermPackElement;
 import org.moon.figura.gui.widgets.permissions.CategoryPermPackElement;
 import org.moon.figura.gui.widgets.permissions.PlayerPermPackElement;
@@ -32,9 +32,10 @@ public class PlayerList extends AbstractList {
     private final ArrayList<AbstractPermPackElement> permissionsList = new ArrayList<>();
 
     public final PermissionsScreen parent;
-    private final TextField searchBar;
+    private final SearchBar searchBar;
     private final SwitchButton showFigura, showDisconnected;
     private static boolean showFiguraBl, showDisconnectedBl;
+    private final int entryWidth;
 
     private int totalHeight = 0;
     private AbstractPermPackElement maxCategory;
@@ -46,13 +47,18 @@ public class PlayerList extends AbstractList {
         updateScissors(1, 24, -2, -25);
 
         this.parent = parent;
+        this.entryWidth = Math.min(width - scrollBar.getWidth() - 12, 174);
 
         //fix scrollbar y and height
         scrollBar.y = y + 28;
         scrollBar.setHeight(height - 32);
 
         //search bar
-        children.add(searchBar = new TextField(x + 4, y + 4, width - 56, 20, TextField.HintType.SEARCH, s -> filter = s));
+        children.add(searchBar = new SearchBar(x + 4, y + 4, width - 56, 20, s -> {
+            if (!filter.equals(s))
+                scrollBar.setScrollProgress(0f);
+            filter = s;
+        }));
 
         //show figura only button
         children.add(showFigura = new SwitchButton(x + width - 48, y + 4, 20, 20, 0, 0, 20, new FiguraIdentifier("textures/gui/show_figura.png"), 60, 40, new FiguraText("gui.permissions.figura_only.tooltip"), button -> showFiguraBl = ((SwitchButton) button).isToggled()));
@@ -79,9 +85,13 @@ public class PlayerList extends AbstractList {
 
     @Override
     public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
-        //background and scissors
+        int x = getX();
+        int y = getY();
+        int width = getWidth();
+        int height = getHeight();
+
+        //background
         UIHelper.renderSliced(stack, x, y, width, height, UIHelper.OUTLINE_FILL);
-        UIHelper.setupScissor(x + scissorsX, y + scissorsY, width + scissorsWidth, height + scissorsHeight);
 
         totalHeight = 0;
         for (AbstractPermPackElement pack : permissionsList) {
@@ -90,30 +100,31 @@ public class PlayerList extends AbstractList {
         }
 
         //scrollbar visible
-        scrollBar.visible = totalHeight > height - 32;
+        boolean hasScrollbar = totalHeight > height - 32;
+        scrollBar.setVisible(hasScrollbar);
         scrollBar.setScrollRatio(permissionsList.isEmpty() ? 0f : (float) totalHeight / permissionsList.size(), totalHeight - (height - 32));
 
+        //scissors
+        this.scissorsWidth = hasScrollbar ? -scrollBar.getWidth() - 5 : -2;
+        UIHelper.setupScissor(x + scissorsX, y + scissorsY, width + scissorsWidth, height + scissorsHeight);
+
         //render stuff
-        int xOffset = width / 2 - 87 - (scrollBar.visible ? 7 : 0);
-        int playerY = scrollBar.visible ? (int) -(Mth.lerp(scrollBar.getScrollProgress(), -32, totalHeight - height)) : 32;
-        boolean hidden = false;
+        int xOffset = (width - entryWidth - (scrollBar.isVisible() ? 13 : 0)) / 2;
+        int playerY = scrollBar.isVisible() ? (int) -(Mth.lerp(scrollBar.getScrollProgress(), -32, totalHeight - height)) : 32;
 
+        int minY = y + scissorsY;
+        int maxY = minY + height + scissorsHeight;
         for (AbstractPermPackElement pack : permissionsList) {
-            if ((hidden || !pack.isVisible()) && (pack instanceof PlayerPermPackElement p && !p.dragged)) {
-                pack.visible = false;
+            if (!pack.isVisible())
                 continue;
-            }
 
-            pack.visible = true;
-            pack.x = x + Math.max(4, xOffset);
-            pack.y = y + playerY;
+            pack.setX(x + xOffset);
+            pack.setY(y + playerY);
 
-            if (pack.y + pack.getHeight() > y + scissorsY)
+            if (pack.getY() + pack.getHeight() > minY && pack.getY() < maxY)
                 pack.render(stack, mouseX, mouseY, delta);
 
             playerY += pack.getHeight() + 8;
-            if (playerY > height)
-                hidden = true;
         }
 
         //reset scissor
@@ -130,7 +141,7 @@ public class PlayerList extends AbstractList {
 
     private void loadGroups() {
         for (PermissionPack container : PermissionManager.CATEGORIES.values()) {
-            CategoryPermPackElement group = new CategoryPermPackElement(container, this);
+            CategoryPermPackElement group = new CategoryPermPackElement(entryWidth, container, this);
             permissionsList.add(group);
             children.add(group);
             maxCategory = group;
@@ -164,7 +175,7 @@ public class PlayerList extends AbstractList {
             missingPlayers.remove(uuid);
 
             PlayerPermPackElement element = players.computeIfAbsent(uuid, uuid1 -> {
-                PlayerPermPackElement entry = new PlayerPermPackElement(name, PermissionManager.get(uuid1), skin, uuid1, this);
+                PlayerPermPackElement entry = new PlayerPermPackElement(entryWidth, name, PermissionManager.get(uuid1), skin, uuid1, this);
 
                 permissionsList.add(entry);
                 children.add(entry);
@@ -184,7 +195,7 @@ public class PlayerList extends AbstractList {
                 missingPlayers.remove(id);
 
                 PlayerPermPackElement element = players.computeIfAbsent(id, uuid -> {
-                    PlayerPermPackElement entry = new PlayerPermPackElement(avatar.entityName, PermissionManager.get(uuid), null, uuid, this);
+                    PlayerPermPackElement entry = new PlayerPermPackElement(entryWidth, avatar.entityName, PermissionManager.get(uuid), null, uuid, this);
 
                     permissionsList.add(entry);
                     children.add(entry);
@@ -231,7 +242,7 @@ public class PlayerList extends AbstractList {
 
     public void updateScroll() {
         //store old scroll pos
-        double pastScroll = (totalHeight - height) * scrollBar.getScrollProgress();
+        double pastScroll = (totalHeight - getHeight()) * scrollBar.getScrollProgress();
 
         //get new height
         totalHeight = 0;
@@ -241,21 +252,22 @@ public class PlayerList extends AbstractList {
         }
 
         //set new scroll percentage
-        scrollBar.setScrollProgress(pastScroll / (totalHeight - height));
+        scrollBar.setScrollProgress(pastScroll / (totalHeight - getHeight()));
     }
 
+    @Override
     public void setY(int y) {
-        this.y = y;
-        scrollBar.y = y + 28;
-        searchBar.setPos(searchBar.x, y + 4);
-        showFigura.y = y + 4;
-        showDisconnected.y = y + 4;
+        super.setY(y);
+        scrollBar.setY(y + 28);
+        searchBar.setY(y + 4);
+        showFigura.setY(y + 4);
+        showDisconnected.setY(y + 4);
     }
 
     public int getCategoryAt(double y) {
         int ret = -1;
         for (AbstractPermPackElement element : permissionsList)
-            if (element instanceof CategoryPermPackElement group && group.visible && y >= group.y)
+            if (element instanceof CategoryPermPackElement group && group.isVisible() && y >= group.getY())
                 ret++;
         return Math.max(ret, 0);
     }

@@ -24,14 +24,14 @@ import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.avatar.local.LocalAvatarLoader;
 import org.moon.figura.backend2.NetworkStuff;
 import org.moon.figura.commands.FiguraCommands;
-import org.moon.figura.config.Configs;
 import org.moon.figura.config.ConfigManager;
+import org.moon.figura.config.Configs;
+import org.moon.figura.entries.EntryPointManager;
 import org.moon.figura.gui.ActionWheel;
 import org.moon.figura.config.ModMenuConfig;
 import org.moon.figura.forge.GUIActionWheelOverlay;
 import org.moon.figura.forge.GUIOverlay;
 import org.moon.figura.gui.Emojis;
-import org.moon.figura.lua.FiguraAPIManager;
 import org.moon.figura.lua.FiguraLuaPrinter;
 import org.moon.figura.lua.docs.FiguraDocsManager;
 import org.moon.figura.mixin.SkullBlockEntityAccessor;
@@ -66,6 +66,9 @@ public class FiguraMod {
     public static int ticks = 0;
     public static Entity extendedPickEntity;
     public static Component splashText;
+    public static boolean parseMessages = true;
+    public static boolean processingKeybind;
+
     public FiguraMod() {
         ModLoadingContext.get().registerExtensionPoint(IExtensionPoint.DisplayTest.class, () -> new IExtensionPoint.DisplayTest(() -> NetworkConstants.IGNORESERVERONLY, (a, b) -> true));
     }
@@ -74,7 +77,8 @@ public class FiguraMod {
         pushProfiler("network");
         NetworkStuff.tick();
         popPushProfiler("files");
-        LocalAvatarLoader.tickWatchedKey();
+        LocalAvatarLoader.tick();
+        LocalAvatarFetcher.tick();
         popPushProfiler("avatars");
         AvatarManager.tickLoadedAvatars();
         popPushProfiler("chatPrint");
@@ -87,7 +91,7 @@ public class FiguraMod {
 
     //debug print
     public static void debug(String str, Object... args) {
-        if (DEBUG_MODE) LOGGER.info(str, args);
+        if (DEBUG_MODE) LOGGER.info("[DEBUG] " + str, args);
         else LOGGER.debug(str, args);
     }
 
@@ -118,10 +122,13 @@ public class FiguraMod {
      * @param message - text to send
      */
     public static void sendChatMessage(Component message) {
-        if (Minecraft.getInstance().gui != null)
+        if (Minecraft.getInstance().gui != null) {
+            parseMessages = false;
             Minecraft.getInstance().gui.getChat().addMessage(TextUtils.replaceTabs(message));
-        else
+            parseMessages = true;
+        } else {
             LOGGER.info(message.getString());
+        }
     }
 
     /**

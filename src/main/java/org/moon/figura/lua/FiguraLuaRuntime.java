@@ -23,14 +23,17 @@ import org.moon.figura.lua.api.action_wheel.ActionWheelAPI;
 import org.moon.figura.lua.api.entity.EntityAPI;
 import org.moon.figura.lua.api.entity.NullEntity;
 import org.moon.figura.lua.api.event.EventsAPI;
+import org.moon.figura.lua.api.event.LuaEvent;
 import org.moon.figura.lua.api.keybind.KeybindAPI;
 import org.moon.figura.lua.api.nameplate.NameplateAPI;
 import org.moon.figura.lua.api.ping.PingAPI;
 import org.moon.figura.lua.api.vanilla_model.VanillaModelAPI;
 import org.moon.figura.permissions.Permissions;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Stack;
@@ -91,10 +94,6 @@ public class FiguraLuaRuntime {
         LuaTable figuraMetatables = new LuaTable();
         typeManager.dumpMetatables(figuraMetatables);
         setGlobal("figuraMetatables", figuraMetatables);
-    }
-
-    public LuaValue load(String name, String src) {
-        return userGlobals.load(src, name, userGlobals);
     }
 
     public void registerClass(Class<?> clazz) {
@@ -158,7 +157,27 @@ public class FiguraLuaRuntime {
         @Override
         public Varargs invoke(Varargs args) {
             try {
-                return runtime.userGlobals.load(args.arg(1).checkjstring(), "loadstring", runtime.userGlobals);
+                // Get source provider function or get string value and create input stream out of that
+                LuaValue val = args.arg(1);
+                InputStream ld;
+                if (val.isfunction()) {
+                    ld = new FuncStream(val.checkfunction());
+                } else if (val.isstring()) {
+                    ld = new ByteArrayInputStream(val.checkstring().m_bytes);
+                } else {
+                    throw new LuaError("chunk source is neither a string nor function");
+                }
+
+                // Get chunk name (this is what it will display as in the source name, like script)
+                val = args.arg(2);
+                String chunkName = val.isstring() ? val.tojstring() : "loadstring";
+
+                // get environment in which will be used to get global values from, does not make extra lookups outside this table
+                val = args.arg(3);
+                LuaTable environment = val.istable() ? val.checktable() : runtime.userGlobals;
+
+                // create the function from arguments
+                return runtime.userGlobals.load(ld, chunkName, "t", environment);
             } catch (LuaError e) {
                 return varargsOf(NIL, e.getMessageObject());
             }
@@ -167,6 +186,36 @@ public class FiguraLuaRuntime {
         @Override
         public String tojstring() {
             return "function: loadstring";
+        }
+        
+        // Class that creates input stream from 
+        private static class FuncStream extends InputStream {
+            private final LuaFunction function;
+            // start at the end of empty string so next index will get first result
+            private String string = "";
+            private int index = 0;
+
+            public FuncStream(LuaFunction function) {
+                this.function = function;
+            }
+
+            @Override
+            public int read() {
+                // if next index is out of bounds
+                if (++index >= string.length()) {
+                    // reset index
+                    index = 0;
+                    // fetch next functon value
+                    Varargs result = function.invoke();
+                    // check if we hit the end, that is nil, no value or empty string
+                    if (!result.isstring(1) || result.arg1().length() < 1)
+                        return -1;
+                    // get string from result of calling function
+                    string = new String(result.checkstring(1).m_bytes, StandardCharsets.UTF_8);
+                }
+                // return next index
+                return string.charAt(index);
+            }
         }
     };
     private void loadExtraLibraries() {
@@ -338,9 +387,11 @@ public class FiguraLuaRuntime {
     // error ^-^ //
 
     public void error(Throwable e) {
-        FiguraLuaPrinter.sendLuaError(parseError(e), owner);
         owner.scriptError = true;
         owner.luaRuntime = null;
+        owner.clearParticles();
+        owner.clearSounds();
+        FiguraLuaPrinter.sendLuaError(parseError(e), owner);
     }
 
     public static LuaError parseError(Throwable e) {
@@ -366,5 +417,50 @@ public class FiguraLuaRuntime {
 
     public int getInstructions() {
         return userGlobals.running.state.bytecodes;
+    }
+
+    public void takeInstructions(int amount) {
+        userGlobals.running.state.bytecodes += amount;
+    }
+
+    // script execution //
+
+    public LuaValue load(String name, String src) {
+        return userGlobals.load(src, name, userGlobals);
+    }
+
+    public Varargs run(Object toRun, Avatar.Instructions limit, Object... args) {
+        //parse args
+        LuaValue[] values = new LuaValue[args.length];
+        for (int i = 0; i < values.length; i++)
+            values[i] = typeManager.javaToLua(args[i]).arg1();
+
+        Varargs val = LuaValue.varargsOf(values);
+
+        //set instructions limit
+        setInstructionLimit(limit.remaining);
+
+        //get and call event
+        try {
+            Varargs ret;
+            if (toRun instanceof LuaEvent event)
+                ret = event.call(val);
+            else if (toRun instanceof String event)
+                ret = events.__index(event).call(val);
+            else if (toRun instanceof LuaValue func)
+                ret = func.invoke(val);
+            else
+                throw new IllegalArgumentException("Internal event error - Invalid type to run! (" + toRun.getClass().getSimpleName() + ")");
+
+            //use instructions
+            limit.use(getInstructions());
+            //and return the value
+            return ret;
+        } catch (Exception | StackOverflowError e) {
+            error(e);
+        }
+
+        //failsafe return
+        return null;
     }
 }

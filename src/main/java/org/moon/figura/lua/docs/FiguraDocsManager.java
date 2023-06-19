@@ -12,6 +12,7 @@ import net.minecraft.network.chat.*;
 import org.luaj.vm2.*;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.animation.Animation;
+import org.moon.figura.entries.FiguraAPI;
 import org.moon.figura.lua.api.*;
 import org.moon.figura.lua.api.action_wheel.Action;
 import org.moon.figura.lua.api.action_wheel.ActionWheelAPI;
@@ -58,13 +59,10 @@ import org.moon.figura.model.rendering.texture.FiguraTexture;
 import org.moon.figura.model.rendertasks.*;
 import org.moon.figura.utils.FiguraText;
 
-import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class FiguraDocsManager {
 
@@ -112,7 +110,7 @@ public class FiguraDocsManager {
 
     // -- docs generator data -- //
 
-    private static final Map<String, List<Class<?>>> GLOBAL_CHILDREN = new HashMap<>() {{
+    private static final Map<String, Collection<Class<?>>> GLOBAL_CHILDREN = new HashMap<>() {{
         put("action_wheel", List.of(
                 ActionWheelAPI.class,
                 Page.class,
@@ -219,7 +217,8 @@ public class FiguraDocsManager {
 
         put("textures", List.of(
                 TextureAPI.class,
-                FiguraTexture.class
+                FiguraTexture.class,
+                TextureAtlasAPI.class
         ));
 
         put("config", List.of(
@@ -237,7 +236,7 @@ public class FiguraDocsManager {
 
     public static void init() {
         //generate children override
-        for (Map.Entry<String, List<Class<?>>> packageEntry : GLOBAL_CHILDREN.entrySet()) {
+        for (Map.Entry<String, Collection<Class<?>>> packageEntry : GLOBAL_CHILDREN.entrySet()) {
             for (Class<?> documentedClass : packageEntry.getValue()) {
                 FiguraDoc.ClassDoc doc = generateDocFor(documentedClass, "globals " + packageEntry.getKey());
                 if (doc != null)
@@ -255,6 +254,11 @@ public class FiguraDocsManager {
         //generate globals
         Class<?> globalClass = FiguraGlobalsDocs.class;
         global = new FiguraDoc.ClassDoc(globalClass, globalClass.getAnnotation(LuaTypeDoc.class), GENERATED_CHILDREN);
+    }
+
+    public static void initEntryPoints(Set<FiguraAPI> set) {
+        for (FiguraAPI api : set)
+            GLOBAL_CHILDREN.put(api.getName(), api.getDocsClasses());
     }
 
     private static FiguraDoc.ClassDoc generateDocFor(Class<?> documentedClass, String pack) {
@@ -337,7 +341,7 @@ public class FiguraDocsManager {
                 Files.createFile(targetPath);
 
             //write file
-            FileOutputStream fs = new FileOutputStream(targetPath.toFile());
+            OutputStream fs = Files.newOutputStream(targetPath);
             fs.write(exportAsJsonString(translate).getBytes());
             fs.close();
 
@@ -346,7 +350,7 @@ public class FiguraDocsManager {
                     new FiguraText("command.docs_export.success")
                             .append(" ")
                             .append(new FiguraText("command.click_to_open")
-                                    .setStyle(Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_FILE, targetPath.toFile().toString())).withUnderlined(true))
+                                    .setStyle(Style.EMPTY.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_FILE, targetPath.toString())).withUnderlined(true))
                             ), false
             );
             return 1;

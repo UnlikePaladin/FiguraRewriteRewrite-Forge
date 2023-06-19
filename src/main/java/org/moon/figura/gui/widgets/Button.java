@@ -3,14 +3,13 @@ package org.moon.figura.gui.widgets;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraft.resources.ResourceLocation;
 import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.ui.UIHelper;
 
-public class TexturedButton extends Button {
+public class Button extends net.minecraft.client.gui.components.Button implements FiguraWidget {
 
     //default textures
     private static final ResourceLocation TEXTURE = new FiguraIdentifier("textures/gui/button.png");
@@ -29,7 +28,7 @@ public class TexturedButton extends Button {
     private boolean hasBackground = true;
 
     //texture and text constructor
-    public TexturedButton(int x, int y, int width, int height, Integer u, Integer v, Integer regionSize, ResourceLocation texture, Integer textureWidth, Integer textureHeight, Component text, Component tooltip, Button.OnPress pressAction) {
+    public Button(int x, int y, int width, int height, Integer u, Integer v, Integer regionSize, ResourceLocation texture, Integer textureWidth, Integer textureHeight, Component text, Component tooltip, OnPress pressAction) {
         super(x, y, width, height, text, pressAction);
 
         this.u = u;
@@ -42,18 +41,18 @@ public class TexturedButton extends Button {
     }
 
     //text constructor
-    public TexturedButton(int x, int y, int width, int height, Component text, Component tooltip, Button.OnPress pressAction) {
+    public Button(int x, int y, int width, int height, Component text, Component tooltip, OnPress pressAction) {
         this(x, y, width, height, null, null, null, null, null, null, text, tooltip, pressAction);
     }
 
     //texture constructor
-    public TexturedButton(int x, int y, int width, int height, int u, int v, int regionSize, ResourceLocation texture, int textureWidth, int textureHeight, Component tooltip, Button.OnPress pressAction) {
+    public Button(int x, int y, int width, int height, int u, int v, int regionSize, ResourceLocation texture, int textureWidth, int textureHeight, Component tooltip, OnPress pressAction) {
         this(x, y, width, height, u, v, regionSize, texture, textureWidth, textureHeight, TextComponent.EMPTY.copy(), tooltip, pressAction);
     }
 
     @Override
     public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
-        if (!this.visible)
+        if (!this.isVisible())
             return;
 
         //update hovered
@@ -69,12 +68,11 @@ public class TexturedButton extends Button {
         if (this.texture != null) {
             renderTexture(stack, delta);
         } else {
-            UIHelper.renderSliced(stack, x, y, width, height, getUVStatus() * 16f, this.hasBackground ? 0f : 16f, 16, 16, 48, 32, TEXTURE);
+            renderDefaultTexture(stack, delta);
         }
 
         //render text
-        if (this.getMessage() != null && !this.getMessage().getString().isBlank())
-            renderText(stack);
+        renderText(stack, delta);
     }
 
     @Override
@@ -84,31 +82,41 @@ public class TexturedButton extends Button {
 
     @Override
     public boolean isMouseOver(double mouseX, double mouseY) {
-        boolean over = UIHelper.isMouseOver(x, y, width, height, mouseX, mouseY);
+        boolean over = UIHelper.isMouseOver(getX(), getY(), getWidth(), getHeight(), mouseX, mouseY);
         if (over && this.tooltip != null)
             UIHelper.setTooltip(this.tooltip);
         return over;
     }
 
+    protected void renderDefaultTexture(PoseStack stack, float delta) {
+        UIHelper.renderSliced(stack, getX(), getY(), getWidth(), getHeight(), getU() * 16f, getV() * 16f, 16, 16, 48, 32, TEXTURE);
+    }
+
     protected void renderTexture(PoseStack stack, float delta) {
         //uv transforms
-        int u = this.u + this.getUVStatus() * this.regionSize;
-        int v = this.v + (this instanceof SwitchButton sw && sw.isToggled() ? this.regionSize : 0);
+        int u = this.u + this.getU() * this.regionSize;
+        int v = this.v + this.getV() * this.regionSize;
 
         //draw texture
         UIHelper.setupTexture(this.texture);
 
         int size = this.regionSize;
-        blit(stack, this.x + this.width / 2 - size / 2, this.y + this.height / 2 - size / 2, u, v, size, size, this.textureWidth, this.textureHeight);
+        blit(stack, this.getX() + this.getWidth() / 2 - size / 2, this.getY() + this.getHeight() / 2 - size / 2, u, v, size, size, this.textureWidth, this.textureHeight);
     }
 
-    protected void renderText(PoseStack stack) {
-        int color = (!this.active ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE).getColor();
-        UIHelper.renderScrollingText(stack, getMessage(), x, y, getWidth(), getHeight(), color);
+    protected void renderText(PoseStack stack, float delta) {
+        UIHelper.renderCenteredScrollingText(stack, getMessage(), this.x + 1, this.y, getWidth() - 2, getHeight(), getTextColor());
     }
 
-    protected int getUVStatus() {
-        if (!this.active)
+    protected void renderVanillaBackground(PoseStack stack, int mouseX, int mouseY, float delta) {
+        Component message = getMessage();
+        setMessage(TextComponent.EMPTY.copy());
+        super.renderButton(stack, mouseX, mouseY, delta);
+        setMessage(message);
+    }
+
+    protected int getU() {
+        if (!this.isActive())
             return 0;
         else if (this.isHoveredOrFocused())
             return 2;
@@ -116,9 +124,12 @@ public class TexturedButton extends Button {
             return 1;
     }
 
-    public void setUV(int x, int y) {
-        this.u = x;
-        this.v = y;
+    protected int getV() {
+        return hasBackground ? 0 : 1;
+    }
+
+    protected int getTextColor() {
+        return (!this.isActive() ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE).getColor();
     }
 
     public void setTooltip(Component tooltip) {
@@ -142,7 +153,62 @@ public class TexturedButton extends Button {
         onPress();
     }
 
+    @Override
+    public boolean isVisible() {
+        return this.visible;
+    }
+
+    @Override
+    public void setVisible(boolean visible) {
+        this.visible = visible;
+    }
+
+    @Override
+    public int getX() {
+        return this.x;
+    }
+
+    @Override
+    public void setX(int x) {
+        this.x = x;
+    }
+
+    @Override
+    public int getY() {
+        return this.y;
+    }
+
+    @Override
+    public void setY(int y) {
+        this.y = y;
+    }
+
+    @Override
+    public int getWidth() {
+        return super.getWidth();
+    }
+
+    @Override
+    public void setWidth(int width) {
+        super.setWidth(width);
+    }
+
+    @Override
+    public int getHeight() {
+        return super.getHeight();
+    }
+
+    @Override
     public void setHeight(int height) {
         this.height = height;
+    }
+
+    @Override
+    public boolean isActive() {
+        return this.active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 }

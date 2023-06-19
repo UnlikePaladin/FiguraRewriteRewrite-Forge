@@ -25,7 +25,7 @@ public class CategoryWidget extends AbstractContainerElement {
         this.config = config;
         this.parent = parent;
 
-        this.parentConfig = new ContainerButton(parent, x, y, width, 20, config == null ? TextComponent.EMPTY.copy() : config.name, config == null ? null : config.tooltip, button -> {
+        this.parentConfig = new ContainerButton(parent, 0, 0, width, 20, config == null ? TextComponent.EMPTY.copy() : config.name, config == null ? null : config.tooltip, button -> {
             boolean toggled = this.parentConfig.isToggled();
             setShowChildren(toggled);
             ConfigScreen.CATEGORY_DATA.put(config, toggled);
@@ -40,9 +40,12 @@ public class CategoryWidget extends AbstractContainerElement {
 
     @Override
     public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
+        if (!isVisible())
+            return;
+
         //children background
         if (parentConfig.isToggled() && entries.size() > 0)
-            UIHelper.fill(stack, x, y + 21, x + width, y + height, 0x11FFFFFF);
+            UIHelper.fill(stack, getX(), getY() + 21, getX() + getWidth(), getY() + getHeight(), 0x11FFFFFF);
 
         if (config == Configs.PAPERDOLL)
             parent.parentScreen.renderPaperdoll = parentConfig.isToggled() && parent.isMouseOver(mouseX, mouseY) && isMouseOver(mouseX, mouseY);
@@ -53,26 +56,27 @@ public class CategoryWidget extends AbstractContainerElement {
 
     @Override
     public boolean isMouseOver(double mouseX, double mouseY) {
-        return UIHelper.isMouseOver(x, y, width, getHeight(), mouseX, mouseY);
+        return UIHelper.isMouseOver(getX(), getY(), getWidth(), getHeight(), mouseX, mouseY);
     }
 
     public void addConfig(ConfigType<?> config) {
+        int width = getWidth();
         AbstractConfigElement element;
         if (config instanceof ConfigType.BoolConfig boolConfig) {
-            element = new BooleanElement(width, boolConfig, parent);
+            element = new BooleanElement(width, boolConfig, parent, this);
         } else if (config instanceof ConfigType.EnumConfig enumConfig) {
-            element = new EnumElement(width, enumConfig, parent);
+            element = new EnumElement(width, enumConfig, parent, this);
         } else if (config instanceof ConfigType.InputConfig<?> inputConfig) {
-            element = new InputElement(width, inputConfig, parent);
+            element = new InputElement(width, inputConfig, parent, this);
         } else if (config instanceof ConfigType.KeybindConfig keybindConfig) {
-            element = new KeybindElement(width, keybindConfig, parent);
+            element = new KeybindElement(width, keybindConfig, parent, this);
         } else if (config instanceof ConfigType.ButtonConfig buttonConfig) {
-            element = new ButtonElement(width, buttonConfig, parent);
+            element = new ButtonElement(width, buttonConfig, parent, this);
         } else {
             return;
         }
 
-        this.height += 22;
+        this.setHeight(super.getHeight() + 22);
         this.children.add(element);
         this.entries.add(element);
     }
@@ -84,19 +88,39 @@ public class CategoryWidget extends AbstractContainerElement {
         return false;
     }
 
+    @Override
     public int getHeight() {
-        return parentConfig.isToggled() ? height : 20;
+        if (!parentConfig.isToggled())
+            return 20;
+
+        int height = 20;
+        for (AbstractConfigElement entry : entries) {
+            if (entry.isVisible())
+                height += entry.getHeight() + 2;
+        }
+
+        return height;
     }
 
-    public void setPos(int x, int y) {
-        this.x = x;
-        this.y = y;
+    @Override
+    public void setX(int x) {
+        super.setX(x);
+        this.parentConfig.setX(x);
+        for (AbstractConfigElement entry : entries)
+            entry.setX(x);
+    }
 
-        this.parentConfig.x = x;
-        this.parentConfig.y = y;
-
-        for (int i = 0; i < entries.size(); i++)
-            entries.get(i).setPos(x, y + 22 * (i + 1));
+    @Override
+    public void setY(int y) {
+        super.setY(y);
+        this.parentConfig.setY(y);
+        int i = 0;
+        for (AbstractConfigElement entry : entries) {
+            if (entry.isVisible()) {
+                entry.setY(y + 22 * (i + 1));
+                i++;
+            }
+        }
     }
 
     public void setShowChildren(boolean bool) {
@@ -114,5 +138,20 @@ public class CategoryWidget extends AbstractContainerElement {
             if (element instanceof KeybindElement keybind)
                 keybind.updateText();
         }
+    }
+
+    public void updateFilter(String query) {
+        boolean visible = false;
+
+        for (AbstractConfigElement entry : entries) {
+            entry.updateFilter(query);
+            visible |= entry.matchesFilter();
+        }
+
+        this.setVisible(visible);
+        if (visible)
+            this.setY(this.getY());
+
+        parent.updateScroll();
     }
 }

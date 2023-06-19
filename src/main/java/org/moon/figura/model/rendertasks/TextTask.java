@@ -47,10 +47,7 @@ public class TextTask extends RenderTask {
     }
 
     @Override
-    public boolean render(PartCustomization.PartCustomizationStack stack, MultiBufferSource buffer, int light, int overlay) {
-        if (!enabled || text == null || text.size() == 0)
-            return false;
-
+    public void render(PartCustomization.PartCustomizationStack stack, MultiBufferSource buffer, int light, int overlay) {
         this.pushOntoStack(stack);
         PoseStack poseStack = stack.peek().copyIntoGlobalPoseStack();
         poseStack.scale(-1, -1, 1);
@@ -65,7 +62,7 @@ public class TextTask extends RenderTask {
             poseStack.popPose();
         }
 
-        int l = this.light != null ? this.light : light;
+        int l = this.customization.light != null ? this.customization.light : light;
         int bgColor = backgroundColor != null ? backgroundColor : background ? (int) (Minecraft.getInstance().options.getBackgroundOpacity(0.25f) * 0xFF) << 24 : 0;
         int outlineColor = this.outlineColor != null ? this.outlineColor : 0x202020;
 
@@ -86,12 +83,16 @@ public class TextTask extends RenderTask {
         }
 
         stack.pop();
-        return true;
     }
 
     @Override
     public int getComplexity() {
         return cachedComplexity;
+    }
+
+    @Override
+    public boolean shouldRender() {
+        return super.shouldRender() && text != null && text.size() != 0;
     }
 
     private void updateText() {

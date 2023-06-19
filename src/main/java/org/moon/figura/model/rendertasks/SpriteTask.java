@@ -48,10 +48,7 @@ public class SpriteTask extends RenderTask {
     }
 
     @Override
-    public boolean render(PartCustomization.PartCustomizationStack stack, MultiBufferSource buffer, int light, int overlay) {
-        if (!enabled || texture == null || renderType == RenderTypes.NONE)
-            return false;
-
+    public void render(PartCustomization.PartCustomizationStack stack, MultiBufferSource buffer, int light, int overlay) {
         this.pushOntoStack(stack); //push
         PoseStack poseStack = stack.peek().copyIntoGlobalPoseStack();
         poseStack.scale(-1, -1, 1);
@@ -60,8 +57,8 @@ public class SpriteTask extends RenderTask {
         Matrix4f pose = poseStack.last().pose();
         Matrix3f normal = poseStack.last().normal();
 
-        int newLight = this.light != null ? this.light : light;
-        int newOverlay = this.overlay != null ? this.overlay : overlay;
+        int newLight = this.customization.light != null ? this.customization.light : light;
+        int newOverlay = this.customization.overlay != null ? this.customization.overlay : overlay;
 
         //setup texture render
         VertexConsumer consumer = buffer.getBuffer(renderType.get(texture));
@@ -78,12 +75,16 @@ public class SpriteTask extends RenderTask {
         }
 
         stack.pop(); //pop
-        return true;
     }
 
     @Override
     public int getComplexity() {
         return 1; //1 face, 1 complexity
+    }
+
+    @Override
+    public boolean shouldRender() {
+        return super.shouldRender() && texture != null && renderType != RenderTypes.NONE;
     }
 
     private void recalculateVertices() {

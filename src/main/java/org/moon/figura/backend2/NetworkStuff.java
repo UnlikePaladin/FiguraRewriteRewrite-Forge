@@ -332,17 +332,15 @@ public class NetworkStuff {
             queueString(Util.NIL_UUID, api -> api.uploadAvatar(id, baos.toByteArray()), (code, data) -> {
                 responseDebug("uploadAvatar", code, data);
 
-                if (!Configs.CONNECTION_TOASTS.value)
-                    return;
+                if (code == 200) {
+                    //TODO - profile screen
+                    equipAvatar(List.of(Pair.of(avatar.owner, id)));
+                    AvatarManager.localUploaded = true;
+                }
 
+                //feedback
                 switch (code) {
-                    case 200 -> {
-                        FiguraToast.sendToast(new FiguraText("backend.upload_success"));
-
-                        //TODO - profile screen
-                        equipAvatar(List.of(Pair.of(avatar.owner, id)));
-                        AvatarManager.localUploaded = true;
-                    }
+                    case 200 -> FiguraToast.sendToast(new FiguraText("backend.upload_success"));
                     case 413 -> FiguraToast.sendToast(new FiguraText("backend.upload_too_big"), FiguraToast.ToastType.ERROR);
                     case 507 -> FiguraToast.sendToast(new FiguraText("backend.upload_too_many"), FiguraToast.ToastType.ERROR);
                     default -> FiguraToast.sendToast(new FiguraText("backend.upload_error"), FiguraToast.ToastType.ERROR);
@@ -359,9 +357,6 @@ public class NetworkStuff {
         String id = avatar == null || true ? "avatar" : avatar; //TODO - profile screen
         queueString(Util.NIL_UUID, api -> api.deleteAvatar(id), (code, data) -> {
             responseDebug("deleteAvatar", code, data);
-
-            if (!Configs.CONNECTION_TOASTS.value)
-                return;
 
             switch (code) {
                 case 200 -> FiguraToast.sendToast(new FiguraText("backend.delete_success"));

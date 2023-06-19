@@ -9,7 +9,7 @@ import net.minecraft.network.chat.TranslatableComponent;
 import org.moon.figura.config.ConfigType;
 import org.moon.figura.gui.widgets.AbstractContainerElement;
 import org.moon.figura.gui.widgets.ParentedButton;
-import org.moon.figura.gui.widgets.TexturedButton;
+import org.moon.figura.gui.widgets.Button;
 import org.moon.figura.gui.widgets.lists.ConfigList;
 import org.moon.figura.utils.ui.UIHelper;
 
@@ -18,20 +18,24 @@ import java.util.Objects;
 public abstract class AbstractConfigElement extends AbstractContainerElement {
 
     protected final ConfigType<?> config;
-    protected final ConfigList parent;
+    protected final ConfigList parentList;
+    protected final CategoryWidget parentCategory;
 
-    protected TexturedButton resetButton;
+    protected Button resetButton;
 
     protected Object initValue;
 
-    public AbstractConfigElement(int width, ConfigType<?> config, ConfigList parent) {
+    private String filter = "";
+
+    public AbstractConfigElement(int width, ConfigType<?> config, ConfigList parentList, CategoryWidget parentCategory) {
         super(0, 0, width, 20);
         this.config = config;
-        this.parent = parent;
+        this.parentList = parentList;
+        this.parentCategory = parentCategory;
         this.initValue = config.value;
 
         //reset button
-        children.add(resetButton = new ParentedButton(x + width - 60, y, 60, 20, new TranslatableComponent("controls.reset"), this, button -> config.resetTemp()));
+        children.add(resetButton = new ParentedButton(0, 0, 60, 20, new TranslatableComponent("controls.reset"), this, button -> config.resetTemp()));
     }
 
     @Override
@@ -40,11 +44,11 @@ public abstract class AbstractConfigElement extends AbstractContainerElement {
 
         //vars
         Font font = Minecraft.getInstance().font;
-        int textY = y + height / 2 - font.lineHeight / 2;
+        int textY = getY() + getHeight() / 2 - font.lineHeight / 2;
 
         //hovered arrow
         setHovered(isMouseOver(mouseX, mouseY));
-        if (isHovered()) font.draw(stack, HOVERED_ARROW, x + 8 - font.width(HOVERED_ARROW) / 2, textY, 0xFFFFFF);
+        if (isHovered()) font.draw(stack, HOVERED_ARROW, (int) (getX() + 8 - font.width(HOVERED_ARROW) / 2f), textY, 0xFFFFFF);
 
         //render name
         renderTitle(stack, font, textY);
@@ -54,14 +58,14 @@ public abstract class AbstractConfigElement extends AbstractContainerElement {
     }
 
     public void renderTitle(PoseStack stack, Font font, int y) {
-        font.draw(stack, config.name, x + 16, y, (config.disabled ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE).getColor());
+        font.draw(stack, config.name, getX() + 16, y, (config.disabled ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE).getColor());
     }
 
     @Override
     public boolean isMouseOver(double mouseX, double mouseY) {
-        boolean over = this.parent.isInsideScissors(mouseX, mouseY) && super.isMouseOver(mouseX, mouseY);
+        boolean over = this.parentList.isInsideScissors(mouseX, mouseY) && super.isMouseOver(mouseX, mouseY);
 
-        if (over && mouseX < this.x + this.width - 158)
+        if (over && mouseX < this.getX() + this.getWidth() - 158)
             UIHelper.setTooltip(getTooltip());
 
         return over;
@@ -79,11 +83,28 @@ public abstract class AbstractConfigElement extends AbstractContainerElement {
         return !Objects.equals(this.config.tempValue, this.initValue);
     }
 
-    public void setPos(int x, int y) {
-        this.x = x;
-        this.y = y;
+    @Override
+    public void setX(int x) {
+        super.setX(x);
+        resetButton.setX(x + getWidth() - 60);
+    }
 
-        resetButton.x = x + width - 60;
-        resetButton.y = y;
+    @Override
+    public void setY(int y) {
+        super.setY(y);
+        resetButton.setY(y);
+    }
+
+    @Override
+    public void setVisible(boolean visible) {
+        super.setVisible(visible && parentCategory.isShowingChildren() && matchesFilter());
+    }
+
+    public void updateFilter(String query) {
+        this.filter = query;
+    }
+
+    public boolean matchesFilter() {
+        return config.name.getString().toLowerCase().contains(filter) || config.tooltip.getString().toLowerCase().contains(filter);
     }
 }

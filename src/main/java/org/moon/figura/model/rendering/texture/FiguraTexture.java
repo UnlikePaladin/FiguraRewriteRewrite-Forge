@@ -19,12 +19,13 @@ import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
+import org.moon.figura.math.matrix.FiguraMat4;
 import org.moon.figura.math.vector.FiguraVec2;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.math.vector.FiguraVec4;
+import org.moon.figura.mixin.render.TextureManagerAccessor;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.FiguraIdentifier;
-import org.moon.figura.utils.IOUtils;
 import org.moon.figura.utils.LuaUtils;
 
 import java.io.IOException;
@@ -76,6 +77,13 @@ public class FiguraTexture extends SimpleTexture {
         this.owner = owner;
     }
 
+    public FiguraTexture(Avatar owner, String name, int width, int height) {
+        super(new FiguraIdentifier("avatar_tex/" + owner.owner + "/" + UUID.randomUUID()));
+        this.texture = new NativeImage(width, height, true);
+        this.name = name;
+        this.owner = owner;
+    }
+
     public FiguraTexture(Avatar owner, String name, NativeImage image) {
         super(new FiguraIdentifier("avatar_tex/" + owner.owner + "/custom/" + UUID.randomUUID()));
         this.texture = image;
@@ -99,6 +107,7 @@ public class FiguraTexture extends SimpleTexture {
             backup.close();
 
         this.releaseId();
+        ((TextureManagerAccessor) Minecraft.getInstance().getTextureManager()).getByPath().remove(this.location);
     }
 
     public void uploadIfDirty() {
@@ -124,14 +133,8 @@ public class FiguraTexture extends SimpleTexture {
         }
     }
 
-    public void saveCache() throws IOException {
-        Path path = FiguraMod.getCacheDirectory().resolve("saved_texture.png");
-        texture.writeToFile(path);
-    }
-
-    public static void deleteCache() {
-        Path path = FiguraMod.getCacheDirectory().resolve("saved_texture.png");
-        IOUtils.deleteFile(path.toFile());
+    public void writeTexture(Path dest) throws IOException {
+        texture.writeToFile(dest);
     }
 
     private void backupImage() {
@@ -170,6 +173,12 @@ public class FiguraTexture extends SimpleTexture {
     @LuaMethodDoc("texture.get_name")
     public String getName() {
         return name;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("texture.get_path")
+    public String getPath() {
+        return getLocation().toString();
     }
 
     @LuaWhitelist
@@ -295,6 +304,25 @@ public class FiguraTexture extends SimpleTexture {
                 LuaValue result = function.call(owner.luaRuntime.typeManager.javaToLua(color).arg1(), LuaValue.valueOf(j), LuaValue.valueOf(i));
                 if (!result.isnil() && result.isuserdata(FiguraVec4.class))
                     setPixel(j, i, result.checkuserdata(FiguraVec4.class), null, null, null);
+            }
+        }
+        return this;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = {Integer.class, Integer.class, Integer.class, Integer.class, FiguraMat4.class},
+                    argumentNames = {"x", "y", "width", "height", "matrix"}
+            ),
+            value = "texture.apply_matrix"
+    )
+    public FiguraTexture applyMatrix(int x, int y, int width, int height, @LuaNotNil FiguraMat4 matrix) {
+        for (int i = y; i < y + height; i++) {
+            for (int j = x; j < x + width; j++) {
+                FiguraVec4 color = getPixel(j, i);
+                color.transform(matrix);
+                setPixel(j, i, color, null, null, null);
             }
         }
         return this;

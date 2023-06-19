@@ -11,11 +11,11 @@ import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiComponent;
-import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
@@ -31,8 +31,9 @@ import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.config.Configs;
 import org.moon.figura.gui.screens.AbstractPanelScreen;
-import org.moon.figura.gui.widgets.AbstractContainerElement;
+import org.moon.figura.gui.screens.FiguraConfirmScreen;
 import org.moon.figura.gui.widgets.ContextMenu;
+import org.moon.figura.gui.widgets.FiguraWidget;
 import org.moon.figura.math.vector.FiguraVec4;
 import org.moon.figura.model.rendering.EntityRenderMode;
 import org.moon.figura.utils.FiguraIdentifier;
@@ -252,9 +253,9 @@ public class UIHelper extends GuiComponent {
         blit(stack, x, y, width, height, 0f, 0f, 1, 1, 1, 1);
     }
 
-    public static void renderAnimatedBackground(ResourceLocation texture, double x, double y, float width, float height, float textureWidth, float textureHeight, double speed, float delta) {
+    public static void renderAnimatedBackground(PoseStack stack, ResourceLocation texture, float x, float y, float width, float height, float textureWidth, float textureHeight, double speed, float delta) {
         if (speed != 0) {
-            double d = (FiguraMod.ticks + delta) / speed;
+            double d = (FiguraMod.ticks + delta) * speed;
             x -= d % textureWidth;
             y -= d % textureHeight;
         }
@@ -267,21 +268,19 @@ public class UIHelper extends GuiComponent {
             y -= textureHeight;
         }
 
-        renderBackgroundTexture(texture, x, y, width, height, textureWidth, textureHeight);
+        renderBackgroundTexture(stack, texture, x, y, width, height, textureWidth, textureHeight);
     }
 
-    public static void renderBackgroundTexture(ResourceLocation texture, double x, double y, float width, float height, float textureWidth, float textureHeight) {
+    public static void renderBackgroundTexture(PoseStack stack, ResourceLocation texture, float x, float y, float width, float height, float textureWidth, float textureHeight) {
         setupTexture(texture);
 
         Tesselator tessellator = Tesselator.getInstance();
         BufferBuilder bufferBuilder = tessellator.getBuilder();
         bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
 
-        float z = -999f;
-        bufferBuilder.vertex(x, y + height, z).uv(0f, height / textureHeight).endVertex();
-        bufferBuilder.vertex(x + width, y + height, z).uv(width / textureWidth, height / textureHeight).endVertex();
-        bufferBuilder.vertex(x + width, y, z).uv(width / textureWidth, 0f).endVertex();
-        bufferBuilder.vertex(x, y, z).uv(0f, 0f).endVertex();
+        float u1 = width / textureWidth;
+        float v1 = height / textureHeight;
+        quad(bufferBuilder, stack.last().pose(), x, y, width, height, -999f, 0f, u1, 0f, v1);
 
         tessellator.end();
     }
@@ -315,42 +314,53 @@ public class UIHelper extends GuiComponent {
         float rHeightThird = regionHeight / 3f;
 
         //top left
-        sliceVertex(pose, buffer, x, y, rWidthThird, rHeightThird, u, v, rWidthThird, rHeightThird, textureWidth, textureHeight);
+        quad(buffer, pose, x, y, rWidthThird, rHeightThird, u, v, rWidthThird, rHeightThird, textureWidth, textureHeight);
         //top middle
-        sliceVertex(pose, buffer, x + rWidthThird, y, width - rWidthThird * 2, rHeightThird, u + rWidthThird, v, rWidthThird, rHeightThird, textureWidth, textureHeight);
+        quad(buffer, pose, x + rWidthThird, y, width - rWidthThird * 2, rHeightThird, u + rWidthThird, v, rWidthThird, rHeightThird, textureWidth, textureHeight);
         //top right
-        sliceVertex(pose, buffer, x + width - rWidthThird, y, rWidthThird, rHeightThird, u + rWidthThird * 2, v, rWidthThird, rHeightThird, textureWidth, textureHeight);
+        quad(buffer, pose, x + width - rWidthThird, y, rWidthThird, rHeightThird, u + rWidthThird * 2, v, rWidthThird, rHeightThird, textureWidth, textureHeight);
 
         //middle left
-        sliceVertex(pose, buffer, x, y + rHeightThird, rWidthThird, height - rHeightThird * 2, u, v + rHeightThird, rWidthThird, rHeightThird, textureWidth, textureHeight);
+        quad(buffer, pose, x, y + rHeightThird, rWidthThird, height - rHeightThird * 2, u, v + rHeightThird, rWidthThird, rHeightThird, textureWidth, textureHeight);
         //middle middle
-        sliceVertex(pose, buffer, x + rWidthThird, y + rHeightThird, width - rWidthThird * 2, height - rHeightThird * 2, u + rWidthThird, v + rHeightThird, rWidthThird, rHeightThird, textureWidth, textureHeight);
+        quad(buffer, pose, x + rWidthThird, y + rHeightThird, width - rWidthThird * 2, height - rHeightThird * 2, u + rWidthThird, v + rHeightThird, rWidthThird, rHeightThird, textureWidth, textureHeight);
         //middle right
-        sliceVertex(pose, buffer, x + width - rWidthThird, y + rHeightThird, rWidthThird, height - rHeightThird * 2, u + rWidthThird * 2, v + rHeightThird, rWidthThird, rHeightThird, textureWidth, textureHeight);
+        quad(buffer, pose, x + width - rWidthThird, y + rHeightThird, rWidthThird, height - rHeightThird * 2, u + rWidthThird * 2, v + rHeightThird, rWidthThird, rHeightThird, textureWidth, textureHeight);
 
         //bottom left
-        sliceVertex(pose, buffer, x, y + height - rHeightThird, rWidthThird, rHeightThird, u, v + rHeightThird * 2, rWidthThird, rHeightThird, textureWidth, textureHeight);
+        quad(buffer, pose, x, y + height - rHeightThird, rWidthThird, rHeightThird, u, v + rHeightThird * 2, rWidthThird, rHeightThird, textureWidth, textureHeight);
         //bottom middle
-        sliceVertex(pose, buffer, x + rWidthThird, y + height - rHeightThird, width - rWidthThird * 2, rHeightThird, u + rWidthThird, v + rHeightThird * 2, rWidthThird, rHeightThird, textureWidth, textureHeight);
+        quad(buffer, pose, x + rWidthThird, y + height - rHeightThird, width - rWidthThird * 2, rHeightThird, u + rWidthThird, v + rHeightThird * 2, rWidthThird, rHeightThird, textureWidth, textureHeight);
         //bottom right
-        sliceVertex(pose, buffer, x + width - rWidthThird, y + height - rHeightThird, rWidthThird, rHeightThird, u + rWidthThird * 2, v + rHeightThird * 2, rWidthThird, rHeightThird, textureWidth, textureHeight);
+        quad(buffer, pose, x + width - rWidthThird, y + height - rHeightThird, rWidthThird, rHeightThird, u + rWidthThird * 2, v + rHeightThird * 2, rWidthThird, rHeightThird, textureWidth, textureHeight);
 
         tessellator.end();
     }
 
-    private static void sliceVertex(Matrix4f matrix, BufferBuilder bufferBuilder, float x, float y, float width, float height, float u, float v, float regionWidth, float regionHeight, int textureWidth, int textureHeight) {
-        float x1 = x + width;
-        float y1 = y + height;
+    public static void renderHalfTexture(PoseStack stack, int x, int y, int width, int height, int textureWidth, ResourceLocation texture) {
+        renderHalfTexture(stack, x, y, width, height, 0f, 0f, textureWidth, 1, textureWidth, 1, texture);
+    }
 
-        float u0 = u / textureWidth;
-        float v0 = v / textureHeight;
-        float u1 = (u + regionWidth) / textureWidth;
-        float v1 = (v + regionHeight) / textureHeight;
+    public static void renderHalfTexture(PoseStack stack, int x, int y, int width, int height, float u, float v, int regionWidth, int regionHeight, int textureWidth, int textureHeight, ResourceLocation texture) {
+        setupTexture(texture);
 
-        bufferBuilder.vertex(matrix, x, y1, 0f).uv(u0, v1).endVertex();
-        bufferBuilder.vertex(matrix, x1, y1, 0f).uv(u1, v1).endVertex();
-        bufferBuilder.vertex(matrix, x1, y, 0f).uv(u1, v0).endVertex();
-        bufferBuilder.vertex(matrix, x, y, 0f).uv(u0, v0).endVertex();
+        //left
+        int w = width / 2;
+        blit(stack, x, y, w, height, u, v, w, regionHeight, textureWidth, textureHeight);
+
+        //right
+        x += w;
+        if (width % 2 == 1) w++;
+        blit(stack, x, y, w, height, u + regionWidth - w, v, w, regionHeight, textureWidth, textureHeight);
+    }
+
+    public static void renderSprite(PoseStack stack, int x, int y, int z, int width, int height, TextureAtlasSprite sprite) {
+        setupTexture(sprite.atlas().location());
+        BufferBuilder bufferBuilder = Tesselator.getInstance().getBuilder();
+        bufferBuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+        quad(bufferBuilder, stack.last().pose(), x, y, width, height, z, sprite.getU0(), sprite.getU1(), sprite.getV0(), sprite.getV1());
+        bufferBuilder.end();
+        BufferUploader.end(bufferBuilder);
     }
 
     public static void setupScissor(int x, int y, int width, int height) {
@@ -366,6 +376,23 @@ public class UIHelper extends GuiComponent {
 
         SCISSORS_STACK.push(vec);
         setupScissor(vec);
+    }
+
+    private static void quad(BufferBuilder bufferBuilder, Matrix4f pose, float x, float y, float width, float height, float u, float v, float regionWidth, float regionHeight, int textureWidth, int textureHeight) {
+        float u0 = u / textureWidth;
+        float v0 = v / textureHeight;
+        float u1 = (u + regionWidth) / textureWidth;
+        float v1 = (v + regionHeight) / textureHeight;
+        quad(bufferBuilder, pose, x, y, width, height, 0f, u0, u1, v0, v1);
+    }
+
+    private static void quad(BufferBuilder bufferBuilder, Matrix4f pose, float x, float y, float width, float height, float z, float u0, float u1, float v0, float v1) {
+        float x1 = x + width;
+        float y1 = y + height;
+        bufferBuilder.vertex(pose, x, y1, z).uv(u0, v1).endVertex();
+        bufferBuilder.vertex(pose, x1, y1, z).uv(u1, v1).endVertex();
+        bufferBuilder.vertex(pose, x1, y, z).uv(u1, v0).endVertex();
+        bufferBuilder.vertex(pose, x, y, z).uv(u0, v0).endVertex();
     }
 
     private static void setupScissor(FiguraVec4 dimensions) {
@@ -394,46 +421,64 @@ public class UIHelper extends GuiComponent {
         }
     }
 
-    public static void highlight(PoseStack stack, Object component, Component text) {
-        //object
-        int x, y, width, height;
-        if (component instanceof AbstractWidget w) {
-            x = w.x; y = w.y;
-            width = w.getWidth();
-            height = w.getHeight();
-        } else if (component instanceof AbstractContainerElement c) {
-            x = c.x; y = c.y;
-            width = c.width;
-            height = c.height;
-        } else {
-            return;
-        }
-
+    public static void highlight(PoseStack stack, FiguraWidget widget, Component text) {
         //screen
         int screenW, screenH;
         if (Minecraft.getInstance().screen instanceof AbstractPanelScreen panel) {
             screenW = panel.width;
             screenH = panel.height;
-
-            if (text != null)
-                panel.tooltip = text;
         } else {
             return;
         }
 
         //draw
 
+        int x = widget.getX();
+        int y = widget.getY();
+        int width = widget.getWidth();
+        int height = widget.getHeight();
+        int color = 0xDD000000;
+
         //left
-        fill(stack, 0, 0, x, y + height, 0xBB000000);
+        fill(stack, 0, 0, x, y + height, color);
         //right
-        fill(stack, x + width, y, screenW, screenH, 0xBB000000);
+        fill(stack, x + width, y, screenW, screenH, color);
         //up
-        fill(stack, x, 0, screenW, y, 0xBB000000);
+        fill(stack, x, 0, screenW, y, color);
         //down
-        fill(stack, 0, y + height, x + width, screenH, 0xBB000000);
+        fill(stack, 0, y + height, x + width, screenH, color);
 
         //outline
         fillOutline(stack, Math.max(x - 1, 0), Math.max(y - 1, 0), Math.min(width + 2, screenW), Math.min(height + 2, screenH), 0xFFFFFFFF);
+
+        //text
+
+        if (text == null)
+            return;
+
+        //Woolfy generated code
+        int bottomDistance = screenH - (y + height);
+        int rightDistance = screenW - (x + width);
+        int verArea = y * screenW - bottomDistance * screenW;
+        int horArea = x * screenH - rightDistance * screenH;
+        FiguraVec4 square = new FiguraVec4();
+
+        if (Math.abs(verArea) > Math.abs(horArea)) {
+            if (verArea >= 0) {
+                square.set(0, 0, screenW, y);
+            } else {
+                square.set(0, y + height, screenW, bottomDistance);
+            }
+        } else {
+            if (horArea >= 0) {
+                square.set(0, 0, x, screenH);
+            } else {
+                square.set(x + width, 0, rightDistance, screenH);
+            }
+        }
+
+        //fill(stack, (int) square.x, (int) square.y, (int) (square.x + square.z), (int) (square.y + square.w), 0xFFFF72AD);
+        //renderTooltip(stack, text, 0, 0, false);
     }
 
     //widget.isMouseOver() returns false if the widget is disabled or invisible
@@ -443,7 +488,7 @@ public class UIHelper extends GuiComponent {
 
     public static boolean isMouseOver(int x, int y, int width, int height, double mouseX, double mouseY, boolean force) {
         ContextMenu context = force ? null : getContext();
-        return (context == null || !context.isVisible()) && mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
+        return (context == null || !context.isVisible()) && mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + height;
     }
 
     public static void renderOutlineText(PoseStack stack, Font textRenderer, Component text, int x, int y, int color, int outline) {
@@ -456,21 +501,32 @@ public class UIHelper extends GuiComponent {
         Minecraft minecraft = Minecraft.getInstance();
 
         //window
-        double screenX = minecraft.getWindow().getGuiScaledWidth();
-        double screenY = minecraft.getWindow().getGuiScaledHeight();
+        int screenX = minecraft.getWindow().getGuiScaledWidth();
+        int screenY = minecraft.getWindow().getGuiScaledHeight();
+
+        boolean reduced = Configs.REDUCED_MOTION.value;
+
+        //calculate pos
+        int x = reduced ? 0 : mouseX;
+        int y = reduced ? screenY : mouseY - 12;
 
         //prepare text
         Font font = minecraft.font;
-        List<FormattedCharSequence> text = TextUtils.wrapTooltip(tooltip, font, mouseX, (int) screenX);
+        List<FormattedCharSequence> text = TextUtils.wrapTooltip(tooltip, font, x, screenX, 12);
         int height = font.lineHeight * text.size();
 
-        //calculate pos
-        int x = mouseX + 12;
-        int y = (int) Math.min(Math.max(mouseY - 12, 0), screenY - height);
-
+        //clamp position to bounds
+        x += 12;
+        y = Math.min(Math.max(y, 0), screenY - height);
         int width = TextUtils.getWidth(text, font);
         if (x + width > screenX)
-            x = Math.max(x - 24 - width, 0);
+            x = Math.max(x - width - 24, 0);
+
+        if (reduced) {
+            x += (screenX - width) / 2;
+            if (background)
+                y -= 4;
+        }
 
         //render
         stack.pushPose();
@@ -487,24 +543,52 @@ public class UIHelper extends GuiComponent {
         stack.popPose();
     }
 
-    public static void renderScrollingText(PoseStack stack, Component text, int x, int y, int width, int height, int color) {
+    public static void renderScrollingText(PoseStack stack, Component text, int x, int y, int width, int color) {
+        Font font = Minecraft.getInstance().font;
+        int textWidth = font.width(text);
+        int textX = x;
+
+        //the text fit :D
+        if (textWidth <= width) {
+            font.draw(stack, text, textX, y, color);
+            return;
+        }
+
+        //oh, no it doesn't fit
+        textX += getTextScrollingOffset(textWidth, width, false);
+
+        //draw text
+        setupScissor(x, y, width, font.lineHeight);
+        font.draw(stack, text, textX, y, color);
+        disableScissor();
+    }
+
+    public static void renderCenteredScrollingText(PoseStack stack, Component text, int x, int y, int width, int height, int color) {
         Font font = Minecraft.getInstance().font;
         int textWidth = font.width(text);
         int textX = x + width / 2;
         int textY = y + height / 2 - font.lineHeight / 2;
 
         //the text fit :D
-        if (textWidth <= width - 2) {
+        if (textWidth <= width) {
             drawCenteredString(stack, font, text, textX, textY, color);
             return;
         }
 
         //oh, no it doesn't fit
+        textX += getTextScrollingOffset(textWidth, width, true);
 
-        float speed = Configs.TEXT_SCROLL_SPEED.value;
-        int scrollLen = textWidth - (width - 4);
-        int startingOffset = scrollLen / 2;
-        int stopDelay = (int) (Configs.TEXT_SCROLL_DELAY.value * speed);
+        //draw text
+        setupScissor(x, y, width, height);
+        drawCenteredString(stack, font, text, textX, textY, color);
+        disableScissor();
+    }
+
+    private static int getTextScrollingOffset(int textWidth, int width, boolean centered) {
+        float speed = Configs.TEXT_SCROLL_SPEED.tempValue;
+        int scrollLen = textWidth - width;
+        int startingOffset = (int) Math.ceil(scrollLen / 2d);
+        int stopDelay = (int) (Configs.TEXT_SCROLL_DELAY.tempValue * speed);
         int time = scrollLen + stopDelay;
         int totalTime = time * 2;
         int ticks = (int) (FiguraMod.ticks * speed);
@@ -512,11 +596,14 @@ public class UIHelper extends GuiComponent {
         int dir = (ticks % totalTime) > time - 1 ? 1 : -1;
 
         int clamp = Math.min(Math.max(currentTime - stopDelay, 0), scrollLen);
-        textX += (startingOffset - clamp) * dir;
+        return (startingOffset - clamp) * dir - (centered ? 0 : startingOffset);
+    }
 
-        setupScissor(x + 1, y, width - 2, height);
-        drawCenteredString(stack, font, text, textX, textY, color);
-        disableScissor();
+    public static Runnable openURL(String url) {
+        Minecraft minecraft = Minecraft.getInstance();
+        return () -> minecraft.setScreen(new FiguraConfirmScreen.FiguraConfirmLinkScreen((bl) -> {
+            if (bl) Util.getPlatform().openUri(url);
+        }, url, minecraft.screen));
     }
 
     public static void setContext(ContextMenu context) {

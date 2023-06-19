@@ -15,6 +15,7 @@ public class ColorUtils {
         MAYA_BLUE(0x00F0FF, "maya", "devnull", "limits"),
         SKYE_BLUE(0x99BBEE, "sky", "skye", "skylar"),
         LILY_RED(0xFF2400, "lily", "foxes", "fox"),
+        KIRI_ORANGE(0xFFC400, "kiri"),
 
         CHEESE(0xF8C53A, "largecheese", "large cheese"),
 
@@ -23,7 +24,12 @@ public class ColorUtils {
         LUA_PING(0xA155DA, "luna", "moff", "moth"),
 
         DEFAULT(0x5AAAFF),
-        DISCORD(0x5865F2);
+        DISCORD(0x5865F2),
+        KOFI(0x27AAE0),
+        GITHUB(0xFFFFFF),
+        REDDIT(0xFF4400),
+        MODRINTH(0x1BD96A),
+        CURSEFORGE(0xF16436);
 
         public final int hex;
         public final FiguraVec3 vec;

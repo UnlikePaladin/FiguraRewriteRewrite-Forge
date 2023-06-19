@@ -9,7 +9,7 @@ import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.FiguraText;
 import org.moon.figura.utils.ui.UIHelper;
 
-public class SwitchButton extends TexturedButton {
+public class SwitchButton extends Button {
 
     public static final ResourceLocation SWITCH_TEXTURE = new FiguraIdentifier("textures/gui/switch.png");
     public static final Component ON = new FiguraText("gui.on");
@@ -31,8 +31,8 @@ public class SwitchButton extends TexturedButton {
     }
 
     //default texture constructor
-    public SwitchButton(int x, int y, int width, int height, boolean toggled) {
-        super(x, y, width, height, 0, 0, 10, SWITCH_TEXTURE, 30, 40, null, button -> {});
+    public SwitchButton(int x, int y, int width, int height, Component text, boolean toggled) {
+        super(x, y, width, height, text, null, button -> {});
         this.toggled = toggled;
         this.headPos = toggled ? 20f : 0f;
         defaultTexture = true;
@@ -45,22 +45,27 @@ public class SwitchButton extends TexturedButton {
     }
 
     @Override
-    protected void renderTexture(PoseStack stack, float delta) {
+    protected void renderText(PoseStack stack, float delta) {
+        //draw text
+        Component text = this.toggled && underline ? getMessage().copy().withStyle(ChatFormatting.UNDERLINE) : getMessage();
+        int x = this.x + 1;
+        int width = getWidth() - 2;
+
         if (defaultTexture) {
-            renderDefaultTexture(stack, delta);
-        } else {
-            super.renderTexture(stack, delta);
+            x += 31;
+            width -= 31;
         }
+
+        UIHelper.renderCenteredScrollingText(stack, text, x, this.y, width, getHeight(), getTextColor());
     }
 
     @Override
-    protected void renderText(PoseStack stack) {
-        //draw text
-        int color = (!this.active ? ChatFormatting.DARK_GRAY : ChatFormatting.WHITE).getColor();
-        UIHelper.renderScrollingText(stack, this.toggled && underline ? getMessage().copy().withStyle(ChatFormatting.UNDERLINE) : getMessage(), x, y, getWidth(), getHeight(), color);
-    }
-
     protected void renderDefaultTexture(PoseStack stack, float delta) {
+        if (!defaultTexture) {
+            super.renderDefaultTexture(stack, delta);
+            return;
+        }
+
         //set texture
         UIHelper.setupTexture(SWITCH_TEXTURE);
 
@@ -70,6 +75,11 @@ public class SwitchButton extends TexturedButton {
         //render head
         headPos = (float) Mth.lerp(1f - Math.pow(0.2f, delta), headPos, this.toggled ? 20f : 0f);
         blit(stack, Math.round(x + headPos), y, 10, 20, 0f, this.isHoveredOrFocused() ? 20f : 0f, 10, 20, 30, 40);
+    }
+
+    @Override
+    protected int getV() {
+        return isToggled() ? 1 : super.getV();
     }
 
     public boolean isToggled() {

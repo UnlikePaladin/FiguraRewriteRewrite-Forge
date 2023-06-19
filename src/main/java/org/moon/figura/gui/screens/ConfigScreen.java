@@ -6,12 +6,12 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.network.chat.Component;
 import org.moon.figura.config.ConfigManager;
 import org.moon.figura.config.ConfigType;
 import org.moon.figura.gui.PaperDoll;
 import org.moon.figura.gui.widgets.Label;
-import org.moon.figura.gui.widgets.TexturedButton;
+import org.moon.figura.gui.widgets.Button;
+import org.moon.figura.gui.widgets.SearchBar;
 import org.moon.figura.gui.widgets.lists.ConfigList;
 import org.moon.figura.utils.FiguraText;
 import org.moon.figura.utils.IOUtils;
@@ -23,12 +23,10 @@ import java.util.Map;
 
 public class ConfigScreen extends AbstractPanelScreen {
 
-    public static final Component TITLE = new FiguraText("gui.panels.title.settings");
-
     public static final Map<ConfigType.Category, Boolean> CATEGORY_DATA = new HashMap<>();
 
     private ConfigList list;
-    private TexturedButton cancel;
+    private Button cancel;
     private final boolean hasPanels;
     public boolean renderPaperdoll;
 
@@ -37,13 +35,8 @@ public class ConfigScreen extends AbstractPanelScreen {
     }
 
     public ConfigScreen(Screen parentScreen, boolean enablePanels) {
-        super(parentScreen, TITLE, ConfigScreen.class);
+        super(parentScreen, new FiguraText("gui.panels.title.settings"));
         this.hasPanels = enablePanels;
-    }
-
-    @Override
-    public Component getTitle() {
-        return TITLE;
     }
 
     @Override
@@ -53,32 +46,36 @@ public class ConfigScreen extends AbstractPanelScreen {
 
         if (!hasPanels) {
             this.removeWidget(panels);
-            this.addRenderableWidget(new Label(TITLE, this.width / 2, 14, TextUtils.Alignment.CENTER));
+            Label l;
+            this.addRenderableWidget(l = new Label(getTitle(), this.width / 2, 14, TextUtils.Alignment.CENTER));
+            l.centerVertically = true;
         }
+
+        // -- middle -- //
+
+        int width = Math.min(this.width - 8, 420);
+        list = new ConfigList((this.width - width) / 2, 52, width, height - 80, this);
+
+        this.addRenderableWidget(new SearchBar(this.width / 2 - 122, 28, 244, 20, query -> list.updateSearch(query.toLowerCase())));
+        this.addRenderableWidget(list);
 
         // -- bottom buttons -- //
 
         //cancel
-        this.addRenderableWidget(cancel = new TexturedButton(width / 2 - 122, height - 24, 120, 20, new FiguraText("gui.cancel"), null, button -> {
+        this.addRenderableWidget(cancel = new Button(this.width / 2 - 122, height - 24, 120, 20, new FiguraText("gui.cancel"), null, button -> {
             ConfigManager.discardConfig();
             list.updateList();
         }));
+        cancel.setActive(false);
 
         //done
-        addRenderableWidget(new TexturedButton(width / 2 + 4, height - 24, 120, 20, new FiguraText("gui.done"), null,
-                button -> this.minecraft.setScreen(parentScreen)
-        ));
-
-        // -- config list -- //
-
-        int width = Math.min(this.width - 8, 420);
-        this.addRenderableWidget(list = new ConfigList((this.width - width) / 2, 28, width, height - 56, this));
+        addRenderableWidget(new Button(this.width / 2 + 2, height - 24, 120, 20, new FiguraText("gui.done"), null, button -> onClose()));
     }
 
     @Override
     public void tick() {
         super.tick();
-        this.cancel.active = list.hasChanges();
+        this.cancel.setActive(list.hasChanges());
     }
 
     @Override

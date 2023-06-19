@@ -13,13 +13,11 @@ import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.ducks.GameRendererAccessor;
 import org.moon.figura.math.vector.FiguraVec3;
-import org.moon.figura.model.rendering.EntityRenderMode;
-import org.moon.figura.permissions.Permissions;
 import org.moon.figura.utils.EntityUtils;
+import org.moon.figura.utils.RenderUtils;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Slice;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(GameRenderer.class)
@@ -36,13 +34,11 @@ public abstract class GameRendererMixin implements GameRendererAccessor {
 
     @Unique
     private boolean avatarPostShader = false;
-    @Unique
-    private Avatar avatar;
 
     @Inject(method = "renderLevel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setup(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/world/entity/Entity;ZZF)V", shift = At.Shift.BEFORE))
     private void onCameraRotation(float tickDelta, long limitTime, PoseStack matrix, CallbackInfo ci) {
         Avatar avatar = AvatarManager.getAvatar(this.minecraft.getCameraEntity() == null ? this.minecraft.player : this.minecraft.getCameraEntity());
-        if (avatar == null || avatar.luaRuntime == null || avatar.permissions.get(Permissions.VANILLA_MODEL_EDIT) == 0)
+        if (!RenderUtils.vanillaModelAndScript(avatar))
             return;
 
         float z = 0f;
@@ -62,7 +58,7 @@ public abstract class GameRendererMixin implements GameRendererAccessor {
     private void render(float tickDelta, long startTime, boolean tick, CallbackInfo ci) {
         Entity entity = this.minecraft.getCameraEntity();
         Avatar avatar = AvatarManager.getAvatar(entity);
-        if (avatar == null || avatar.luaRuntime == null || avatar.permissions.get(Permissions.VANILLA_MODEL_EDIT) == 0) {
+        if (!RenderUtils.vanillaModelAndScript(avatar)) {
             if (avatarPostShader) {
                 avatarPostShader = false;
                 this.checkEntityPostEffect(entity);
@@ -156,7 +152,7 @@ public abstract class GameRendererMixin implements GameRendererAccessor {
     @Inject(method = "tickFov", at = @At("RETURN"))
     private void tickFov(CallbackInfo ci) {
         Avatar avatar = AvatarManager.getAvatar(this.minecraft.getCameraEntity());
-        if (avatar != null && avatar.luaRuntime != null && avatar.permissions.get(Permissions.VANILLA_MODEL_EDIT) == 1) {
+        if (RenderUtils.vanillaModelAndScript(avatar)) {
             Float fov = avatar.luaRuntime.renderer.fov;
             if (fov != null) this.fov = fov;
         }

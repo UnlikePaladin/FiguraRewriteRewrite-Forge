@@ -47,7 +47,7 @@ public class EntityNameplateCustomization extends NameplateCustomization {
             value = "nameplate_entity.set_pivot"
     )
     public EntityNameplateCustomization setPivot(Object x, Double y, Double z) {
-        this.pivot = x == null ? null : LuaUtils.parseVec3("setPivot", x, y, z);
+        this.pivot = LuaUtils.nullableVec3("setPivot", x, y, z);
         return this;
     }
 
@@ -78,7 +78,7 @@ public class EntityNameplateCustomization extends NameplateCustomization {
             value = "nameplate_entity.set_pos"
     )
     public EntityNameplateCustomization setPos(Object x, Double y, Double z) {
-        this.position = x == null ? null : LuaUtils.parseVec3("setPos", x, y, z);
+        this.position = LuaUtils.nullableVec3("setPos", x, y, z);
         return this;
     }
 
@@ -109,7 +109,7 @@ public class EntityNameplateCustomization extends NameplateCustomization {
             value = "nameplate_entity.set_scale"
     )
     public EntityNameplateCustomization setScale(Object x, Double y, Double z) {
-        this.scale = x == null ? null : LuaUtils.parseVec3("setScale", x, y, z, 1, 1, 1);
+        this.scale = x == null ? null : LuaUtils.parseOneArgVec("setScale", x, y, z, 1d);
         return this;
     }
 

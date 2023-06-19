@@ -9,6 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.FiguraResourceListener;
+import org.moon.figura.utils.FiguraText;
 import org.moon.figura.utils.TextUtils;
 
 import java.io.InputStream;
@@ -19,36 +20,43 @@ import java.util.*;
 public class Emojis {
 
     private static final List<EmojiContainer> EMOJIS = new ArrayList<>();
-    private static final char DELIMITER = ':';
-    private static final char ESCAPE = '\\';
+    public static final char DELIMITER = ':';
+    public static final char ESCAPE = '\\';
 
     //listener to load emojis from the resource pack
     public static final FiguraResourceListener RESOURCE_LISTENER = new FiguraResourceListener("emojis", manager -> {
         EMOJIS.clear();
 
-        //open the resource as json
-        try (InputStream stream = manager.getResource(new FiguraIdentifier("emojis.json")).getInputStream()) {
-            JsonObject emojis = JsonParser.parseReader(new InputStreamReader(stream, StandardCharsets.UTF_8)).getAsJsonObject();
+        for (ResourceLocation location : manager.listResources("emojis", location -> location.endsWith(".json"))) {
+            String[] split = location.getPath().split("/", 2);
 
-            //read a pair or String, JsonObject from this json
-            for (Map.Entry<String, JsonElement> entry : emojis.entrySet())
-                EMOJIS.add(new EmojiContainer(entry.getKey(), entry.getValue().getAsJsonObject()));
+            if (split.length <= 1)
+                continue;
 
-            //check for duplicates
-            Set<String> set = new HashSet<>();
-            for (EmojiContainer emoji : EMOJIS) {
-                for (String s : emoji.map.keySet()) {
-                    if (!set.add(s)) {
-                        FiguraMod.LOGGER.warn("Duplicate emoji id registered {}", s);
+            String name = split[1].substring(0, split[1].length() - 5);
+
+            //open the resource as json
+            try (InputStream stream = manager.getResource(location).getInputStream()) {
+                //add emoji
+                JsonObject json = JsonParser.parseReader(new InputStreamReader(stream, StandardCharsets.UTF_8)).getAsJsonObject();
+                EMOJIS.add(new EmojiContainer(name, json));
+
+                //check for duplicates
+                Set<String> set = new HashSet<>();
+                for (EmojiContainer emoji : EMOJIS) {
+                    for (String s : emoji.map.keySet()) {
+                        if (!set.add(s)) {
+                            FiguraMod.LOGGER.warn("Duplicate emoji id registered {}", s);
+                        }
                     }
                 }
+            } catch (Exception e) {
+                FiguraMod.LOGGER.error("Failed to load {} emojis", name, e);
             }
-        } catch (Exception e) {
-            FiguraMod.LOGGER.error("Failed to load emojis", e);
         }
     });
 
-    public static Component applyEmojis(Component text) {
+    public static MutableComponent applyEmojis(Component text) {
         Component newText = TextUtils.parseLegacyFormatting(text);
         MutableComponent ret = TextComponent.EMPTY.copy();
         newText.visit((style, string) -> {
@@ -58,9 +66,9 @@ public class Emojis {
         return ret;
     }
 
-    private static Component convertEmoji(String string, Style style) {
+    private static MutableComponent convertEmoji(String string, Style style) {
         //if the string does not contain the delimiter, then return
-        if (!string.contains(":"))
+        if (string.indexOf(DELIMITER) == -1)
             return new TextComponent(string).withStyle(style);
 
         //string lists, every odd index is an emoji
@@ -92,6 +100,15 @@ public class Emojis {
             } else {
                 escaped = false;
                 current.append(c);
+
+                //space character breaks current emoji parsing
+                if (c == ' ' && inside) {
+                    inside = false;
+                    //removed last appended emoji, as were undoing the parsing of the emoji
+                    String removed = strings.remove(strings.size() - 1);
+                    //replace current with the removed string, adding back the delimiter and appending the current parsed text
+                    current = new StringBuilder(removed).append(DELIMITER).append(current);
+                }
             }
         }
 
@@ -144,22 +161,47 @@ public class Emojis {
         return text;
     }
 
+    public static List<String> getMatchingEmojis(String query) {
+        if (query.length() == 0 || query.charAt(0) != DELIMITER)
+            return List.of();
+
+        String name = query.substring(1);
+        List<String> emojis = new ArrayList<>();
+
+        for (EmojiContainer container : EMOJIS) {
+            for (String s : container.map.keySet()) {
+                if (s.startsWith(name))
+                    emojis.add(DELIMITER + s + DELIMITER);
+            }
+        }
+
+        return emojis;
+    }
+
     private static class EmojiContainer {
         private static final Style STYLE = Style.EMPTY.withColor(ChatFormatting.WHITE);
 
+        private final String name;
         private final ResourceLocation font;
         private final Map<String, String> map = new HashMap<>(); //<EmojiName, Unicode>
         private final String blacklist;
 
         public EmojiContainer(String name, JsonObject data) {
+            this.name = name;
             this.font = new FiguraIdentifier("emoji_" + name);
             this.blacklist = data.get("blacklist").getAsString();
 
             //key = emoji unicode, value = array of names
             for (Map.Entry<String, JsonElement> emoji : data.get("emojis").getAsJsonObject().entrySet()) {
                 String unicode = emoji.getKey();
-                for (JsonElement element : emoji.getValue().getAsJsonArray())
-                    map.put(element.getAsString(), unicode);
+                for (JsonElement element : emoji.getValue().getAsJsonArray()) {
+                    String key = element.getAsString();
+                    if (key.isBlank() || key.indexOf(' ') != -1 || key.indexOf(DELIMITER) != -1) {
+                        FiguraMod.LOGGER.warn("Invalid emoji name \"{}\" @ \"{}\"", key, name);
+                    } else {
+                        map.put(key, unicode);
+                    }
+                }
             }
         }
 
@@ -167,7 +209,11 @@ public class Emojis {
             String emoji = map.get(key.toLowerCase());
             if (emoji == null)
                 return null;
-            return new TextComponent(emoji).withStyle(STYLE.withFont(font).withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new TextComponent(DELIMITER + key + DELIMITER))));
+            return new TextComponent(emoji).withStyle(STYLE.withFont(font).withHoverEvent(
+                    new HoverEvent(HoverEvent.Action.SHOW_TEXT, new TextComponent(DELIMITER + key + DELIMITER)
+                            .append("\n")
+                            .append(new FiguraText("emoji." + name).withStyle(ChatFormatting.DARK_GRAY)))
+            ));
         }
 
         public Component blacklist(Component text) {

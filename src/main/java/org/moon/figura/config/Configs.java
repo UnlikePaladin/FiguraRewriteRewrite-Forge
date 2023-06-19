@@ -10,9 +10,10 @@ import org.moon.figura.avatar.local.CacheAvatarLoader;
 import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.backend2.NetworkStuff;
 import org.moon.figura.config.ConfigType.*;
+import org.moon.figura.gui.FiguraToast;
 import org.moon.figura.gui.screens.ConfigScreen;
 import org.moon.figura.lua.FiguraLuaPrinter;
-import org.moon.figura.model.rendering.texture.FiguraTexture;
+import org.moon.figura.lua.api.ConfigAPI;
 import org.moon.figura.permissions.PermissionManager;
 import org.moon.figura.permissions.Permissions;
 import org.moon.figura.resources.FiguraRuntimeResources;
@@ -66,43 +67,41 @@ public class Configs {
 
     public static final BoolConfig
             SELF_NAMEPLATE = new BoolConfig("self_nameplate", NAMEPLATE, false),
-            PREVIEW_NAMEPLATE = new BoolConfig("preview_nameplate", NAMEPLATE, false);
+            PREVIEW_NAMEPLATE = new BoolConfig("preview_nameplate", NAMEPLATE, false),
+            SOUND_BADGE = new BoolConfig("sound_badge", NAMEPLATE, true);
+    private static final String NAMEPLATE_PATH = "config.nameplate_level.";
+    private static final List<Component> NAMEPLATE_ENUM = List.of(
+            new FiguraText(NAMEPLATE_PATH + "1"),
+            new FiguraText(NAMEPLATE_PATH + "2"),
+            new FiguraText(NAMEPLATE_PATH + "3")
+    );
+    private static final List<Component> NAMEPLATE_TOOLTIP = List.of(
+            new FiguraText(NAMEPLATE_PATH + "1.tooltip"),
+            new FiguraText(NAMEPLATE_PATH + "2.tooltip"),
+            new FiguraText(NAMEPLATE_PATH + "3.tooltip")
+    );
     public static final EnumConfig
             NAMEPLATE_RENDER = new EnumConfig("nameplate_render", NAMEPLATE, 0, 3),
             CHAT_NAMEPLATE = new EnumConfig("chat_nameplate", NAMEPLATE, 2, 3) {{
-                String path = "config.nameplate_level";
-                this.enumTooltip = new FiguraText(path + ".enum");
-                this.enumList = List.of(
-                        new FiguraText(path + ".1"),
-                        new FiguraText(path + ".2"),
-                        new FiguraText(path + ".3")
-                );
+                this.enumList = NAMEPLATE_ENUM;
+                this.enumTooltip = NAMEPLATE_TOOLTIP;
             }},
             ENTITY_NAMEPLATE = new EnumConfig("entity_nameplate", NAMEPLATE, 2, 3) {{
-                String path = "config.nameplate_level";
-                this.enumTooltip = new FiguraText(path + ".enum");
-                this.enumList = List.of(
-                        new FiguraText(path + ".1"),
-                        new FiguraText(path + ".2"),
-                        new FiguraText(path + ".3")
-                );
+                this.enumList = NAMEPLATE_ENUM;
+                this.enumTooltip = NAMEPLATE_TOOLTIP;
             }},
             LIST_NAMEPLATE = new EnumConfig("list_nameplate", NAMEPLATE, 2, 3) {{
-                String path = "config.nameplate_level";
-                this.enumTooltip = new FiguraText(path + ".enum");
-                this.enumList = List.of(
-                        new FiguraText(path + ".1"),
-                        new FiguraText(path + ".2"),
-                        new FiguraText(path + ".3")
-                );
+                this.enumList = NAMEPLATE_ENUM;
+                this.enumTooltip = NAMEPLATE_TOOLTIP;
             }};
 
 
     // -- script -- //
 
+
     public static final EnumConfig
             LOG_LOCATION = new EnumConfig("log_location", SCRIPT, 0, 2),
-            FORMAT_SCRIPT = new EnumConfig("format_script", SCRIPT, 1, 3) {
+            FORMAT_SCRIPT = new EnumConfig("format_script", SCRIPT, 1, 4) {
                 {
                     String tooltip = "config.format_script.tooltip.";
                     this.tooltip = new FiguraText(tooltip + "1")
@@ -130,8 +129,8 @@ public class Configs {
 
 
     public static final EnumConfig
-            IRIS_COMPATIBILITY_FIX = new EnumConfig("iris_compatibility_fix", RENDERING, 2, 3),
-            RENDER_DEBUG_PARTS_PIVOT = new EnumConfig("render_debug_parts_pivot", RENDERING, 1, 5) {{
+            IRIS_COMPATIBILITY_FIX = new EnumConfig("iris_compatibility_fix", RENDERING, 1, 3),
+            RENDER_DEBUG_PARTS_PIVOT = new EnumConfig("render_debug_parts_pivot", RENDERING, 1, 3) {{
                     String tooltip = "config.render_debug_parts_pivot.tooltip";
                     this.tooltip = new FiguraText(tooltip,
                             new FiguraText(tooltip + ".cubes").setStyle(ColorUtils.Colors.FRAN_PINK.style),
@@ -152,7 +151,7 @@ public class Configs {
     public static final PositiveFloatConfig
             ACTION_WHEEL_SCALE = new PositiveFloatConfig("action_wheel_scale", ACTION_WHEEL, 1f);
     public static final EnumConfig
-            ACTION_WHEEL_TITLE = new EnumConfig("action_wheel_title", ACTION_WHEEL, 0, 5),
+            ACTION_WHEEL_TITLE = new EnumConfig("action_wheel_title", ACTION_WHEEL, 0, 7),
             ACTION_WHEEL_SLOTS_INDICATOR = new EnumConfig("action_wheel_slots_indicator", ACTION_WHEEL, 0, 3);
     public static final BoolConfig
             ACTION_WHEEL_DECORATIONS = new BoolConfig("action_wheel_decorations", ACTION_WHEEL, true);
@@ -164,9 +163,7 @@ public class Configs {
     public static final BoolConfig
             FIGURA_INVENTORY = new BoolConfig("figura_inventory", UI, true),
             PREVIEW_HEAD_ROTATION = new BoolConfig("preview_head_rotation", UI, false),
-            AVATAR_PORTRAITS = new BoolConfig("avatar_portraits", UI, false) {{
-                this.disabled = true;
-            }},
+            AVATAR_PORTRAIT = new BoolConfig("avatar_portrait", UI, true),
             WARDROBE_FILE_NAMES = new BoolConfig("wardrobe_file_names", UI, false);
     public static final FloatConfig
             BACKGROUND_SCROLL_SPEED = new FloatConfig("background_scroll_speed", UI, 1f);
@@ -179,6 +176,8 @@ public class Configs {
             TEXT_SCROLL_SPEED = new PositiveFloatConfig("text_scroll_speed", UI, 1f);
     public static final PositiveIntConfig
             TEXT_SCROLL_DELAY = new PositiveIntConfig("text_scroll_delay", UI, 20);
+    public static final BoolConfig
+            REDUCED_MOTION = new BoolConfig("reduced_motion", UI, false);
 
 
     // -- PAPERDOLL -- //
@@ -227,9 +226,9 @@ public class Configs {
                     super.onChange();
                     PermissionManager.saveToDisk();
                 }
-            };
+            },
+            EMOJIS = new EnumConfig("emojis", MISC, 1, 3);
     public static final BoolConfig
-            CHAT_EMOJIS = new BoolConfig("chat_emojis", MISC, false),
             EASTER_EGGS = new BoolConfig("easter_eggs", MISC, true);
 
 
@@ -237,7 +236,7 @@ public class Configs {
 
 
     public static final BoolConfig
-            CONNECTION_TOASTS = new BoolConfig("connection_toasts", DEV, true),
+            CONNECTION_TOASTS = new BoolConfig("connection_toasts", DEV, false),
             LOG_OTHERS = new BoolConfig("log_others", DEV, false);
     public static final EnumConfig
             LOG_PINGS = new EnumConfig("log_pings", DEV, 0, 3);
@@ -260,7 +259,7 @@ public class Configs {
     public static final FolderConfig
             MAIN_DIR = new FolderConfig("main_dir", DEV, "");
     public static final IPConfig
-            SERVER_IP = new IPConfig("server_ip", DEV, "figura.moonlight-devs.org:25565") {
+            SERVER_IP = new IPConfig("server_ip", DEV, "figura.moonlight-devs.org") {
                 @Override
                 public void onChange() {
                     super.onChange();
@@ -273,11 +272,17 @@ public class Configs {
                 CacheAvatarLoader.clearCache();
                 LocalAvatarFetcher.clearCache();
                 ConfigScreen.clearCache();
-                FiguraTexture.deleteCache();
                 FiguraRuntimeResources.clearCache();
+                FiguraToast.sendToast(new FiguraText("toast.cache_clear"));
             }),
             REDOWNLOAD_ASSETS = new ButtonConfig("redownload_assets", DEV, () -> {
                 FiguraRuntimeResources.init();
                 Minecraft.getInstance().reloadResourcePacks();
+            }),
+            CLEAR_AVATAR_DATA = new ButtonConfig("clear_avatar_data", DEV, () -> {
+                ConfigAPI.clearAllData();
+                FiguraToast.sendToast(new FiguraText("toast.avatar_data_clear"));
             });
+    public static final BoolConfig
+            FORCE_SMOOTH_AVATAR = new BoolConfig("force_smooth_avatar", DEV, false);
 }

@@ -24,10 +24,10 @@ public class FiguraMat4 extends FiguraMatrix<FiguraMat4, FiguraVec4> {
 
     private static final FloatBuffer copyingBuffer = BufferUtils.createFloatBuffer(4 * 4);
 
-    public static FiguraMat4 fromMatrix4f(Matrix4f mat) {
+    public FiguraMat4 set(Matrix4f mat) {
         copyingBuffer.clear();
         mat.store(copyingBuffer);
-        return of(copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get(),
+        return set(copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get(),
                 copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get(),
                 copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get(),
                 copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get(), copyingBuffer.get());
@@ -539,7 +539,7 @@ public class FiguraMat4 extends FiguraMatrix<FiguraMat4, FiguraVec4> {
             value = "matrix_n.scale"
     )
     public FiguraMat4 scale(Object x, Double y, Double z) {
-        return scale(LuaUtils.parseVec3("scale", x, y, z, 1, 1, 1));
+        return scale(LuaUtils.parseOneArgVec("scale", x, y, z, 1d));
     }
 
     public FiguraMat4 translate(double x, double y, double z) {

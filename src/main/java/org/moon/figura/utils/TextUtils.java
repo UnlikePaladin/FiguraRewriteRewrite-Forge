@@ -12,12 +12,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 public class TextUtils {
 
     public static final Component TAB = new FiguraText("tab");
     public static final Component ELLIPSIS = new FiguraText("ellipsis");
     public static final Component UNKNOWN = new TextComponent("�").withStyle(Style.EMPTY.withFont(Style.DEFAULT_FONT));
+
+    public static boolean allowScriptEvents;
 
     public static List<Component> splitText(FormattedText text, String regex) {
         //list to return
@@ -52,9 +55,13 @@ public class TextUtils {
     }
 
     public static Component removeClickableObjects(FormattedText text) {
+        return removeClickableObjects(text, p -> true);
+    }
+
+    public static Component removeClickableObjects(FormattedText text, Predicate<ClickEvent> pred) {
         MutableComponent ret = TextComponent.EMPTY.copy();
         text.visit((style, string) -> {
-            ret.append(new TextComponent(string).withStyle(style.withClickEvent(null)));
+            ret.append(new TextComponent(string).withStyle(style.getClickEvent() != null && pred.test(style.getClickEvent()) ? style.withClickEvent(null) : style));
             return Optional.empty();
         }, Style.EMPTY);
         return ret;
@@ -91,11 +98,15 @@ public class TextUtils {
     }
 
     public static Component replaceInText(FormattedText text, String regex, Object replacement, BiPredicate<String, Style> predicate, int times) {
+        return replaceInText(text, regex, replacement, predicate, 0, times);
+    }
+
+    public static Component replaceInText(FormattedText text, String regex, Object replacement, BiPredicate<String, Style> predicate, int beginIndex, int times) {
         //fix replacement object
         Component replace = replacement instanceof Component c ? c : new TextComponent(replacement.toString());
         MutableComponent ret = TextComponent.EMPTY.copy();
 
-        int[] remaining = {times};
+        int[] ints = {beginIndex, times};
         text.visit((style, string) -> {
             //test predicate
             if (!predicate.test(string, style)) {
@@ -106,13 +117,19 @@ public class TextUtils {
             //split
             String[] split = string.split("((?<=" + regex + ")|(?=" + regex + "))");
             for (String s : split) {
-                //append the text if it does not match the split, otherwise append the replacement instead
-                if (!s.matches(regex) || remaining[0] <= 0)
+                if (!s.matches(regex)) {
                     ret.append(new TextComponent(s).withStyle(style));
-                else {
-                    ret.append(TextComponent.EMPTY.copy().withStyle(style).append(replace));
-                    remaining[0]--;
+                    continue;
                 }
+
+                if (ints[0] > 0 || ints[1] <= 0) {
+                    ret.append(new TextComponent(s).withStyle(style));
+                } else {
+                    ret.append(TextComponent.EMPTY.copy().withStyle(style).append(replace));
+                }
+
+                ints[0]--;
+                ints[1]--;
             }
 
             return Optional.empty();
@@ -140,13 +157,13 @@ public class TextUtils {
         return TextUtils.replaceInText(text, "\\t", TAB);
     }
 
-    public static List<FormattedCharSequence> wrapTooltip(FormattedText text, Font font, int mousePos, int screenWidth) {
+    public static List<FormattedCharSequence> wrapTooltip(FormattedText text, Font font, int mousePos, int screenWidth, int offset) {
         //first split the new line text
         List<Component> splitText = TextUtils.splitText(text, "\n");
 
         //get the possible tooltip width
-        int left = mousePos - 12;
-        int right = screenWidth - mousePos - 12;
+        int left = mousePos - offset;
+        int right = screenWidth - mousePos - offset;
 
         //get largest text size
         int largest = getWidth(splitText, font);
@@ -178,10 +195,10 @@ public class TextUtils {
         return width;
     }
 
-    public static Component replaceStyle(FormattedText text, Style newStyle) {
+    public static Component replaceStyle(FormattedText text, Style newStyle, Predicate<Style> predicate) {
         MutableComponent ret = TextComponent.EMPTY.copy();
         text.visit((style, string) -> {
-            ret.append(new TextComponent(string).withStyle(newStyle));
+            ret.append(new TextComponent(string).withStyle(predicate.test(style) ? newStyle.applyTo(style) : style));
             return Optional.empty();
         }, Style.EMPTY);
         return ret;
