@@ -78,7 +78,7 @@ public class AvatarAPI {
             value = "avatar.set_color"
     )
     public AvatarAPI setColor(Object r, Double g, Double b) {
-        FiguraVec3 vec = LuaUtils.parseVec3("setColor", r, g, b, 1, 1, 1);
+        FiguraVec3 vec = LuaUtils.parseOneArgVec("setColor", r, g, b, 1d);
         avatar.color = ColorUtils.rgbToHex(vec);
         return this;
     }
@@ -104,6 +104,12 @@ public class AvatarAPI {
     @LuaMethodDoc("avatar.get_name")
     public String getName() {
         return avatar.name;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("avatar.get_entity_name")
+    public String getEntityName() {
+        return avatar.entityName;
     }
 
     @LuaWhitelist
@@ -252,6 +258,18 @@ public class AvatarAPI {
     }
 
     @LuaWhitelist
+    @LuaMethodDoc("avatar.get_animation_count")
+    public int getAnimationCount() {
+        return avatar.animation.pre;
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("avatar.get_max_animation_count")
+    public int getMaxAnimationCount() {
+        return avatar.permissions.get(Permissions.ANIMATION_INST);
+    }
+
+    @LuaWhitelist
     @LuaMethodDoc("avatar.get_max_texture_size")
     public int getMaxTextureSize() {
         return avatar.permissions.get(Permissions.TEXTURE_SIZE);
@@ -282,9 +300,9 @@ public class AvatarAPI {
     }
 
     @LuaWhitelist
-    @LuaMethodDoc("avatar.can_have_custom_heads")
-    public boolean canHaveCustomHeads() {
-        return bool(Permissions.CUSTOM_HEADS);
+    @LuaMethodDoc("avatar.can_have_custom_skull")
+    public boolean canHaveCustomSkull() {
+        return bool(Permissions.CUSTOM_SKULL);
     }
 
     @Override

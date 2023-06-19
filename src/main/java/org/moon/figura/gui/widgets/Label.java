@@ -7,8 +7,11 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.narration.NarratedElementType;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
+import net.minecraft.util.Mth;
+import org.moon.figura.utils.MathUtils;
 import org.moon.figura.utils.TextUtils;
 import org.moon.figura.utils.ui.UIHelper;
 
@@ -23,17 +26,19 @@ public class Label implements FiguraWidget, GuiEventListener, NarratableEntry {
     public TextUtils.Alignment alignment;
     public Integer outlineColor;
     public Integer backgroundColor;
-    public int alpha = 0xFF;
+    private Integer alpha;
+    private int alphaPrecise = 0xFF;
     public int maxWidth;
     public boolean wrap;
 
     private Style hovered;
 
     //widget
-    public int x, y;
+    private int x, y;
     private int width, height;
     private float scale;
     private boolean visible = true;
+    public boolean centerVertically;
 
     public Label(Object text, int x, int y, float scale, int maxWidth, boolean wrap, TextUtils.Alignment alignment, Integer outlineColor) {
         this.font = Minecraft.getInstance().font;
@@ -60,8 +65,8 @@ public class Label implements FiguraWidget, GuiEventListener, NarratableEntry {
         this(text, x, y, 1f, -1, false, alignment, outlineColor);
     }
 
-    public Label(Object text, int x, int y, int maxWidth, boolean wrap) {
-        this(text, x, y, 1f, maxWidth, wrap, TextUtils.Alignment.LEFT, null);
+    public Label(Object text, int x, int y, int maxWidth, boolean wrap, TextUtils.Alignment alignment) {
+        this(text, x, y, 1f, maxWidth, wrap, alignment, null);
     }
 
     @Override
@@ -72,7 +77,7 @@ public class Label implements FiguraWidget, GuiEventListener, NarratableEntry {
             return;
 
         renderBackground(stack);
-        renderText(stack, mouseX, mouseY);
+        renderText(stack, mouseX, mouseY, delta);
     }
 
     private void renderBackground(PoseStack stack) {
@@ -85,17 +90,20 @@ public class Label implements FiguraWidget, GuiEventListener, NarratableEntry {
         UIHelper.fill(stack, x, y, x + width, y + height, backgroundColor);
     }
 
-    private void renderText(PoseStack stack, int mouseX, int mouseY) {
+    private void renderText(PoseStack stack, int mouseX, int mouseY, float delta) {
         stack.pushPose();
-        stack.translate(this.x, this.y, 0);
+        stack.translate(this.x, getY(), 0);
         stack.scale(scale, scale, scale);
+
+        //alpha
+        if (alpha != null) {
+            float lerpDelta = MathUtils.magicDelta(0.6f, delta);
+            alphaPrecise = (int) Mth.lerp(lerpDelta, alphaPrecise, isMouseOver(mouseX, mouseY) ? 0xFF : alpha);
+        }
 
         //prepare pos
         int y = 0;
         int height = font.lineHeight;
-
-        if (alignment == TextUtils.Alignment.CENTER)
-            y -= height * formattedText.size() / 2f;
 
         for (Component text : formattedText) {
             //dimensions
@@ -109,8 +117,10 @@ public class Label implements FiguraWidget, GuiEventListener, NarratableEntry {
                 hovered = font.getSplitter().componentStyleAtWidth(text, pos);
 
                 //add underline for the text with the click event
-                if (hovered != null && hovered.getClickEvent() != null)
-                    text = TextUtils.setStyleAtWidth(text, pos, font, Style.EMPTY.withUnderlined(true));
+                ClickEvent event = hovered != null ? hovered.getClickEvent() : null;
+                if (event != null)
+                    text = TextUtils.replaceStyle(text, Style.EMPTY.withUnderlined(true), style -> event.equals(style.getClickEvent()));
+                    //text = TextUtils.setStyleAtWidth(text, pos, font, Style.EMPTY.withUnderlined(true));
 
                 //set tooltip for hovered text, if any
                 UIHelper.setTooltip(hovered);
@@ -120,7 +130,7 @@ public class Label implements FiguraWidget, GuiEventListener, NarratableEntry {
             if (outlineColor != null) {
                 UIHelper.renderOutlineText(stack, font, text, x, y, 0xFFFFFF, outlineColor);
             } else {
-                font.drawShadow(stack, text, x, y, 0xFFFFFF + (alpha << 24));
+                font.drawShadow(stack, text, x, y, 0xFFFFFF + (alphaPrecise << 24));
             }
 
             y += height;
@@ -172,10 +182,12 @@ public class Label implements FiguraWidget, GuiEventListener, NarratableEntry {
         builder.add(NarratedElementType.POSITION, rawText);
     }
 
+    @Override
     public int getWidth() {
         return width;
     }
 
+    @Override
     public int getHeight() {
         return height;
     }
@@ -196,7 +208,8 @@ public class Label implements FiguraWidget, GuiEventListener, NarratableEntry {
         this.height = (int) (font.lineHeight * formattedText.size() * scale);
     }
 
-    private int getX() {
+    @Override
+    public int getX() {
         int x = this.x;
 
         if (alignment == TextUtils.Alignment.RIGHT)
@@ -207,12 +220,45 @@ public class Label implements FiguraWidget, GuiEventListener, NarratableEntry {
         return x;
     }
 
-    private int getY() {
+    public int getRawX() {
+        return x;
+    }
+
+    @Override
+    public void setX(int x) {
+        this.x = x;
+    }
+
+    @Override
+    public int getY() {
         int y = this.y;
 
-        if (alignment == TextUtils.Alignment.CENTER)
+        if (centerVertically)
             y -= height / 2;
 
         return y;
+    }
+
+    public int getRawY() {
+        return y;
+    }
+
+    @Override
+    public void setY(int y) {
+        this.y = y;
+    }
+
+    @Override
+    public void setWidth(int width) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void setHeight(int height) {
+        throw new UnsupportedOperationException();
+    }
+
+    public void setAlpha(int alpha) {
+        this.alpha = this.alphaPrecise = alpha;
     }
 }

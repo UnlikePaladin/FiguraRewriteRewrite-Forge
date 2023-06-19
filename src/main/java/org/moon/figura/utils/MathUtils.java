@@ -4,6 +4,7 @@ import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 import org.joml.*;
+import org.moon.figura.config.Configs;
 import org.moon.figura.ducks.GameRendererAccessor;
 import org.moon.figura.math.matrix.FiguraMat2;
 import org.moon.figura.math.matrix.FiguraMat3;
@@ -69,7 +70,7 @@ public class MathUtils {
     public static FiguraVec3 toCameraSpace(FiguraVec3 vec) {
         Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
 
-        FiguraMat3 transformMatrix = FiguraMat3.fromMatrix3f(new Matrix3f().rotation(camera.rotation()));
+        FiguraMat3 transformMatrix = FiguraMat3.of().set(new Matrix3f().rotation(camera.rotation()));
         Vec3 pos = camera.getPosition();
         transformMatrix.invert();
 
@@ -87,9 +88,9 @@ public class MathUtils {
         Matrix3f transformMatrix = new Matrix3f().rotation(camera.rotation());
         transformMatrix.invert();
 
-        Vector3f camSpace = new Vector3f((float) worldSpace.x, (float) worldSpace.y, (float) worldSpace.z);
         Vec3 camPos = camera.getPosition();
-        camSpace.sub(new Vector3f((float) camPos.x, (float) camPos.y, (float) camPos.z));
+        FiguraVec3 posDiff = worldSpace.copy().subtract(camPos.x, camPos.y, camPos.z);
+        Vector3f camSpace = posDiff.asVec3f();
         transformMatrix.transform(camSpace);
 
         Vector4f projectiveCamSpace = new Vector4f(camSpace, 1f);
@@ -97,7 +98,7 @@ public class MathUtils {
         projMat.transform(projectiveCamSpace);
         float w = projectiveCamSpace.w();
 
-        return FiguraVec4.of(projectiveCamSpace.x() / w, projectiveCamSpace.y() / w, projectiveCamSpace.z() / w, Math.sqrt(camSpace.dot(camSpace)));
+        return FiguraVec4.of(projectiveCamSpace.x() / w, projectiveCamSpace.y() / w, projectiveCamSpace.z() / w, Math.sqrt(posDiff.dot(posDiff)));
     }
 
     private static final String[] SIZE_UNITS = {"b", "kb", "mb", "gb"};
@@ -113,6 +114,10 @@ public class MathUtils {
         DecimalFormat df = new DecimalFormat("0.00", new DecimalFormatSymbols(Locale.US));
         df.setRoundingMode(RoundingMode.HALF_UP);
         return df.format(size) + SIZE_UNITS[i];
+    }
+
+    public static float magicDelta(float speed, float delta) {
+        return Configs.REDUCED_MOTION.value ? 1f : (float) (1f - Math.pow(speed, delta));
     }
 
     public static FiguraVec3 min(FiguraVec3 val, double min) {

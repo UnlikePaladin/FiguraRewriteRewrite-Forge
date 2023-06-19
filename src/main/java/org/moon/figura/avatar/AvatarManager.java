@@ -20,11 +20,13 @@ import org.moon.figura.gui.widgets.lists.AvatarList;
 import org.moon.figura.lua.api.particle.ParticleAPI;
 import org.moon.figura.lua.api.sound.SoundAPI;
 import org.moon.figura.utils.EntityUtils;
+import org.moon.figura.utils.FiguraResourceListener;
 import org.moon.figura.utils.FiguraText;
 
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * Manages all the avatars that are currently loaded in memory, and also
@@ -37,6 +39,8 @@ public class AvatarManager {
     private static final Set<UUID> FETCHED_USERS = new HashSet<>();
 
     private static final Map<Entity, Avatar> LOADED_CEM = new ConcurrentHashMap<>();
+
+    public static final FiguraResourceListener RESOURCE_RELOAD_EVENT = new FiguraResourceListener("resource_reload_event", manager -> executeAll("resourceReloadEvent", Avatar::resourceReloadEvent));
 
     public static boolean localUploaded = true; //init as true :3
     public static boolean panic = false;
@@ -90,18 +94,17 @@ public class AvatarManager {
         }
     }
 
-    public static void onWorldRender(float tickDelta) {
-        if (panic)
-            return;
+    public static void executeAll(String src, Consumer<Avatar> consumer) {
+        if (panic) return;
 
         FiguraMod.pushProfiler(FiguraMod.MOD_ID);
-        FiguraMod.pushProfiler("worldRender");
+        FiguraMod.pushProfiler(src);
 
         for (UserData user : LOADED_USERS.values()) {
             Avatar avatar = user.getMainAvatar();
             if (avatar != null) {
                 FiguraMod.pushProfiler(avatar);
-                avatar.render(tickDelta);
+                consumer.accept(avatar);
                 FiguraMod.popProfiler();
             }
         }
@@ -109,83 +112,12 @@ public class AvatarManager {
         for (Avatar avatar : LOADED_CEM.values()) {
             if (avatar != null) {
                 FiguraMod.pushProfiler(avatar);
-                avatar.render(tickDelta);
+                consumer.accept(avatar);
                 FiguraMod.popProfiler();
             }
         }
 
         FiguraMod.popProfiler(2);
-    }
-
-    public static void afterWorldRender(float tickDelta) {
-        if (panic)
-            return;
-
-        FiguraMod.pushProfiler(FiguraMod.MOD_ID );
-        FiguraMod.pushProfiler("postWorldRender");
-
-        for (UserData user : LOADED_USERS.values()) {
-            Avatar avatar = user.getMainAvatar();
-            if (avatar != null) {
-                FiguraMod.pushProfiler(avatar);
-                avatar.postWorldRenderEvent(tickDelta);
-                FiguraMod.popProfiler();
-            }
-        }
-
-        for (Avatar avatar : LOADED_CEM.values()) {
-            if (avatar != null) {
-                FiguraMod.pushProfiler(avatar);
-                avatar.postWorldRenderEvent(tickDelta);
-                FiguraMod.popProfiler();
-            }
-        }
-
-        FiguraMod.popProfiler(2);
-    }
-
-    public static void applyAnimations() {
-        if (panic)
-            return;
-
-        for (UserData user : LOADED_USERS.values()) {
-            Avatar avatar = user.getMainAvatar();
-            if (avatar != null) {
-                FiguraMod.pushProfiler(avatar);
-                avatar.applyAnimations();
-                FiguraMod.popProfiler();
-            }
-        }
-
-        for (Avatar avatar : LOADED_CEM.values()) {
-            if (avatar != null) {
-                FiguraMod.pushProfiler(avatar);
-                avatar.applyAnimations();
-                FiguraMod.popProfiler();
-            }
-        }
-    }
-
-    public static void clearAnimations() {
-        if (panic)
-            return;
-
-        for (UserData user : LOADED_USERS.values()) {
-            Avatar avatar = user.getMainAvatar();
-            if (avatar != null) {
-                FiguraMod.pushProfiler(avatar);
-                avatar.clearAnimations();
-                FiguraMod.popProfiler();
-            }
-        }
-
-        for (Avatar avatar : LOADED_CEM.values()) {
-            if (avatar != null) {
-                FiguraMod.pushProfiler(avatar);
-                avatar.clearAnimations();
-                FiguraMod.popProfiler();
-            }
-        }
     }
 
     // -- avatar getters -- //
@@ -201,7 +133,7 @@ public class AvatarManager {
         return user == null ? null : user.getMainAvatar();
     }
 
-    public static Avatar getAvatarForEntity(Entity entity) {
+    private static Avatar getAvatarForEntity(Entity entity) {
         //get loaded
         Avatar loaded = LOADED_CEM.get(entity);
         if (loaded != null)
@@ -215,7 +147,7 @@ public class AvatarManager {
 
     //tries to get data from an entity
     public static Avatar getAvatar(Entity entity) {
-        if (panic || Minecraft.getInstance().level == null)
+        if (panic || Minecraft.getInstance().level == null || entity == null)
             return null;
 
         UUID uuid = entity.getUUID();
@@ -272,10 +204,13 @@ public class AvatarManager {
         for (UUID id : LOADED_USERS.keySet())
             clearAvatars(id);
 
+        LOADED_USERS.clear();
+        FETCHED_USERS.clear();
         clearCEMAvatars();
 
         localUploaded = true;
         AvatarList.selectedEntry = null;
+        LocalAvatarLoader.loadAvatar(null, null);
         FiguraMod.LOGGER.info("Cleared all avatars");
     }
 
@@ -329,6 +264,11 @@ public class AvatarManager {
 
         FETCHED_USERS.add(id);
 
+        if (EntityUtils.checkInvalidPlayer(id)) {
+            FiguraMod.debug("Voiding userdata for " + id);
+            return;
+        }
+
         UserData user = LOADED_USERS.computeIfAbsent(id, UserData::new);
 
         FiguraMod.debug("Getting userdata for " + id);
@@ -355,7 +295,7 @@ public class AvatarManager {
 
     public static LiteralArgumentBuilder<FabricClientCommandSource> getCommand() {
         //root
-        LiteralArgumentBuilder<FabricClientCommandSource> root = LiteralArgumentBuilder.literal("setAvatar");
+        LiteralArgumentBuilder<FabricClientCommandSource> root = LiteralArgumentBuilder.literal("set_avatar");
 
         //source
         RequiredArgumentBuilder<FabricClientCommandSource, String> target = RequiredArgumentBuilder.argument("target", StringArgumentType.word());

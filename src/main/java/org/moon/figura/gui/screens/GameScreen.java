@@ -7,7 +7,7 @@ import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.gui.widgets.Label;
-import org.moon.figura.gui.widgets.TexturedButton;
+import org.moon.figura.gui.widgets.Button;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.FiguraIdentifier;
@@ -31,13 +31,13 @@ public class GameScreen extends AbstractPanelScreen {
     private static final String EGG = "FRAN";
     private String egg = EGG;
 
-    protected GameScreen(Screen parentScreen, Class<? extends AbstractPanelScreen> index) {
-        super(parentScreen, Component.empty(), index);
+    protected GameScreen(Screen parentScreen) {
+        super(parentScreen, Component.empty());
     }
 
     @Override
-    public Component getTitle() {
-        return Component.empty();
+    public Class<? extends Screen> getSelectedPanel() {
+        return parentScreen.getClass();
     }
 
     protected void init() {
@@ -47,9 +47,7 @@ public class GameScreen extends AbstractPanelScreen {
         addRenderableOnly(grid = new Grid(width, height));
 
         //back button
-        addRenderableWidget(new TexturedButton(this.width - 28, 4, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/back.png"), 72, 24, FiguraText.of("gui.done"),
-            bx -> this.minecraft.setScreen(parentScreen)
-        ));
+        addRenderableWidget(new Button(this.width - 28, 4, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/back.png"), 72, 24, FiguraText.of("gui.done"), bx -> onClose()));
 
         //text
         addRenderableWidget(keys = new Label(
@@ -67,7 +65,7 @@ public class GameScreen extends AbstractPanelScreen {
                         .append(" scale (restarts)"),
                 4, 4, 0)
         );
-        addRenderableWidget(stats = new Label("", 4, keys.y + keys.getHeight(), 0));
+        addRenderableWidget(stats = new Label("", 4, keys.getRawY() + keys.getHeight(), 0));
     }
 
     @Override

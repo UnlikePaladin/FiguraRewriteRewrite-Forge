@@ -25,7 +25,6 @@ public class PartCustomization {
     public final FiguraMat3 normalMatrix = FiguraMat3.of();
 
     public boolean needsMatrixRecalculation = false;
-    public boolean render = true;
     public Boolean visible = null;
     public Boolean vanillaVisible = null;
 
@@ -305,7 +304,6 @@ public class PartCustomization {
         target.light = light;
         target.overlay = overlay;
         target.needsMatrixRecalculation = needsMatrixRecalculation;
-        target.render = render;
         target.visible = visible;
         target.vanillaVisible = vanillaVisible;
         target.setPrimaryRenderType(primaryRenderType);
@@ -324,8 +322,6 @@ public class PartCustomization {
             setPrimaryRenderType(other.primaryRenderType);
         if (other.secondaryRenderType != null)
             setSecondaryRenderType(other.secondaryRenderType);
-
-        render = other.render;
 
         if (other.visible != null)
             visible = other.visible;

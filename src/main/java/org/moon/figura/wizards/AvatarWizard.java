@@ -15,7 +15,6 @@ import org.moon.figura.exporters.BlockBenchModel.Group;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.utils.*;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -97,18 +96,26 @@ public class AvatarWizard {
             i++;
         }
 
-        Files.createDirectories(folder);
-
         //metadata
-        buildMetadata(folder, name);
+        byte[] metadata = buildMetadata(name);
 
         //script
+        byte[] script = null;
         if (WizardEntry.DUMMY_SCRIPT.asBool(map))
-            buildScript(folder);
+            script = buildScript();
 
         //model
+        byte[] model = null;
         if (WizardEntry.DUMMY_MODEL.asBool(map))
-            buildModel(folder);
+            model = buildModel();
+
+        //write files
+        new IOUtils.DirWrapper(folder)
+                .create()
+                .write("avatar.json", metadata)
+                .write("script.lua", script)
+                .write("model.bbmodel", model)
+                .write("avatar.png", iconTexture);
 
         //avatar icon
         Path path = folder.resolve("avatar.png");
@@ -117,10 +124,10 @@ public class AvatarWizard {
         }
 
         //open file manager
-        Util.getPlatform().openFile(folder.toFile());
+        Util.getPlatform().openUri(folder.toUri());
     }
 
-    private void buildMetadata(Path path, String name) throws IOException {
+    private byte[] buildMetadata(String name) {
         JsonObject root = new JsonObject();
 
         //name
@@ -145,15 +152,11 @@ public class AvatarWizard {
         //color
         root.addProperty("color", "#" + ColorUtils.rgbToHex(ColorUtils.Colors.random().vec));
 
-        //write file
-        path = path.resolve("avatar.json");
-
-        try (FileOutputStream fs = new FileOutputStream(path.toFile())) {
-            fs.write(GSON.toJson(root).getBytes());
-        }
+        //return
+        return GSON.toJson(root).getBytes();
     }
 
-    private void buildScript(Path path) throws IOException {
+    private byte[] buildScript() {
         String script = "-- Auto generated script file --\n";
 
         boolean hasPlayerModel = WizardEntry.CUSTOM_PLAYER.asBool(map);
@@ -221,15 +224,11 @@ public class AvatarWizard {
                     end
                     """;
 
-        //write file
-        path = path.resolve("script.lua");
-
-        try (FileOutputStream fs = new FileOutputStream(path.toFile())) {
-            fs.write(script.getBytes());
-        }
+        //return
+        return script.getBytes();
     }
 
-    private void buildModel(Path path) throws IOException {
+    private byte[] buildModel() {
         boolean hasPlayer = WizardEntry.CUSTOM_PLAYER.asBool(map);
         boolean hasElytra = WizardEntry.ELYTRA.asBool(map);
         boolean hasCape = WizardEntry.CAPE.asBool(map);
@@ -315,15 +314,11 @@ public class AvatarWizard {
             model.addGroup("RightParrotPivot", FiguraVec3.of(6, 24, 0), body);
         }
 
-        //write file
-        path = path.resolve("model.bbmodel");
-
-        try (FileOutputStream fs = new FileOutputStream(path.toFile())) {
-            fs.write(GSON.toJson(model.build()).getBytes());
-        }
+        //return
+        return GSON.toJson(model.build()).getBytes();
     }
 
-    private void generateCubeAndLayer(BlockBenchModel model, String layerName, FiguraVec3 position, FiguraVec3 size, double inflation, Group parent, int x1, int y1, int x2, int y2, int texture) {
+    private static void generateCubeAndLayer(BlockBenchModel model, String layerName, FiguraVec3 position, FiguraVec3 size, double inflation, Group parent, int x1, int y1, int x2, int y2, int texture) {
         Cube c = model.addCube(position, size, parent);
         c.generateBoxFaces(x1, y1, texture);
         Cube l = model.addCube(layerName, position, size, parent);

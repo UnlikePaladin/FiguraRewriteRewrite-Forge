@@ -1,9 +1,7 @@
 package org.moon.figura.gui.screens;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.ConfirmLinkScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
@@ -17,31 +15,26 @@ import org.moon.figura.avatar.local.LocalAvatarLoader;
 import org.moon.figura.backend2.NetworkStuff;
 import org.moon.figura.commands.FiguraLinkCommand;
 import org.moon.figura.config.Configs;
+import org.moon.figura.gui.FiguraToast;
 import org.moon.figura.gui.widgets.*;
 import org.moon.figura.gui.widgets.lists.AvatarList;
 import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.FiguraText;
+import org.moon.figura.utils.IOUtils;
 import org.moon.figura.utils.TextUtils;
 import org.moon.figura.utils.ui.UIHelper;
 
+import java.nio.file.Path;
+import java.util.List;
+
 public class WardrobeScreen extends AbstractPanelScreen {
 
-    public static final Component TITLE = FiguraText.of("gui.panels.title.wardrobe");
-
-    private LoadingErrorWidget loadingErrorWidget;
-    private StatusWidget statusWidget;
-    private AvatarInfoWidget avatarInfo;
     private Label panic;
 
-    private TexturedButton upload, delete;
+    private Button upload, delete;
 
     public WardrobeScreen(Screen parentScreen) {
-        super(parentScreen, TITLE, WardrobeScreen.class);
-    }
-
-    @Override
-    public Component getTitle() {
-        return TITLE;
+        super(parentScreen, FiguraText.of("gui.panels.title.wardrobe"));
     }
 
     @Override
@@ -71,11 +64,11 @@ public class WardrobeScreen extends AbstractPanelScreen {
         EntityPreview entity = new EntityPreview(entityX, entityY, modelBgSize, modelBgSize, entitySize, -15f, 30f, minecraft.player, this);
         addRenderableWidget(entity);
 
-        int buttX = entity.x + entity.width / 2;
-        int buttY = entity.y + entity.height + 4;
+        int buttX = entity.getX() + entity.getWidth() / 2;
+        int buttY = entity.getY() + entity.getHeight() + 4;
 
         //upload
-        addRenderableWidget(upload = new TexturedButton(buttX - 48, buttY, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/upload.png"), 72, 24, FiguraText.of("gui.wardrobe.upload.tooltip"), button -> {
+        addRenderableWidget(upload = new Button(buttX - 48, buttY, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/upload.png"), 72, 24, FiguraText.of("gui.wardrobe.upload.tooltip"), button -> {
             Avatar avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
             try {
                 LocalAvatarLoader.loadAvatar(null, null);
@@ -83,38 +76,41 @@ public class WardrobeScreen extends AbstractPanelScreen {
             NetworkStuff.uploadAvatar(avatar);
             AvatarList.selectedEntry = null;
         }));
-        upload.active = false;
+        upload.setActive(false);
 
         //reload
-        addRenderableWidget(new TexturedButton(buttX - 12, buttY, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/reload.png"), 72, 24, FiguraText.of("gui.wardrobe.reload.tooltip"), button -> {
+        addRenderableWidget(new Button(buttX - 12, buttY, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/reload.png"), 72, 24, FiguraText.of("gui.wardrobe.reload.tooltip"), button -> {
             AvatarManager.clearAvatars(FiguraMod.getLocalPlayerUUID());
             try {
                 LocalAvatarLoader.loadAvatar(null, null);
             } catch (Exception ignored) {}
             AvatarManager.localUploaded = true;
-            NetworkStuff.auth();
             AvatarList.selectedEntry = null;
+            NetworkStuff.auth();
         }));
 
         //delete
-        addRenderableWidget(delete = new TexturedButton(buttX + 24, buttY, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/delete.png"), 72, 24, FiguraText.of("gui.wardrobe.delete.tooltip"), button ->
+        addRenderableWidget(delete = new Button(buttX + 24, buttY, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/delete.png"), 72, 24, FiguraText.of("gui.wardrobe.delete.tooltip"), button ->
                 NetworkStuff.deleteAvatar(null))
         );
+        delete.setActive(false);
 
-        statusWidget = new StatusWidget(entity.x + entity.width - 64, 0, 64);
-        statusWidget.y = entity.y - statusWidget.height - 4;
+        StatusWidget statusWidget = new StatusWidget(entity.getX() + entity.getWidth() - 64, 0, 64);
+        statusWidget.setY(entity.getY() - statusWidget.getHeight() - 4);
         addRenderableOnly(statusWidget);
 
-        addRenderableOnly(loadingErrorWidget = new LoadingErrorWidget(statusWidget.x - 18, statusWidget.y, 14));
+        addRenderableOnly(new LoadingErrorWidget(statusWidget.getX() - 18, statusWidget.getY(), 14));
 
         // -- bottom -- //
 
         //version
         MutableComponent versionText = FiguraText.of().append(" " + FiguraMod.VERSION.noBuildString()).withStyle(ChatFormatting.ITALIC);
-        boolean oldVersion = NetworkStuff.latestVersion != null && NetworkStuff.latestVersion.compareTo(FiguraMod.VERSION) > 0;
+        int versionStatus = NetworkStuff.latestVersion != null ? NetworkStuff.latestVersion.compareTo(FiguraMod.VERSION) : 0;
+        boolean oldVersion = versionStatus > 0;
         if (oldVersion) {
             versionText
-                    .append(Component.literal(" =")
+                    .append(" ")
+                    .append(Component.literal("=")
                             .withStyle(Style.EMPTY
                                     .withFont(UIHelper.UI_FONT)
                                     .withItalic(false)
@@ -122,61 +118,65 @@ public class WardrobeScreen extends AbstractPanelScreen {
                             ))
                     .withStyle(Style.EMPTY
                             .applyFormat(ChatFormatting.AQUA)
-                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, FiguraText.of("gui.new_version.tooltip", NetworkStuff.latestVersion)))
+                            .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                                    FiguraText.of("gui.new_version.tooltip", Component.literal(NetworkStuff.latestVersion.toString()).withStyle(ChatFormatting.GREEN))
+                            ))
+                            .withClickEvent(new TextUtils.FiguraClickEvent(UIHelper.openURL(FiguraLinkCommand.LINK.MODRINTH.url + "/versions")))
                     );
+        } else if (versionStatus < 0) {
+            versionText.withStyle(Style.EMPTY.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                    FiguraText.of("gui.old_version.tooltip", Component.literal(NetworkStuff.latestVersion.toString()).withStyle(ChatFormatting.LIGHT_PURPLE))
+            )));
         }
 
-        Label version = new Label(versionText, middle, this.height, TextUtils.Alignment.CENTER);
+        Label version = new Label(versionText, middle, this.height - 4, TextUtils.Alignment.CENTER);
         addRenderableWidget(version);
-        if (!oldVersion) version.alpha = 0x33;
-        version.y -= version.getHeight() / 2 + 1;
+        if (!oldVersion) version.setAlpha(0x33);
+        version.setY(version.getRawY() - version.getHeight());
 
         int rightSide = Math.min(panels, 134);
 
         //back
-        TexturedButton back = new TexturedButton(width - rightSide - 4, height - 24, rightSide, 20, FiguraText.of("gui.done"), null,
-                bx -> this.minecraft.setScreen(parentScreen)
-        );
+        Button back = new Button(width - rightSide - 4, height - 24, rightSide, 20, FiguraText.of("gui.done"), null, bx -> onClose());
         addRenderableWidget(back);
 
         // -- right side -- //
 
         rightSide = panels / 2 + 52;
 
-        //hellp
-        addRenderableWidget(new TexturedButton(
+        //avatar settings
+        Button avatarSettings;
+        addRenderableWidget(avatarSettings = new Button(
                 this.width - rightSide, 28, 24, 24,
                 0, 0, 24,
-                new FiguraIdentifier("textures/gui/help.png"),
+                new FiguraIdentifier("textures/gui/avatar_settings.png"),
                 72, 24,
-                FiguraText.of("gui.help.tooltip"),
-                bx -> this.minecraft.setScreen(new ConfirmLinkScreen((bl) -> {
-                    if (bl) Util.getPlatform().openUri(FiguraLinkCommand.LINK.WIKI.url);
-                    this.minecraft.setScreen(this);
-                }, FiguraLinkCommand.LINK.WIKI.url, true))
+                FiguraText.of("gui.avatar_settings.tooltip"),
+                bx -> {}
         ));
+        avatarSettings.setActive(false);
 
         //sounds
-        TexturedButton sounds = new TexturedButton(this.width - rightSide + 36, 28, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/sound.png"), 72, 24, FiguraText.of("gui.wardrobe.sound.tooltip"),
+        Button sounds = new Button(this.width - rightSide + 36, 28, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/sound.png"), 72, 24, FiguraText.of("gui.wardrobe.sound.tooltip"),
                 button -> Minecraft.getInstance().setScreen(new SoundScreen(this))
         );
         addRenderableWidget(sounds);
 
         //keybinds
-        TexturedButton keybinds = new TexturedButton(this.width - rightSide + 72, 28, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/keybind.png"), 72, 24, FiguraText.of("gui.wardrobe.keybind.tooltip"),
+        Button keybinds = new Button(this.width - rightSide + 72, 28, 24, 24, 0, 0, 24, new FiguraIdentifier("textures/gui/keybind.png"), 72, 24, FiguraText.of("gui.wardrobe.keybind.tooltip"),
                 button -> Minecraft.getInstance().setScreen(new KeybindScreen(this))
         );
         addRenderableWidget(keybinds);
 
         //avatar metadata
-        addRenderableOnly(avatarInfo = new AvatarInfoWidget(this.width - panels - 4, 56, panels, back.getY() - 60));
+        addRenderableOnly(new AvatarInfoWidget(this.width - panels - 4, 56, panels, back.getY() - 60));
 
         //panic warning - always added last, on top
         addRenderableWidget(panic = new Label(
                 FiguraText.of("gui.panic", Configs.PANIC_BUTTON.keyBind.getTranslatedKeyMessage()).withStyle(ChatFormatting.YELLOW),
-                middle, this.height - version.getHeight(), TextUtils.Alignment.CENTER, 0)
+                middle, version.getRawY(), TextUtils.Alignment.CENTER, 0)
         );
-        panic.y -= panic.getHeight() / 2;
+        panic.setY(panic.getRawY() - panic.getHeight());
         panic.setVisible(false);
     }
 
@@ -184,23 +184,44 @@ public class WardrobeScreen extends AbstractPanelScreen {
     public void tick() {
         //children tick
         super.tick();
-        loadingErrorWidget.tick();
-        statusWidget.tick();
-        avatarInfo.tick();
 
         //panic visible
         panic.setVisible(AvatarManager.panic);
 
         //backend buttons
         Avatar avatar;
-        boolean backend = NetworkStuff.backendStatus == 3;
-        upload.active = NetworkStuff.canUpload() && !AvatarManager.localUploaded && (avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID())) != null && avatar.nbt != null;
-        delete.active = backend;
+        upload.setActive(NetworkStuff.canUpload() && !AvatarManager.localUploaded && (avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID())) != null && avatar.nbt != null && avatar.loaded);
+        delete.setActive(NetworkStuff.isConnected() && AvatarManager.localUploaded);
     }
 
     @Override
     public void removed() {
-        LocalAvatarFetcher.save();
         super.removed();
+        LocalAvatarFetcher.save();
+    }
+
+    @Override
+    public void onFilesDrop(List<Path> paths) {
+        super.onFilesDrop(paths);
+
+        StringBuilder packs = new StringBuilder();
+        for (int i = 0; i < paths.size(); i++) {
+            if (i > 0)
+                packs.append("\n");
+            packs.append(IOUtils.getFileNameOrEmpty(paths.get(i)));
+        }
+
+        this.minecraft.setScreen(new FiguraConfirmScreen(confirmed -> {
+            if (confirmed) {
+                try {
+                    LocalAvatarFetcher.loadExternal(paths);
+                    FiguraToast.sendToast(FiguraText.of("toast.wardrobe_copy.success", paths.size()));
+                } catch (Exception e) {
+                    FiguraToast.sendToast(FiguraText.of("toast.wardrobe_copy.error"), FiguraToast.ToastType.ERROR);
+                    FiguraMod.LOGGER.error("Failed to copy files", e);
+                }
+            }
+            this.minecraft.setScreen(this);
+        }, FiguraText.of("gui.wardrobe.drop_files"), packs.toString(), this));
     }
 }

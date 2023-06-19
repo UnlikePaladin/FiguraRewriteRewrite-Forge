@@ -2,25 +2,29 @@ package org.moon.figura.gui.screens;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.moon.figura.config.Configs;
-import org.moon.figura.gui.widgets.ContextMenu;
-import org.moon.figura.gui.widgets.FiguraTickable;
-import org.moon.figura.gui.widgets.PanelSelectorWidget;
-import org.moon.figura.gui.widgets.TextField;
+import org.moon.figura.gui.widgets.*;
+import org.moon.figura.mixin.gui.ScreenAccessor;
 import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.ui.UIHelper;
 
+import java.util.List;
+
 public abstract class AbstractPanelScreen extends Screen {
 
-    public static final ResourceLocation BACKGROUND = new FiguraIdentifier("textures/gui/background.png");
+    public static final List<ResourceLocation> BACKGROUNDS = List.of(
+            new FiguraIdentifier("textures/gui/background/background_0.png"),
+            new FiguraIdentifier("textures/gui/background/background_1.png"),
+            new FiguraIdentifier("textures/gui/background/background_2.png")
+    );
 
     //variables
     protected final Screen parentScreen;
-    protected final Class<? extends AbstractPanelScreen> index;
     public PanelSelectorWidget panels;
 
     //overlays
@@ -31,20 +35,21 @@ public abstract class AbstractPanelScreen extends Screen {
     private static final String EGG = "ĉĉĈĈćĆćĆBAā";
     private String egg = EGG;
 
-    protected AbstractPanelScreen(Screen parentScreen, Component title, Class<? extends AbstractPanelScreen> index) {
+    protected AbstractPanelScreen(Screen parentScreen, Component title) {
         super(title);
         this.parentScreen = parentScreen;
-        this.index = index;
     }
 
-    public abstract Component getTitle();
+    public Class<? extends Screen> getSelectedPanel() {
+        return this.getClass();
+    };
 
     @Override
     protected void init() {
         super.init();
 
         //add panel selector
-        this.addRenderableWidget(panels = new PanelSelectorWidget(parentScreen, 0, 0, width, index));
+        this.addRenderableWidget(panels = new PanelSelectorWidget(parentScreen, 0, 0, width, getSelectedPanel()));
 
         //clear overlays
         contextMenu = null;
@@ -53,12 +58,18 @@ public abstract class AbstractPanelScreen extends Screen {
 
     @Override
     public void tick() {
-        for (GuiEventListener listener : this.children()) {
-            if (listener instanceof FiguraTickable tickable)
+        for (Renderable renderable : this.renderables()) {
+            if (renderable instanceof FiguraTickable tickable)
                 tickable.tick();
         }
 
+        renderables().removeIf(r -> r instanceof FiguraRemovable removable && removable.isRemoved());
+
         super.tick();
+    }
+
+    public List<Renderable> renderables() {
+        return ((ScreenAccessor) this).getRenderables();
     }
 
     @Override
@@ -81,10 +92,11 @@ public abstract class AbstractPanelScreen extends Screen {
 
     public void renderBackground(PoseStack stack, float delta) {
         //render
-        double scale = this.minecraft.getWindow().getGuiScale();
-        float textureSize = (float) (64f / scale);
-        double speed = 1d / 0.5 * scale / Configs.BACKGROUND_SCROLL_SPEED.value;
-        UIHelper.renderAnimatedBackground(BACKGROUND, 0, 0, this.width, this.height, textureSize, textureSize, speed, delta);
+        float speed = Configs.BACKGROUND_SCROLL_SPEED.tempValue * 0.125f;
+        for (ResourceLocation background : BACKGROUNDS) {
+            UIHelper.renderAnimatedBackground(stack, background, 0, 0, this.width, this.height, 64, 64, speed, delta);
+            speed /= 0.5;
+        }
     }
 
     public void renderOverlays(PoseStack stack, int mouseX, int mouseY, float delta) {
@@ -96,8 +108,9 @@ public abstract class AbstractPanelScreen extends Screen {
             contextMenu.render(stack, mouseX, mouseY, delta);
             stack.popPose();
         }
+
         //render tooltip
-        else if (tooltip != null)
+        if (tooltip != null)
             UIHelper.renderTooltip(stack, tooltip, mouseX, mouseY, true);
 
         tooltip = null;
@@ -170,12 +183,17 @@ public abstract class AbstractPanelScreen extends Screen {
         egg += (char) keyCode;
         egg = egg.substring(1);
         if (EGG.equals(egg)) {
-            Minecraft.getInstance().setScreen(new GameScreen(this, index));
+            Minecraft.getInstance().setScreen(new GameScreen(this));
             return true;
         }
 
         if (children().contains(panels) && panels.cycleTab(keyCode))
             return true;
+
+        if (keyCode == 256 && contextMenu != null && contextMenu.isVisible()) {
+            contextMenu.setVisible(false);
+            return true;
+        }
 
         return super.keyPressed(keyCode, scanCode, modifiers);
     }

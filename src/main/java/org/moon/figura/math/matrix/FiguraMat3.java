@@ -18,8 +18,8 @@ import org.moon.figura.utils.LuaUtils;
 )
 public class FiguraMat3 extends FiguraMatrix<FiguraMat3, FiguraVec3> {
 
-    public static FiguraMat3 fromMatrix3f(Matrix3f mat) {
-        return of(
+    public FiguraMat3 set(Matrix3f mat) {
+        return set(
                 mat.m00(), mat.m01(), mat.m02(),
                 mat.m10(), mat.m11(), mat.m12(),
                 mat.m20(), mat.m21(), mat.m22()
@@ -436,7 +436,7 @@ public class FiguraMat3 extends FiguraMatrix<FiguraMat3, FiguraVec3> {
             value = "matrix_n.scale"
     )
     public FiguraMat3 scale(Object x, Double y, Double z) {
-        return scale(LuaUtils.parseVec3("scale", x, y, z, 1, 1, 1));
+        return scale(LuaUtils.parseOneArgVec("scale", x, y, z, 1d));
     }
 
     public FiguraMat3 translate(double x, double y) {

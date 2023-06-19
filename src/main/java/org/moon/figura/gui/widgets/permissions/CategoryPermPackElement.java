@@ -15,13 +15,16 @@ public class CategoryPermPackElement extends AbstractPermPackElement {
     private static final ResourceLocation BACKGROUND = new FiguraIdentifier("textures/gui/group_permissions.png");
     private boolean enabled;
 
-    public CategoryPermPackElement(PermissionPack pack, PlayerList parent) {
-        super(20, pack, parent);
+    public CategoryPermPackElement(int width, PermissionPack pack, PlayerList parent) {
+        super(width, 20, pack, parent);
         this.enabled = pack.isVisible();
     }
 
     @Override
     public void renderButton(PoseStack stack, int mouseX, int mouseY, float delta) {
+        int width = getWidth();
+        int height = getHeight();
+
         stack.pushPose();
         stack.translate(getX() + width / 2f, getY() + height / 2f, 100);
         stack.scale(scale, scale, 1f);
@@ -38,8 +41,7 @@ public class CategoryPermPackElement extends AbstractPermPackElement {
         }
 
         //background
-        UIHelper.setupTexture(BACKGROUND);
-        blit(stack, x, y, width, height, 0f, enabled ? 20f : 0f, 174, 20, 174, 40);
+        UIHelper.renderHalfTexture(stack, x, y, width, height, 0f, enabled ? 20f : 0f, 174, 20, 174, 40, BACKGROUND);
 
         //name
         Component text = pack.getCategoryName().append(pack.hasChanges() ? "*" : "");

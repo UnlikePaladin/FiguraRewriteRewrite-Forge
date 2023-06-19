@@ -77,6 +77,9 @@ public final class ConfigManager {
             configJson.addProperty("CONFIG_VERSION", Configs.CONFIG_VERSION);
 
             for (ConfigType<?> config : REGISTRY) {
+                if (config.isDefault())
+                    continue;
+
                 String id = config.id;
                 if (config.value instanceof Number n)
                     configJson.addProperty(id, n);
@@ -130,15 +133,5 @@ public final class ConfigManager {
         }
 
         FiguraMod.debug("Config updated from version " + version);
-    }
-
-    //returns true if modmenu shifts other buttons on the game menu screen
-    public static boolean modmenuShift() {
-        if (FabricLoader.getInstance().isModLoaded("modmenu")) {
-            String buttonStyle = com.terraformersmc.modmenu.config.ModMenuConfig.MODS_BUTTON_STYLE.getValue().toString();
-            return !buttonStyle.equals("SHRINK") && !buttonStyle.equals("ICON");
-        }
-
-        return false;
     }
 }

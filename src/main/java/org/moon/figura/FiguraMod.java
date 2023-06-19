@@ -17,10 +17,10 @@ import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.avatar.local.LocalAvatarLoader;
 import org.moon.figura.backend2.NetworkStuff;
 import org.moon.figura.commands.FiguraCommands;
-import org.moon.figura.config.Configs;
 import org.moon.figura.config.ConfigManager;
+import org.moon.figura.config.Configs;
+import org.moon.figura.entries.EntryPointManager;
 import org.moon.figura.gui.Emojis;
-import org.moon.figura.lua.FiguraAPIManager;
 import org.moon.figura.lua.FiguraLuaPrinter;
 import org.moon.figura.lua.docs.FiguraDocsManager;
 import org.moon.figura.mixin.SkullBlockEntityAccessor;
@@ -52,15 +52,17 @@ public class FiguraMod implements ClientModInitializer {
     public static int ticks;
     public static Entity extendedPickEntity;
     public static Component splashText;
+    public static boolean parseMessages = true;
+    public static boolean processingKeybind;
 
     @Override
     public void onInitializeClient() {
         //init managers
+        EntryPointManager.init();
         ConfigManager.init();
         PermissionManager.init();
         LocalAvatarFetcher.init();
         CacheAvatarLoader.init();
-        FiguraAPIManager.init();
         FiguraDocsManager.init();
         FiguraCommands.init();
         FiguraRuntimeResources.init();
@@ -70,13 +72,15 @@ public class FiguraMod implements ClientModInitializer {
         managerHelper.registerReloadListener(LocalAvatarLoader.AVATAR_LISTENER);
         managerHelper.registerReloadListener(Emojis.RESOURCE_LISTENER);
         managerHelper.registerReloadListener(AvatarWizard.RESOURCE_LISTENER);
+        managerHelper.registerReloadListener(AvatarManager.RESOURCE_RELOAD_EVENT);
     }
 
     public static void tick() {
         pushProfiler("network");
         NetworkStuff.tick();
         popPushProfiler("files");
-        LocalAvatarLoader.tickWatchedKey();
+        LocalAvatarLoader.tick();
+        LocalAvatarFetcher.tick();
         popPushProfiler("avatars");
         AvatarManager.tickLoadedAvatars();
         popPushProfiler("chatPrint");
@@ -89,7 +93,7 @@ public class FiguraMod implements ClientModInitializer {
 
     //debug print
     public static void debug(String str, Object... args) {
-        if (DEBUG_MODE) LOGGER.info(str, args);
+        if (DEBUG_MODE) LOGGER.info("[DEBUG] " + str, args);
         else LOGGER.debug(str, args);
     }
 
@@ -120,10 +124,13 @@ public class FiguraMod implements ClientModInitializer {
      * @param message - text to send
      */
     public static void sendChatMessage(Component message) {
-        if (Minecraft.getInstance().gui != null)
+        if (Minecraft.getInstance().gui != null) {
+            parseMessages = false;
             Minecraft.getInstance().gui.getChat().addMessage(TextUtils.replaceTabs(message));
-        else
+            parseMessages = true;
+        } else {
             LOGGER.info(message.getString());
+        }
     }
 
     /**

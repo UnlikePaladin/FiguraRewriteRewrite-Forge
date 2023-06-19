@@ -2,31 +2,28 @@ package org.moon.figura.gui.screens;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
-import org.moon.figura.gui.widgets.TexturedButton;
+import org.moon.figura.gui.widgets.Button;
 import org.moon.figura.gui.widgets.lists.KeybindList;
 import org.moon.figura.lua.api.keybind.FiguraKeybind;
 import org.moon.figura.utils.FiguraText;
 
 public class KeybindScreen extends AbstractPanelScreen {
 
-    public static final Component TITLE = FiguraText.of("gui.panels.title.keybind");
-
     private final Screen sourcePanel;
 
     private KeybindList list;
 
     public KeybindScreen(AbstractPanelScreen parentScreen) {
-        super(parentScreen.parentScreen, TITLE, WardrobeScreen.class);
+        super(parentScreen.parentScreen, FiguraText.of("gui.panels.title.keybind"));
         sourcePanel = parentScreen;
     }
 
     @Override
-    public Component getTitle() {
-        return TITLE;
+    public Class<? extends Screen> getSelectedPanel() {
+        return sourcePanel.getClass();
     }
 
     @Override
@@ -38,8 +35,8 @@ public class KeybindScreen extends AbstractPanelScreen {
         // -- bottom buttons -- //
 
         //reset
-        TexturedButton reset;
-        this.addRenderableWidget(reset = new TexturedButton(width / 2 - 122, height - 24, 120, 20, FiguraText.of("gui.reset_all"), null, button -> {
+        Button reset;
+        this.addRenderableWidget(reset = new Button(width / 2 - 122, height - 24, 120, 20, FiguraText.of("gui.reset_all"), null, button -> {
             if (owner == null || owner.luaRuntime == null)
                 return;
 
@@ -47,17 +44,20 @@ public class KeybindScreen extends AbstractPanelScreen {
                 keybind.resetDefaultKey();
             list.updateBindings();
         }));
-        reset.active = false;
+        reset.setActive(false);
 
         //back
-        addRenderableWidget(new TexturedButton(width / 2 + 4, height - 24, 120, 20, FiguraText.of("gui.done"), null,
-                bx -> this.minecraft.setScreen(sourcePanel)
-        ));
+        addRenderableWidget(new Button(width / 2 + 4, height - 24, 120, 20, FiguraText.of("gui.done"), null, bx -> onClose()));
 
         // -- list -- //
 
         int listWidth = Math.min(this.width - 8, 420);
         this.addRenderableWidget(list = new KeybindList((this.width - listWidth) / 2, 28, listWidth, height - 56, owner, reset));
+    }
+
+    @Override
+    public void onClose() {
+        this.minecraft.setScreen(sourcePanel);
     }
 
     @Override

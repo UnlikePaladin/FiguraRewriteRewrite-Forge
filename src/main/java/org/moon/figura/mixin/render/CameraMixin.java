@@ -6,7 +6,7 @@ import net.minecraft.world.level.BlockGetter;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.math.vector.FiguraVec3;
-import org.moon.figura.permissions.Permissions;
+import org.moon.figura.utils.RenderUtils;
 import org.moon.figura.utils.ui.UIHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -32,7 +32,7 @@ public abstract class CameraMixin {
     @Inject(method = "setup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setRotation(FF)V", shift = At.Shift.AFTER))
     private void setupRot(BlockGetter area, Entity focusedEntity, boolean thirdPerson, boolean inverseView, float tickDelta, CallbackInfo ci) {
         avatar = AvatarManager.getAvatar(focusedEntity);
-        if (avatar == null || avatar.luaRuntime == null || avatar.permissions.get(Permissions.VANILLA_MODEL_EDIT) == 0) {
+        if (!RenderUtils.vanillaModelAndScript(avatar)) {
             avatar = null;
             return;
         }
@@ -41,13 +41,13 @@ public abstract class CameraMixin {
         float y = yRot;
 
         FiguraVec3 rot = avatar.luaRuntime.renderer.cameraRot;
-        if (rot != null) {
+        if (rot != null && rot.notNaN()) {
             x = (float) rot.x;
             y = (float) rot.y;
         }
 
         FiguraVec3 offset = avatar.luaRuntime.renderer.cameraOffsetRot;
-        if (offset != null) {
+        if (offset != null && offset.notNaN()) {
             x += (float) offset.x;
             y += (float) offset.y;
         }
@@ -67,14 +67,14 @@ public abstract class CameraMixin {
             double z = args.get(i);
 
             FiguraVec3 piv = avatar.luaRuntime.renderer.cameraPivot;
-            if (piv != null) {
+            if (piv != null && piv.notNaN()) {
                x = piv.x;
                y = piv.y;
                z = piv.z;
             }
 
             FiguraVec3 offset = avatar.luaRuntime.renderer.cameraOffsetPivot;
-            if (offset != null) {
+            if (offset != null && offset.notNaN()) {
                 x += offset.x;
                 y += offset.y;
                 z += offset.z;
@@ -90,7 +90,7 @@ public abstract class CameraMixin {
     private void setupPos(BlockGetter area, Entity focusedEntity, boolean thirdPerson, boolean inverseView, float tickDelta, CallbackInfo ci) {
         if (avatar != null) {
             FiguraVec3 pos = avatar.luaRuntime.renderer.cameraPos;
-            if (pos != null)
+            if (pos != null && pos.notNaN())
                 move(-pos.z, pos.y, -pos.x);
 
             avatar = null;
