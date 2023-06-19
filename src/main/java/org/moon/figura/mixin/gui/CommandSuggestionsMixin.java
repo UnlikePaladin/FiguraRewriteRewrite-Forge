@@ -18,14 +18,15 @@ import java.util.Collection;
 @Mixin(CommandSuggestions.class)
 public abstract class CommandSuggestionsMixin {
 
-    @Shadow private CommandSuggestions.SuggestionsList suggestions;
+    @Shadow
+    CommandSuggestions.SuggestionsList suggestions;
 
     @Shadow public abstract void showSuggestions(boolean narrateFirstSuggestion);
 
     @Unique private boolean emojiSuggestions;
 
     @Inject(method = "updateCommandInfo", at = @At(value = "INVOKE", target = "Lnet/minecraft/commands/SharedSuggestionProvider;suggest(Ljava/lang/Iterable;Lcom/mojang/brigadier/suggestion/SuggestionsBuilder;)Ljava/util/concurrent/CompletableFuture;"), locals = LocalCapture.CAPTURE_FAILSOFT)
-    private void addFiguraSuggestions(CallbackInfo ci, String string, StringReader stringReader, boolean bl2, int i, String string2, int j, Collection<String> collection) {
+    private void addFiguraSuggestions(CallbackInfo ci, String string, StringReader stringReader, boolean bl2, boolean flag1, int i, String string2, int j, Collection<String> collection) {
         emojiSuggestions = false;
         if (Configs.EMOJIS.value == 0)
             return;
