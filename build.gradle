@@ -198,6 +198,7 @@ dependencies {
         exclude(group: "org.slf4j")
     }
     jarJar(group: 'org.java-websocket', name: 'Java-WebSocket', version: '[1.5.2,2.0.0)') {
+        transitive(true)
     }
 
     minecraftLibrary(group: 'com.github.Moonlight-MC.LuaJ', name: 'luaj-core', version: "$luaj-figura") {
@@ -205,6 +206,7 @@ dependencies {
         exclude(group: "org.slf4j")
     }
     jarJar(group: 'com.github.Moonlight-MC.LuaJ', name: 'luaj-core', version: "[$luaj-figura,4.0.0-figura)") {
+        transitive(true)
     }
 
     minecraftLibrary(group: 'com.github.Moonlight-MC.LuaJ', name: 'luaj-jse', version: "$luaj-figura") {
@@ -212,6 +214,7 @@ dependencies {
         exclude(group: "org.slf4j")
     }
     jarJar(group: 'com.github.Moonlight-MC.LuaJ', name: 'luaj-jse', version: "[$luaj-figura,4.0.0-figura)") {
+        transitive(true)
     }
 
     // For more info...
