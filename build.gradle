@@ -5,7 +5,7 @@ buildscript {
         mavenCentral()
     }
         dependencies {
-        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '6.+', changing: true
+        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.+', changing: true
         classpath group: 'org.spongepowered', name: 'mixingradle', version: '0.7-SNAPSHOT'
     }
 }
@@ -168,6 +168,8 @@ repositories {
             includeGroup "maven.modrinth"
         }
     }
+    maven { url 'https://maven.fabricmc.net/'}
+
 }
 
 jarJar.enable()
@@ -182,7 +184,7 @@ dependencies {
     // that the dep is a ForgeGradle 'patcher' dependency, and its patches will be applied.
     // The userdev artifact is a special name and will get all sorts of transformations applied to it.
     minecraft 'net.minecraftforge:forge:1.19.3-44.1.17'
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    annotationProcessor 'net.fabricmc:sponge-mixin:0.12.5+mixin.0.8.5'
 
     // Real mod deobf dependency examples - these get remapped to your current mappings
     // implementation fg.deobf("com.tterrag.registrate:Registrate:MC${mc_version}-${registrate_version}") // Adds registrate as a dependency
@@ -226,8 +228,18 @@ mixin {
     debug.export = true
 }
 
-// Example for how to get properties into the manifest for reading at runtime.
+processTestResources {
+    duplicatesStrategy(DuplicatesStrategy.INCLUDE)
+}
+
+tasks.jarJar.configure {
+    classifier project.minecraft_version
+}
+
+// Example for how to get properties into the manifest for reading by the runtime..
 jar {
+    classifier 'slim'
+
     manifest {
         attributes([
                 "Specification-Title"     : "figura",
