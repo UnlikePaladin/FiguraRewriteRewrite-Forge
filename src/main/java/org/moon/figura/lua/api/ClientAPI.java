@@ -1,5 +1,6 @@
 package org.moon.figura.lua.api;
 
+import com.google.common.base.Suppliers;
 import com.mojang.blaze3d.platform.Window;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.ClientBrandRetriever;
@@ -33,8 +34,10 @@ import org.moon.figura.utils.LuaUtils;
 import org.moon.figura.utils.TextUtils;
 import org.moon.figura.utils.Version;
 
+import java.lang.reflect.Field;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.function.Supplier;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -45,7 +48,30 @@ public class ClientAPI {
 
     public static final ClientAPI INSTANCE = new ClientAPI();
     private static final HashMap<String, Boolean> LOADED_MODS = new HashMap<>();
-    private static final boolean HAS_IRIS = ModList.get().isLoaded("oculus"); //separated to avoid indexing the list every frame
+    public static final Supplier<Boolean> OPTIFINE_LOADED = Suppliers.memoize(() ->
+    {
+        try
+        {
+            Class.forName("net.optifine.Config");
+            return true;
+        }
+        catch (ClassNotFoundException ignored)
+        {
+            return false;
+        }
+    });
+    public static boolean areOFShadersLoaded() {
+        try
+        {
+            Field shaderPackLoadedField = Class.forName("net.optifine.shaders.Shaders").getField("shaderPackLoaded");
+            Class<?> shaderClass = shaderPackLoadedField.getType();
+            if (shaderClass == boolean.class)
+                return shaderPackLoadedField.getBoolean(null);
+        }
+        catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException ignored) {}
+        return false;
+    }
+    private static final boolean HAS_IRIS = ( ModList.get().isLoaded("oculus")); //separated to avoid indexing the list every frame
 
     @LuaWhitelist
     @LuaMethodDoc("client.get_fps")
@@ -317,14 +343,13 @@ public class ClientAPI {
     @LuaWhitelist
     @LuaMethodDoc("client.has_iris")
     public static boolean hasIris() {
-        return HAS_IRIS;
+        return HAS_IRIS || OPTIFINE_LOADED.get();
     }
 
     @LuaWhitelist
     @LuaMethodDoc("client.has_iris_shader")
     public static boolean hasIrisShader() {
-        //Oculus 1.19.3 is nonexistent
-        return HAS_IRIS; //&& net.irisshaders.iris.api.v0.IrisApi.getInstance().isShaderPackInUse();
+        return (HAS_IRIS && net.irisshaders.iris.api.v0.IrisApi.getInstance().isShaderPackInUse()) || (OPTIFINE_LOADED.get() && areOFShadersLoaded());
     }
 
     @LuaWhitelist
