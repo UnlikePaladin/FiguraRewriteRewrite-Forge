@@ -32,6 +32,10 @@ import org.moon.figura.utils.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Supplier;
+import java.lang.reflect.Field;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.function.Supplier;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -54,7 +58,18 @@ public class ClientAPI {
             return false;
         }
     });
-    private static final boolean HAS_IRIS = ( ModList.get().isLoaded("oculus") || OPTIFINE_LOADED.get()); //separated to avoid indexing the list every frame
+    public static boolean areOFShadersLoaded() {
+        try
+        {
+            Field shaderPackLoadedField = Class.forName("net.optifine.shaders.Shaders").getField("shaderPackLoaded");
+            Class<?> shaderClass = shaderPackLoadedField.getType();
+            if (shaderClass == boolean.class)
+                return shaderPackLoadedField.getBoolean(null);
+        }
+        catch (ClassNotFoundException | NoSuchFieldException | IllegalAccessException ignored) {}
+        return false;
+    }
+    private static final boolean HAS_IRIS = ( ModList.get().isLoaded("oculus")); //separated to avoid indexing the list every frame
 
     @LuaWhitelist
     @LuaMethodDoc("client.get_fps")
@@ -323,13 +338,13 @@ public class ClientAPI {
     @LuaWhitelist
     @LuaMethodDoc("client.has_iris")
     public static boolean hasIris() {
-        return HAS_IRIS;
+        return HAS_IRIS || OPTIFINE_LOADED.get();
     }
 
     @LuaWhitelist
     @LuaMethodDoc("client.has_iris_shader")
     public static boolean hasIrisShader() {
-        return HAS_IRIS && net.irisshaders.iris.api.v0.IrisApi.getInstance().isShaderPackInUse();
+        return (HAS_IRIS && net.irisshaders.iris.api.v0.IrisApi.getInstance().isShaderPackInUse()) || (OPTIFINE_LOADED.get() && areOFShadersLoaded());
     }
 
     @LuaWhitelist

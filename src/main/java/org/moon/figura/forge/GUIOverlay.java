@@ -26,7 +26,7 @@ public class GUIOverlay implements IGuiOverlay {
         PopupMenu.render(stack);
 
         FiguraMod.popPushProfiler("paperdoll");
-        PaperDoll.render(stack);
+        PaperDoll.render(stack, false);
 
         FiguraMod.popProfiler();
 
@@ -39,7 +39,7 @@ public class GUIOverlay implements IGuiOverlay {
             avatar.hudRender(stack, Minecraft.getInstance().renderBuffers().bufferSource(), entity, partialTick);
 
             //hud hidden by script
-            if (avatar.luaRuntime != null) {
+            if (avatar.luaRuntime != null && !avatar.luaRuntime.renderer.renderHUD) {
                 //render wheel
                 FiguraMod.pushProfiler("actionWheel");
                 ActionWheel.render(stack);

@@ -70,7 +70,7 @@ public class FiguraDebugCommand {
             fs.close();
 
             //feedback
-            context.getSource().sendSuccess(
+            context.getSource().sendSystemMessage(
                     FiguraText.of("command.debug.success")
                             .append(" ")
                             .append(FiguraText.of("command.click_to_open")

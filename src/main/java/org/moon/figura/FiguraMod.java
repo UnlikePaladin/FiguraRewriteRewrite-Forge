@@ -1,6 +1,5 @@
 package org.moon.figura;
 
-import net.fabricmc.api.ClientModInitializer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
@@ -26,6 +25,9 @@ import org.moon.figura.commands.FiguraCommands;
 import org.moon.figura.config.ConfigManager;
 import org.moon.figura.config.Configs;
 import org.moon.figura.entries.EntryPointManager;
+import org.moon.figura.config.ModMenuConfig;
+import org.moon.figura.forge.GUIActionWheelOverlay;
+import org.moon.figura.forge.GUIOverlay;
 import org.moon.figura.gui.Emojis;
 import org.moon.figura.lua.FiguraLuaPrinter;
 import org.moon.figura.lua.docs.FiguraDocsManager;
@@ -42,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.Calendar;
+import java.util.Map;
 import java.util.UUID;
 
 @Mod("figura")
@@ -49,8 +52,8 @@ public class FiguraMod {
 
     public static final String MOD_ID = "figura";
     public static final String MOD_NAME = "Figura";
-    public static final ModMetadata METADATA = FabricLoader.getInstance().getModContainer(MOD_ID).get().getMetadata();
     public static final Version VERSION = new Version(ModList.get().getModContainerById("figura").get().getModInfo().getVersion().toString());
+    public static final Map<String,Object> METADATA = ModList.get().getModContainerById("figura").get().getModInfo().getModProperties();
     public static final boolean DEBUG_MODE = Math.random() + 1 < 0;
     public static final Calendar CALENDAR = Calendar.getInstance();
     public static final Path GAME_DIR = FMLPaths.GAMEDIR.relative().normalize();
@@ -61,8 +64,7 @@ public class FiguraMod {
     public static Component splashText;
     public static boolean parseMessages = true;
     public static boolean processingKeybind;
-    public static Entity extendedPickEntity;
-    public static Component splashText;
+
     public FiguraMod() {
 
     }
