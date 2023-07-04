@@ -7,7 +7,9 @@ import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
-import org.moon.figura.math.vector.*;
+import org.moon.figura.math.vector.FiguraVec2;
+import org.moon.figura.math.vector.FiguraVec3;
+import org.moon.figura.math.vector.FiguraVec4;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.LuaUtils;
 import org.moon.figura.utils.MathUtils;
@@ -38,25 +40,11 @@ public class VectorsAPI {
                             argumentTypes = {Double.class, Double.class, Double.class, Double.class},
                             argumentNames = {"x", "y", "z", "w"},
                             returnType = FiguraVec4.class
-                    ),
-                    @LuaMethodOverload(
-                            argumentTypes = {Double.class, Double.class, Double.class, Double.class, Double.class},
-                            argumentNames = {"x", "y", "z", "w", "t"},
-                            returnType = FiguraVec5.class
-                    ),
-                    @LuaMethodOverload(
-                            argumentTypes = {Double.class, Double.class, Double.class, Double.class, Double.class, Double.class},
-                            argumentNames = {"x", "y", "z", "w", "t", "h"},
-                            returnType = FiguraVec6.class
                     )
             },
             value = "vectors.vec"
     )
-    public static Object vec(Double x, Double y, Double z, Double w, Double t, Double h) {
-        if (h != null)
-            return vec6(x, y, z, w, t, h);
-        if (t != null)
-            return vec5(x, y, z, w, t);
+    public static Object vec(Double x, Double y, Double z, Double w) {
         if (w != null)
             return vec4(x, y, z, w);
         if (z != null)
@@ -100,30 +88,6 @@ public class VectorsAPI {
     )
     public static FiguraVec4 vec4(double x, double y, double z, double w) {
         return FiguraVec4.of(x, y, z, w);
-    }
-
-    @LuaWhitelist
-    @LuaMethodDoc(
-            overloads = @LuaMethodOverload(
-                    argumentTypes = {Double.class, Double.class, Double.class, Double.class, Double.class},
-                    argumentNames = {"x", "y", "z", "w", "t"}
-            ),
-            value = "vectors.vec5"
-    )
-    public static FiguraVec5 vec5(double x, double y, double z, double w, double t) {
-        return FiguraVec5.of(x, y, z, w, t);
-    }
-
-    @LuaWhitelist
-    @LuaMethodDoc(
-            overloads = @LuaMethodOverload(
-                    argumentTypes = {Double.class, Double.class, Double.class, Double.class, Double.class, Double.class},
-                    argumentNames = {"x", "y", "z", "w", "t", "h"}
-            ),
-            value = "vectors.vec6"
-    )
-    public static FiguraVec6 vec6(double x, double y, double z, double w, double t, double h) {
-        return FiguraVec6.of(x, y, z, w, t, h);
     }
 
     // -- colors -- //
@@ -259,12 +223,7 @@ public class VectorsAPI {
         vec = pair.getFirst();
         axis = pair.getSecond();
 
-        FiguraVec3 result = MathUtils.rotateAroundAxis(vec, axis, angle);
-
-        vec.free();
-        axis.free();
-
-        return result;
+        return MathUtils.rotateAroundAxis(vec, axis, angle);
     }
 
     @LuaWhitelist

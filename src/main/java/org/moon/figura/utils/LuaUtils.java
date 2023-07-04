@@ -6,6 +6,7 @@ import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.arguments.blocks.BlockStateArgument;
 import net.minecraft.commands.arguments.item.ItemArgument;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -15,7 +16,6 @@ import org.moon.figura.lua.api.world.ItemStackAPI;
 import org.moon.figura.math.vector.FiguraVec2;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.math.vector.FiguraVec4;
-import org.moon.figura.math.vector.FiguraVec6;
 
 public class LuaUtils {
 
@@ -37,10 +37,7 @@ public class LuaUtils {
     public static Pair<FiguraVec3, FiguraVec3> parse2Vec3(String methodName, Object x, Object y, Number z, Object w, Number t, Number h) {
         FiguraVec3 a, b;
 
-        if (x instanceof FiguraVec6 vec1) {
-            a = FiguraVec3.of(vec1.x, vec1.y, vec1.z);
-            b = FiguraVec3.of(vec1.w, vec1.t, vec1.h);
-        } else if (x instanceof FiguraVec3 vec1) {
+        if (x instanceof FiguraVec3 vec1) {
             a = vec1.copy();
             if (y instanceof FiguraVec3 vec2) {
                 b = vec2.copy();
@@ -92,6 +89,15 @@ public class LuaUtils {
         throw new LuaError("Illegal argument to " + methodName + "(): " + x.getClass().getSimpleName());
     }
 
+    public static FiguraVec3 parseOneArgVec(String methodName, Object x, Number y, Number z, double defaultArg) {
+        double d = x instanceof Number n ? n.doubleValue() : defaultArg;
+        return parseVec3(methodName, x, y, z, d, d, d);
+    }
+
+    public static FiguraVec3 nullableVec3(String methodName, Object x, Number y, Number z) {
+        return x == null ? null : parseVec3(methodName, x, y, z);
+    }
+
     public static FiguraVec2 parseVec2(String methodName, Object x, Number y) {
         return parseVec2(methodName, x, y, 0, 0);
     }
@@ -137,5 +143,13 @@ public class LuaUtils {
         }
 
         throw new LuaError("Illegal argument to " + methodName + "(): " + block);
+    }
+
+    public static ResourceLocation parsePath(String path) {
+        try {
+            return new ResourceLocation(path);
+        } catch (Exception e) {
+            throw new LuaError(e.getMessage());
+        }
     }
 }

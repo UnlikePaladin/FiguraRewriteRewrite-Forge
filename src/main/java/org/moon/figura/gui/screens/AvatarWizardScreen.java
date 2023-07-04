@@ -1,48 +1,41 @@
 package org.moon.figura.gui.screens;
 
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.gui.FiguraToast;
-import org.moon.figura.gui.widgets.TexturedButton;
+import org.moon.figura.gui.widgets.Button;
 import org.moon.figura.gui.widgets.lists.AvatarWizardList;
 import org.moon.figura.utils.FiguraText;
 import org.moon.figura.wizards.AvatarWizard;
 
 public class AvatarWizardScreen extends AbstractPanelScreen {
 
-    public static final Component TITLE = FiguraText.of("gui.panels.title.avatar_wizard");
-
     private final Screen sourcePanel;
 
-    private AvatarWizard wizard;
-    private TexturedButton build;
+    private final AvatarWizard wizard = new AvatarWizard();
+    private Button build;
 
     public AvatarWizardScreen(AbstractPanelScreen parentScreen) {
-        super(parentScreen.parentScreen, TITLE, WardrobeScreen.class);
+        super(parentScreen.parentScreen, FiguraText.of("gui.panels.title.avatar_wizard"));
         sourcePanel = parentScreen;
     }
 
     @Override
-    public Component getTitle() {
-        return TITLE;
+    public Class<? extends Screen> getSelectedPanel() {
+        return sourcePanel.getClass();
     }
 
     @Override
     protected void init() {
         super.init();
 
-        wizard = new AvatarWizard();
-
         // -- bottom buttons -- //
 
         //cancel
-        this.addRenderableWidget(new TexturedButton(width / 2 - 122, height - 24, 120, 20, FiguraText.of("gui.cancel"), null,
-                button -> this.minecraft.setScreen(sourcePanel)
-        ));
+        this.addRenderableWidget(new Button(width / 2 - 122, height - 24, 120, 20, FiguraText.of("gui.cancel"), null, button -> onClose()));
 
         //done
-        addRenderableWidget(build = new TexturedButton(width / 2 + 4, height - 24, 120, 20, FiguraText.of("gui.create"), null, button -> {
+        addRenderableWidget(build = new Button(width / 2 + 4, height - 24, 120, 20, FiguraText.of("gui.create"), null, button -> {
             try {
                 wizard.build();
                 FiguraToast.sendToast(FiguraText.of("toast.avatar_wizard.success"));
@@ -51,7 +44,7 @@ public class AvatarWizardScreen extends AbstractPanelScreen {
                 FiguraMod.LOGGER.error("", e);
             }
 
-            this.minecraft.setScreen(sourcePanel);
+            onClose();
         }));
 
         // -- wizard -- //
@@ -61,8 +54,13 @@ public class AvatarWizardScreen extends AbstractPanelScreen {
     }
 
     @Override
+    public void onClose() {
+        this.minecraft.setScreen(sourcePanel);
+    }
+
+    @Override
     public void tick() {
         super.tick();
-        build.active = wizard.canBuild();
+        build.setActive(wizard.canBuild());
     }
 }

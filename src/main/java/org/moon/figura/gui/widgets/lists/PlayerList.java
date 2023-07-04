@@ -1,23 +1,23 @@
 package org.moon.figura.gui.widgets.lists;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
-import org.moon.figura.gui.screens.TrustScreen;
+import org.moon.figura.gui.screens.PermissionsScreen;
+import org.moon.figura.gui.widgets.SearchBar;
 import org.moon.figura.gui.widgets.SwitchButton;
-import org.moon.figura.gui.widgets.TextField;
-import org.moon.figura.gui.widgets.trust.AbstractTrustElement;
-import org.moon.figura.gui.widgets.trust.GroupElement;
-import org.moon.figura.gui.widgets.trust.PlayerElement;
-import org.moon.figura.trust.TrustContainer;
-import org.moon.figura.trust.TrustManager;
+import org.moon.figura.gui.widgets.permissions.AbstractPermPackElement;
+import org.moon.figura.gui.widgets.permissions.CategoryPermPackElement;
+import org.moon.figura.gui.widgets.permissions.PlayerPermPackElement;
+import org.moon.figura.permissions.PermissionManager;
+import org.moon.figura.permissions.PermissionPack;
 import org.moon.figura.utils.FiguraIdentifier;
 import org.moon.figura.utils.FiguraText;
 import org.moon.figura.utils.ui.UIHelper;
@@ -26,39 +26,46 @@ import java.util.*;
 
 public class PlayerList extends AbstractList {
 
-    private final HashMap<UUID, PlayerElement> players = new HashMap<>();
+    private final HashMap<UUID, PlayerPermPackElement> players = new HashMap<>();
     private final HashSet<UUID> missingPlayers = new HashSet<>();
 
-    private final ArrayList<AbstractTrustElement> trustList = new ArrayList<>();
+    private final ArrayList<AbstractPermPackElement> permissionsList = new ArrayList<>();
 
-    public final TrustScreen parent;
-    private final TextField searchBar;
+    public final PermissionsScreen parent;
+    private final SearchBar searchBar;
     private final SwitchButton showFigura, showDisconnected;
     private static boolean showFiguraBl, showDisconnectedBl;
+    private final int entryWidth;
 
     private int totalHeight = 0;
-    public AbstractTrustElement selectedEntry;
+    private AbstractPermPackElement maxCategory;
+    public AbstractPermPackElement selectedEntry;
     private String filter = "";
 
-    public PlayerList(int x, int y, int width, int height, TrustScreen parent) {
+    public PlayerList(int x, int y, int width, int height, PermissionsScreen parent) {
         super(x, y, width, height);
         updateScissors(1, 24, -2, -25);
 
         this.parent = parent;
+        this.entryWidth = Math.min(width - scrollBar.getWidth() - 12, 174);
 
         //fix scrollbar y and height
         scrollBar.y = y + 28;
         scrollBar.setHeight(height - 32);
 
         //search bar
-        children.add(searchBar = new TextField(x + 4, y + 4, width - 56, 20, TextField.HintType.SEARCH, s -> filter = s));
+        children.add(searchBar = new SearchBar(x + 4, y + 4, width - 56, 20, s -> {
+            if (!filter.equals(s))
+                scrollBar.setScrollProgress(0f);
+            filter = s;
+        }));
 
         //show figura only button
-        children.add(showFigura = new SwitchButton(x + width - 48, y + 4, 20, 20, 0, 0, 20, new FiguraIdentifier("textures/gui/show_figura.png"), 60, 40, FiguraText.of("gui.trust.figura_only.tooltip"), button -> showFiguraBl = ((SwitchButton) button).isToggled()));
+        children.add(showFigura = new SwitchButton(x + width - 48, y + 4, 20, 20, 0, 0, 20, new FiguraIdentifier("textures/gui/show_figura.png"), 60, 40, FiguraText.of("gui.permissions.figura_only.tooltip"), button -> showFiguraBl = ((SwitchButton) button).isToggled()));
         showFigura.setToggled(showFiguraBl);
 
         //show disconnected button
-        children.add(showDisconnected = new SwitchButton(x + width - 24, y + 4, 20, 20, 0, 0, 20, new FiguraIdentifier("textures/gui/show_disconnected.png"), 60, 40, FiguraText.of("gui.trust.disconnected.tooltip"), button -> showDisconnectedBl = ((SwitchButton) button).isToggled()));
+        children.add(showDisconnected = new SwitchButton(x + width - 24, y + 4, 20, 20, 0, 0, 20, new FiguraIdentifier("textures/gui/show_disconnected.png"), 60, 40, FiguraText.of("gui.permissions.disconnected.tooltip"), button -> showDisconnectedBl = ((SwitchButton) button).isToggled()));
         showDisconnected.setToggled(showDisconnectedBl);
 
         //initial load
@@ -78,45 +85,50 @@ public class PlayerList extends AbstractList {
 
     @Override
     public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
-        //background and scissors
-        UIHelper.renderSliced(stack, x, y, width, height, UIHelper.OUTLINE);
-        UIHelper.setupScissor(x + scissorsX, y + scissorsY, width + scissorsWidth, height + scissorsHeight);
+        int x = getX();
+        int y = getY();
+        int width = getWidth();
+        int height = getHeight();
+
+        //background
+        UIHelper.renderSliced(stack, x, y, width, height, UIHelper.OUTLINE_FILL);
 
         totalHeight = 0;
-        for (AbstractTrustElement trustEntry : trustList) {
-            if (trustEntry.isVisible())
-                totalHeight += trustEntry.getHeight() + 8;
+        for (AbstractPermPackElement pack : permissionsList) {
+            if (pack.isVisible())
+                totalHeight += pack.getHeight() + 8;
         }
 
         //scrollbar visible
-        scrollBar.visible = totalHeight > height - 32;
-        scrollBar.setScrollRatio(trustList.isEmpty() ? 0f : (float) totalHeight / trustList.size(), totalHeight - (height - 32));
+        boolean hasScrollbar = totalHeight > height - 32;
+        scrollBar.setVisible(hasScrollbar);
+        scrollBar.setScrollRatio(permissionsList.isEmpty() ? 0f : (float) totalHeight / permissionsList.size(), totalHeight - (height - 32));
+
+        //scissors
+        this.scissorsWidth = hasScrollbar ? -scrollBar.getWidth() - 5 : -2;
+        UIHelper.setupScissor(x + scissorsX, y + scissorsY, width + scissorsWidth, height + scissorsHeight);
 
         //render stuff
-        int xOffset = width / 2 - 87 - (scrollBar.visible ? 7 : 0);
-        int playerY = scrollBar.visible ? (int) -(Mth.lerp(scrollBar.getScrollProgress(), -32, totalHeight - height)) : 32;
-        boolean hidden = false;
+        int xOffset = (width - entryWidth - (scrollBar.isVisible() ? 13 : 0)) / 2;
+        int playerY = scrollBar.isVisible() ? (int) -(Mth.lerp(scrollBar.getScrollProgress(), -32, totalHeight - height)) : 32;
 
-        for (AbstractTrustElement trust : trustList) {
-            if ((hidden || !trust.isVisible()) && (trust instanceof PlayerElement p && !p.dragged)) {
-                trust.visible = false;
+        int minY = y + scissorsY;
+        int maxY = minY + height + scissorsHeight;
+        for (AbstractPermPackElement pack : permissionsList) {
+            if (!pack.isVisible())
                 continue;
-            }
 
-            trust.visible = true;
-            trust.x = x + Math.max(4, xOffset);
-            trust.y = y + playerY;
+            pack.setX(x + xOffset);
+            pack.setY(y + playerY);
 
-            if (trust.y + trust.getHeight() > y + scissorsY)
-                trust.render(stack, mouseX, mouseY, delta);
+            if (pack.getY() + pack.getHeight() > minY && pack.getY() < maxY)
+                pack.render(stack, mouseX, mouseY, delta);
 
-            playerY += trust.getHeight() + 8;
-            if (playerY > height)
-                hidden = true;
+            playerY += pack.getHeight() + 8;
         }
 
         //reset scissor
-        RenderSystem.disableScissor();
+        UIHelper.disableScissor();
 
         //render children
         super.render(stack, mouseX, mouseY, delta);
@@ -124,14 +136,15 @@ public class PlayerList extends AbstractList {
 
     @Override
     public List<? extends GuiEventListener> contents() {
-        return trustList;
+        return permissionsList;
     }
 
     private void loadGroups() {
-        for (TrustContainer container : TrustManager.GROUPS.values()) {
-            GroupElement group = new GroupElement(container, this);
-            trustList.add(group);
+        for (PermissionPack container : PermissionManager.CATEGORIES.values()) {
+            CategoryPermPackElement group = new CategoryPermPackElement(entryWidth, container, this);
+            permissionsList.add(group);
             children.add(group);
+            maxCategory = group;
         }
     }
 
@@ -141,10 +154,11 @@ public class PlayerList extends AbstractList {
         missingPlayers.addAll(players.keySet());
 
         //for all players
-        List<UUID> playerList = new ArrayList<>(Minecraft.getInstance().player == null ? Collections.emptyList() : Minecraft.getInstance().player.connection.getOnlinePlayerIds());
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        List<UUID> playerList = connection == null ? List.of() : new ArrayList<>(connection.getOnlinePlayerIds());
         for (UUID uuid : playerList) {
             //get player
-            PlayerInfo player = Minecraft.getInstance().player.connection.getPlayerInfo(uuid);
+            PlayerInfo player = connection.getPlayerInfo(uuid);
             if (player == null)
                 continue;
 
@@ -160,10 +174,10 @@ public class PlayerList extends AbstractList {
             //player is not missing
             missingPlayers.remove(uuid);
 
-            PlayerElement element = players.computeIfAbsent(uuid, uuid1 -> {
-                PlayerElement entry = new PlayerElement(name, TrustManager.get(uuid1), skin, uuid1, this);
+            PlayerPermPackElement element = players.computeIfAbsent(uuid, uuid1 -> {
+                PlayerPermPackElement entry = new PlayerPermPackElement(entryWidth, name, PermissionManager.get(uuid1), skin, uuid1, this);
 
-                trustList.add(entry);
+                permissionsList.add(entry);
                 children.add(entry);
 
                 return entry;
@@ -180,10 +194,10 @@ public class PlayerList extends AbstractList {
 
                 missingPlayers.remove(id);
 
-                PlayerElement element = players.computeIfAbsent(id, uuid -> {
-                    PlayerElement entry = new PlayerElement(avatar.entityName, TrustManager.get(uuid), null, uuid, this);
+                PlayerPermPackElement element = players.computeIfAbsent(id, uuid -> {
+                    PlayerPermPackElement entry = new PlayerPermPackElement(entryWidth, avatar.entityName, PermissionManager.get(uuid), null, uuid, this);
 
-                    trustList.add(entry);
+                    permissionsList.add(entry);
                     children.add(entry);
 
                     return entry;
@@ -194,61 +208,66 @@ public class PlayerList extends AbstractList {
 
         //remove missing players
         for (UUID missingID : missingPlayers) {
-            PlayerElement entry = players.remove(missingID);
-            trustList.remove(entry);
+            PlayerPermPackElement entry = players.remove(missingID);
+            permissionsList.remove(entry);
             children.remove(entry);
         }
 
         sortList();
 
         //select local if current selected is missing
-        if (selectedEntry instanceof PlayerElement player && missingPlayers.contains(player.getOwner()))
+        if (selectedEntry instanceof PlayerPermPackElement player && missingPlayers.contains(player.getOwner()))
             selectLocalPlayer();
     }
 
     private void sortList() {
-        trustList.sort(AbstractTrustElement::compareTo);
+        permissionsList.sort(AbstractPermPackElement::compareTo);
         children.sort((element1, element2) -> {
-            if (element1 instanceof AbstractTrustElement container1 && element2 instanceof AbstractTrustElement container2)
+            if (element1 instanceof AbstractPermPackElement container1 && element2 instanceof AbstractPermPackElement container2)
                 return container1.compareTo(container2);
             return 0;
         });
     }
 
     private void selectLocalPlayer() {
-        PlayerElement local = Minecraft.getInstance().player != null ? players.get(Minecraft.getInstance().player.getUUID()) : null;
-        if (local != null) local.onPress();
+        PlayerPermPackElement local = Minecraft.getInstance().player != null ? players.get(Minecraft.getInstance().player.getUUID()) : null;
+        if (local != null) {
+            local.onPress();
+        } else {
+            maxCategory.onPress();
+        }
 
         scrollToSelected();
     }
 
     public void updateScroll() {
         //store old scroll pos
-        double pastScroll = (totalHeight - height) * scrollBar.getScrollProgress();
+        double pastScroll = (totalHeight - getHeight()) * scrollBar.getScrollProgress();
 
         //get new height
         totalHeight = 0;
-        for (AbstractTrustElement trustEntry : trustList) {
-            if (trustEntry.isVisible())
-                totalHeight += trustEntry.getHeight() + 8;
+        for (AbstractPermPackElement pack : permissionsList) {
+            if (pack.isVisible())
+                totalHeight += pack.getHeight() + 8;
         }
 
         //set new scroll percentage
-        scrollBar.setScrollProgress(pastScroll / (totalHeight - height));
+        scrollBar.setScrollProgress(pastScroll / (totalHeight - getHeight()));
     }
 
+    @Override
     public void setY(int y) {
-        this.y = y;
-        scrollBar.y = y + 28;
-        searchBar.setPos(searchBar.x, y + 4);
-        showFigura.y = y + 4;
-        showDisconnected.y = y + 4;
+        super.setY(y);
+        scrollBar.setY(y + 28);
+        searchBar.setY(y + 4);
+        showFigura.setY(y + 4);
+        showDisconnected.setY(y + 4);
     }
 
-    public int getTrustAt(double y) {
+    public int getCategoryAt(double y) {
         int ret = -1;
-        for (AbstractTrustElement element : trustList)
-            if (element instanceof GroupElement group && group.visible && y >= group.y)
+        for (AbstractPermPackElement element : permissionsList)
+            if (element instanceof CategoryPermPackElement group && group.isVisible() && y >= group.getY())
                 ret++;
         return Math.max(ret, 0);
     }
@@ -258,18 +277,18 @@ public class PlayerList extends AbstractList {
 
         //get height
         totalHeight = 0;
-        for (AbstractTrustElement trustEntry : trustList) {
-            if (trustEntry instanceof PlayerElement && !trustEntry.isVisible())
+        for (AbstractPermPackElement pack : permissionsList) {
+            if (pack instanceof PlayerPermPackElement && !pack.isVisible())
                 continue;
 
-            if (trustEntry == selectedEntry)
+            if (pack == selectedEntry)
                 y = totalHeight;
             else
-                totalHeight += trustEntry.getHeight() + 8;
+                totalHeight += pack.getHeight() + 8;
         }
 
         //set scroll
-        scrollBar.setScrollProgress(y / totalHeight);
+        scrollBar.setScrollProgressNoAnim(y / totalHeight);
     }
 
 }

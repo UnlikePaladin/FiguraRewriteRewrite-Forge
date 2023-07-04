@@ -1,21 +1,18 @@
 package org.moon.figura.gui.widgets.lists;
 
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
-import org.moon.figura.gui.widgets.AbstractContainerElement;
-import org.moon.figura.gui.widgets.Label;
-import org.moon.figura.gui.widgets.ParentedButton;
-import org.moon.figura.gui.widgets.TexturedButton;
+import org.moon.figura.gui.widgets.*;
 import org.moon.figura.lua.api.keybind.FiguraKeybind;
 import org.moon.figura.utils.FiguraText;
+import org.moon.figura.utils.TextUtils;
 import org.moon.figura.utils.ui.UIHelper;
 
 import java.util.ArrayList;
@@ -25,17 +22,20 @@ public class KeybindList extends AbstractList {
 
     private final List<KeybindElement> keybinds = new ArrayList<>();
     private final Avatar owner;
+    private final Button resetAllButton;
 
-    public FiguraKeybind focusedKeybind;
+    private FiguraKeybind focusedKeybind;
 
-    public KeybindList(int x, int y, int width, int height, Avatar owner) {
+    public KeybindList(int x, int y, int width, int height, Avatar owner, Button resetAllButton) {
         super(x, y, width, height);
         this.owner = owner;
+        this.resetAllButton = resetAllButton;
         updateList();
 
         Label noOwner, noKeys;
-        this.children.add(noOwner = new Label(FiguraText.of("gui.error.no_avatar").withStyle(ChatFormatting.YELLOW), x + width / 2, y + height / 2, true, 0));
-        this.children.add(noKeys = new Label(FiguraText.of("gui.error.no_keybinds").withStyle(ChatFormatting.YELLOW), x + width / 2, y + height / 2, true, 0));
+        this.children.add(noOwner = new Label(FiguraText.of("gui.error.no_avatar").withStyle(ChatFormatting.YELLOW), x + width / 2, y + height / 2, TextUtils.Alignment.CENTER, 0));
+        this.children.add(noKeys = new Label(FiguraText.of("gui.error.no_keybinds").withStyle(ChatFormatting.YELLOW), x + width / 2, y + height / 2, TextUtils.Alignment.CENTER, 0));
+        noOwner.centerVertically = noKeys.centerVertically = true;
 
         noOwner.setVisible(owner == null);
         noKeys.setVisible(!noOwner.isVisible() && keybinds.isEmpty());
@@ -44,8 +44,8 @@ public class KeybindList extends AbstractList {
     @Override
     public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
         //background and scissors
-        UIHelper.renderSliced(stack, x, y, width, height, UIHelper.OUTLINE);
-        UIHelper.setupScissor(x + scissorsX, y + scissorsY, width + scissorsWidth, height + scissorsHeight);
+        UIHelper.renderSliced(stack, getX(), getY(), getWidth(), getHeight(), UIHelper.OUTLINE_FILL);
+        UIHelper.setupScissor(getX() + scissorsX, getY() + scissorsY, getWidth() + scissorsWidth, getHeight() + scissorsHeight);
 
         if (!keybinds.isEmpty())
             updateEntries();
@@ -54,25 +54,26 @@ public class KeybindList extends AbstractList {
         super.render(stack, mouseX, mouseY, delta);
 
         //reset scissor
-        RenderSystem.disableScissor();
+        UIHelper.disableScissor();
     }
 
     private void updateEntries() {
         //scrollbar
         int totalHeight = -4;
         for (KeybindElement keybind : keybinds)
-            totalHeight += keybind.height + 8;
+            totalHeight += keybind.getHeight() + 8;
         int entryHeight = keybinds.isEmpty() ? 0 : totalHeight / keybinds.size();
 
-        scrollBar.visible = totalHeight > height;
-        scrollBar.setScrollRatio(entryHeight, totalHeight - height);
+        scrollBar.setVisible(totalHeight > getHeight());
+        scrollBar.setScrollRatio(entryHeight, totalHeight - getHeight());
 
         //render list
-        int xOffset = scrollBar.visible ? 4 : 11;
-        int yOffset = scrollBar.visible ? (int) -(Mth.lerp(scrollBar.getScrollProgress(), -4, totalHeight - height)) : 4;
+        int xOffset = scrollBar.isVisible() ? 4 : 11;
+        int yOffset = scrollBar.isVisible() ? (int) -(Mth.lerp(scrollBar.getScrollProgress(), -4, totalHeight - getHeight())) : 4;
         for (KeybindElement keybind : keybinds) {
-            keybind.setPos(x + xOffset, y + yOffset);
-            yOffset += keybind.height + 8;
+            keybind.setX(getX() + xOffset);
+            keybind.setY(getY() + yOffset);
+            yOffset += keybind.getHeight() + 8;
         }
     }
 
@@ -85,18 +86,45 @@ public class KeybindList extends AbstractList {
             return;
 
         for (FiguraKeybind keybind : owner.luaRuntime.keybinds.keyBindings) {
-            KeybindElement element = new KeybindElement(width - 22, keybind, this);
+            KeybindElement element = new KeybindElement(getWidth() - 22, keybind, this);
             keybinds.add(element);
             children.add(element);
         }
+
+        updateBindings();
+    }
+
+    public boolean updateKey(InputConstants.Key key) {
+        if (focusedKeybind == null)
+            return false;
+
+        focusedKeybind.setKey(key);
+        focusedKeybind = null;
+        FiguraMod.processingKeybind = false;
+
+        updateBindings();
+        return true;
+    }
+
+    public void updateBindings() {
+        boolean active = false;
+
+        for (KeybindElement keybind : keybinds) {
+            keybind.updateText();
+            if (!active && !keybind.keybind.isDefault())
+                active = true;
+        }
+
+        resetAllButton.setActive(active);
     }
 
     private static class KeybindElement extends AbstractContainerElement {
 
+        private final KeybindWidgetHelper helper = new KeybindWidgetHelper();
         private final FiguraKeybind keybind;
         private final KeybindList parent;
-        private final TexturedButton resetButton;
-        private final TexturedButton keybindButton;
+        private final Button resetButton;
+        private final Button keybindButton;
 
         public KeybindElement(int width, FiguraKeybind keybind, KeybindList parent) {
             super(0, 0, width, 20);
@@ -104,57 +132,39 @@ public class KeybindList extends AbstractList {
             this.parent = parent;
 
             //toggle button
-            children.add(0, keybindButton = new ParentedButton(0, 0, 90, 20, keybind.getTranslatedKeyMessage(), this, button -> parent.focusedKeybind = keybind));
+            children.add(0, keybindButton = new ParentedButton(0, 0, 90, 20, keybind.getTranslatedKeyMessage(), this, button -> {
+                parent.focusedKeybind = keybind;
+                FiguraMod.processingKeybind = true;
+                updateText();
+            }));
 
             //reset button
-            children.add(resetButton = new ParentedButton(0, 0, 60, 20, Component.translatable("controls.reset"), this, button -> keybind.resetDefaultKey()));
+            children.add(resetButton = new ParentedButton(0, 0, 60, 20, Component.translatable("controls.reset"), this, button -> {
+                keybind.resetDefaultKey();
+                parent.updateBindings();
+            }));
         }
 
         @Override
         public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
             if (!this.isVisible()) return;
 
-            //reset enabled
-            this.resetButton.active = !this.keybind.isDefault();
-
-            //button message
-            this.keybindButton.setMessage(this.keybind.getTranslatedKeyMessage());
-
-            //editing message
-            if (parent.focusedKeybind == this.keybind) {
-                keybindButton.setMessage(Component.literal("> ").setStyle(FiguraMod.getAccentColor()).append(keybindButton.getMessage()).append(" <"));
-            }
-            //conflict check
-            else {
-                boolean found = false;
-                for (KeyMapping key : Minecraft.getInstance().options.keyMappings) {
-                    if (key.saveString().equals(this.keybind.getKey())) {
-                        found = true;
-                        keybindButton.setMessage(keybindButton.getMessage().copy().withStyle(ChatFormatting.RED));
-                        break;
-                    }
-                }
-
-                if (!found) {
-                    for (KeybindElement keybindElement : this.parent.keybinds) {
-                        if (keybindElement.keybind != this.keybind && keybindElement.keybind.getKey().equals(this.keybind.getKey())) {
-                            keybindButton.setMessage(keybindButton.getMessage().copy().withStyle(ChatFormatting.YELLOW));
-                            break;
-                        }
-                    }
-                }
-            }
+            helper.renderConflictBars(stack, keybindButton.x - 8, keybindButton.y + 2, 4, 16);
 
             //vars
             Font font = Minecraft.getInstance().font;
-            int textY = y + height / 2 - font.lineHeight / 2;
+            int textY = getY() + getHeight() / 2 - font.lineHeight / 2;
 
             //hovered arrow
             setHovered(isMouseOver(mouseX, mouseY));
-            if (isHovered()) font.draw(stack, HOVERED_ARROW, x + 4, textY, 0xFFFFFF);
+            if (isHovered()) {
+                font.draw(stack, HOVERED_ARROW, getX() + 4, textY, 0xFFFFFF);
+                if (keybindButton.isHoveredOrFocused())
+                    helper.renderTooltip();
+            }
 
             //render name
-            font.draw(stack, this.keybind.getName(), x + 16, textY, 0xFFFFFF);
+            font.draw(stack, this.keybind.getName(), getX() + 16, textY, 0xFFFFFF);
 
             //render children
             super.render(stack, mouseX, mouseY, delta);
@@ -165,15 +175,35 @@ public class KeybindList extends AbstractList {
             return this.parent.isInsideScissors(mouseX, mouseY) && super.isMouseOver(mouseX, mouseY);
         }
 
-        public void setPos(int x, int y) {
-            this.x = x;
-            this.y = y;
+        @Override
+        public void setX(int x) {
+            super.setX(x);
+            resetButton.setX(x + getWidth() - 60);
+            keybindButton.setX(x + getWidth() - 154);
+        }
 
-            resetButton.x = x + width - 60;
-            resetButton.y = y;
+        @Override
+        public void setY(int y) {
+            super.setY(y);
+            resetButton.setY(y);
+            keybindButton.setY(y);
+        }
 
-            keybindButton.x = x + width - 154;
-            keybindButton.y = y;
+        public void updateText() {
+            //tooltip
+            List<FiguraKeybind> temp = new ArrayList<>();
+            for (KeybindElement keybind : parent.keybinds)
+                temp.add(keybind.keybind);
+            helper.setTooltip(this.keybind, temp);
+
+            //reset enabled
+            boolean isDefault = this.keybind.isDefault();
+            this.resetButton.setActive(!isDefault);
+
+            //text
+            boolean selected = parent.focusedKeybind == this.keybind;
+            Component text = helper.getText(isDefault, selected, this.keybind.getTranslatedKeyMessage());
+            keybindButton.setMessage(text);
         }
     }
 }

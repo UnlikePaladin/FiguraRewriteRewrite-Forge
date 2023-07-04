@@ -6,6 +6,7 @@ import net.minecraft.client.gui.screens.ChatScreen;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
+import org.moon.figura.commands.FiguraRunCommand;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -20,6 +21,8 @@ public class ChatScreenMixin {
 
     @ModifyVariable(at = @At("HEAD"), method = "handleChatInput", argsOnly = true)
     private String handleChatInput(String text) {
+        FiguraRunCommand.canRun = true;
+
         String s = text;
         Avatar avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
         if (avatar != null && !text.isBlank())
@@ -29,6 +32,11 @@ public class ChatScreenMixin {
             FiguraMod.LOGGER.info("Changed chat message from \"{}\" to \"{}\"", text, s);
 
         return s;
+    }
+
+    @Inject(at = @At("RETURN"), method = "handleChatInput")
+    private void afterHandleChatInput(String string, boolean bl, CallbackInfo ci) {
+        FiguraRunCommand.canRun = false;
     }
 
     @Inject(at = @At("HEAD"), method = "render")

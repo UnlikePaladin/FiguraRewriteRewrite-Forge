@@ -1,5 +1,6 @@
 package org.moon.figura.utils;
 
+import com.mojang.authlib.GameProfile;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.PlayerInfo;
@@ -11,7 +12,11 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.moon.figura.mixin.ClientLevelInvoker;
+import org.moon.figura.mixin.gui.PlayerTabOverlayAccessor;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class EntityUtils {
@@ -61,5 +66,42 @@ public class EntityUtils {
             return e.getName().getString();
 
         return null;
+    }
+
+    public static Map<String, UUID> getPlayerList() {
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        if (connection == null || connection.getOnlinePlayerIds().isEmpty())
+            return Map.of();
+
+        Map<String, UUID> playerList = new HashMap<>();
+
+        for (UUID uuid : connection.getOnlinePlayerIds()) {
+            PlayerInfo player = connection.getPlayerInfo(uuid);
+            if (player != null)
+                playerList.put(player.getProfile().getName(), uuid);
+        }
+
+        return playerList;
+    }
+
+    public static List<PlayerInfo> getTabList() {
+        ClientPacketListener clientPacketListener = Minecraft.getInstance().getConnection();
+        if (clientPacketListener == null)
+            return List.of();
+
+        return PlayerTabOverlayAccessor.getPlayerOrdering().sortedCopy(clientPacketListener.getOnlinePlayers());
+    }
+
+    public static boolean checkInvalidPlayer(UUID id) {
+        if (id.version() != 4)
+            return true;
+
+        PlayerInfo playerInfo = getPlayerInfo(id);
+        if (playerInfo == null)
+            return false;
+
+        GameProfile profile = playerInfo.getProfile();
+        String name = profile.getName();
+        return name != null && (name.isBlank() || name.charAt(0) == '\u0000');
     }
 }

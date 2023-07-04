@@ -5,13 +5,20 @@ import net.minecraft.client.resources.DefaultPlayerSkin;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.PlayerModelPart;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.scores.PlayerTeam;
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
 import org.moon.figura.lua.LuaNotNil;
 import org.moon.figura.lua.LuaWhitelist;
+import org.moon.figura.lua.NbtToLua;
+import org.moon.figura.lua.ReadOnlyLuaTable;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.utils.EntityUtils;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -53,6 +60,13 @@ public class PlayerAPI extends LivingEntityAPI<Player> {
     }
 
     @LuaWhitelist
+    @LuaMethodDoc("player.get_exhaustion")
+    public float getExhaustion() {
+        checkEntity();
+        return entity.getFoodData().getExhaustionLevel();
+    }
+
+    @LuaWhitelist
     @LuaMethodDoc("player.get_experience_progress")
     public float getExperienceProgress() {
         checkEntity();
@@ -61,23 +75,16 @@ public class PlayerAPI extends LivingEntityAPI<Player> {
 
     @LuaWhitelist
     @LuaMethodDoc("player.get_experience_level")
-    public float getExperienceLevel() {
+    public int getExperienceLevel() {
         checkEntity();
         return entity.experienceLevel;
-    }
-
-    @LuaWhitelist
-    @LuaMethodDoc("player.is_flying")
-    public boolean isFlying() {
-        checkEntity();
-        return entity.getAbilities().flying;
     }
 
     @LuaWhitelist
     @LuaMethodDoc("player.get_model_type")
     public String getModelType() {
         checkEntity();
-        return checkPlayerInfo() ? playerInfo.getModelName().toUpperCase() : DefaultPlayerSkin.getSkinModelName(entity.getUUID());
+        return (checkPlayerInfo() ? playerInfo.getModelName() : DefaultPlayerSkin.getSkinModelName(entity.getUUID())).toUpperCase();
     }
 
     @LuaWhitelist
@@ -136,6 +143,55 @@ public class PlayerAPI extends LivingEntityAPI<Player> {
     public float getChargedAttackDelay() {
         checkEntity();
         return entity.getCurrentItemAttackStrengthDelay();
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = {
+                    @LuaMethodOverload,
+                    @LuaMethodOverload(
+                            argumentTypes = Boolean.class,
+                            argumentNames = "right"
+                    )
+            },
+            value = "player.get_shoulder_entity")
+    public LuaTable getShoulderEntity(boolean right) {
+        checkEntity();
+        return new ReadOnlyLuaTable(NbtToLua.convert(right ? entity.getShoulderEntityRight() : entity.getShoulderEntityLeft()));
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("player.get_team_info")
+    public Map<String, Object> getTeamInfo() {
+        checkEntity();
+        if (!checkPlayerInfo())
+            return null;
+
+        PlayerTeam team = playerInfo.getTeam();
+        if (team == null)
+            return null;
+
+        Map<String, Object> map = new HashMap<>();
+
+        map.put("name", team.getName());
+        map.put("display_name", team.getDisplayName().getString());
+        map.put("color", team.getColor().getName());
+        map.put("prefix", team.getPlayerPrefix().getString());
+        map.put("suffix", team.getPlayerSuffix().getString());
+        map.put("friendly_fire", team.isAllowFriendlyFire());
+        map.put("see_friendly_invisibles", team.canSeeFriendlyInvisibles());
+        map.put("nametag_visibility", team.getNameTagVisibility().name);
+        map.put("death_message_visibility", team.getDeathMessageVisibility().name);
+        map.put("collision_rule", team.getCollisionRule().name);
+
+        return map;
+    }
+
+    private static final String[] IP_MESSAGES = {":trol:", "lol", "cope", "ratio'd", "192.168.0.1", "doxxed", "IP grabbed!"};
+    @LuaWhitelist
+    @LuaMethodDoc("player.get_ip_address")
+    public String getIPAddress() {
+        return IP_MESSAGES[(int) (Math.random() * IP_MESSAGES.length)];
     }
 
     @Override

@@ -17,7 +17,7 @@ import net.minecraft.world.item.ItemStack;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.model.ParentType;
-import org.moon.figura.trust.Trust;
+import org.moon.figura.utils.RenderUtils;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -28,7 +28,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * This class only exists because of spyglass jank.
  * Has literally the exact same code as ItemInHandLayerMixin, just for the spyglass specifically.
- * For now, at least. Once spyglass parent part exists, it may be different.
+ * For now, at least. Once spyglass category part exists, it may be different.
  * @param <T>
  * @param <M>
  */
@@ -46,20 +46,11 @@ public abstract class PlayerItemInHandLayerMixin <T extends Player, M extends En
         if (itemStack.isEmpty())
             return;
 
-        Avatar avatar = AvatarManager.getAvatar(livingEntity);
-        if (avatar == null || avatar.trust.get(Trust.VANILLA_MODEL_EDIT) == 0)
-            return;
-
         boolean left = humanoidArm == HumanoidArm.LEFT;
 
-        //script hide
-        if (avatar.luaRuntime != null &&
-                (left && !avatar.luaRuntime.vanilla_model.LEFT_ITEM.checkVisible() ||
-                !left && !avatar.luaRuntime.vanilla_model.RIGHT_ITEM.checkVisible()
-        )) {
-            ci.cancel();
+        Avatar avatar = AvatarManager.getAvatar(livingEntity);
+        if (!RenderUtils.renderArmItem(avatar, left, ci))
             return;
-        }
 
         //pivot part
         if (avatar.pivotPartRender(left ? ParentType.LeftSpyglassPivot : ParentType.RightSpyglassPivot, stack -> {

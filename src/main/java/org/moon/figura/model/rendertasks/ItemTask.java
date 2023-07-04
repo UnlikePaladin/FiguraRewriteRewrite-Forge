@@ -5,14 +5,16 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.block.model.ItemTransforms;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import org.luaj.vm2.LuaError;
+import org.moon.figura.avatar.Avatar;
 import org.moon.figura.lua.LuaNotNil;
 import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.api.world.ItemStackAPI;
+import org.moon.figura.lua.api.world.WorldAPI;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
-import org.moon.figura.lua.docs.LuaMethodShadow;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.model.PartCustomization;
 import org.moon.figura.utils.LuaUtils;
@@ -25,36 +27,46 @@ import org.moon.figura.utils.LuaUtils;
 public class ItemTask extends RenderTask {
 
     private ItemStack item;
-    private ItemTransforms.TransformType renderType = ItemTransforms.TransformType.NONE;
+    private ItemTransforms.TransformType displayMode = ItemTransforms.TransformType.NONE;
     private boolean left = false;
     private int cachedComplexity;
 
-    public ItemTask(String name) {
-        super(name);
+    public ItemTask(String name, Avatar owner) {
+        super(name, owner);
     }
 
     @Override
-    public boolean render(PartCustomization.Stack stack, MultiBufferSource buffer, int light, int overlay) {
-        if (!enabled || item == null || item.isEmpty())
-            return false;
-
+    public void render(PartCustomization.PartCustomizationStack stack, MultiBufferSource buffer, int light, int overlay) {
         this.pushOntoStack(stack);
         PoseStack poseStack = stack.peek().copyIntoGlobalPoseStack();
         poseStack.scale(-16, 16, -16);
 
+        LivingEntity entity = owner.renderer.entity instanceof LivingEntity living ? living : null;
+        int newLight = this.customization.light != null ? this.customization.light : light;
+        int newOverlay = this.customization.overlay != null ? this.customization.overlay : overlay;
+        int seed = entity != null ? entity.getId() + displayMode.ordinal() : 0;
+
         Minecraft.getInstance().getItemRenderer().renderStatic(
-                null, item, renderType, left,
-                poseStack, buffer, null,
-                this.light != null ? this.light : light, this.overlay != null ? this.overlay : overlay, 0);
+                entity, item, displayMode, left,
+                poseStack, buffer, WorldAPI.getCurrentWorld(),
+                newLight, newOverlay, seed
+        );
 
         stack.pop();
-        return true;
     }
 
     @Override
     public int getComplexity() {
         return cachedComplexity;
     }
+
+    @Override
+    public boolean shouldRender() {
+        return super.shouldRender() && item != null && !item.isEmpty();
+    }
+
+    // -- lua -- //
+
 
     @LuaWhitelist
     @LuaMethodDoc(
@@ -68,50 +80,50 @@ public class ItemTask extends RenderTask {
                             argumentNames = "item"
                     )
             },
+            aliases = "item",
             value = "item_task.set_item"
     )
-    public void setItem(Object item) {
+    public ItemTask setItem(Object item) {
         this.item = LuaUtils.parseItemStack("item", item);
         Minecraft client = Minecraft.getInstance();
         RandomSource random = client.level != null ? client.level.random : RandomSource.create();
         cachedComplexity = client.getItemRenderer().getModel(this.item, null, null, 0).getQuads(null, null, random).size();
-    }
-
-    @LuaWhitelist
-    @LuaMethodShadow("setItem")
-    public RenderTask item(Object item) {
-        setItem(item);
         return this;
     }
 
     @LuaWhitelist
-    @LuaMethodDoc("item_task.get_render_type")
-    public String getRenderType() {
-        return this.renderType.name();
+    public ItemTask item(Object item) {
+        return setItem(item);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("item_task.get_display_mode")
+    public String getDisplayMode() {
+        return this.displayMode.name();
     }
 
     @LuaWhitelist
     @LuaMethodDoc(
             overloads = @LuaMethodOverload(
                         argumentTypes = String.class,
-                        argumentNames = "renderType"
+                        argumentNames = "displayMode"
             ),
-            value = "item_task.set_render_type"
+            aliases = "displayMode",
+            value = "item_task.set_display_mode"
     )
-    public void setRenderType(@LuaNotNil String type) {
+    public ItemTask setDisplayMode(@LuaNotNil String mode) {
         try {
-            this.renderType = ItemTransforms.TransformType.valueOf(type.toUpperCase());
-            this.left = this.renderType == ItemTransforms.TransformType.FIRST_PERSON_LEFT_HAND || this.renderType == ItemTransforms.TransformType.THIRD_PERSON_LEFT_HAND;
+            this.displayMode = ItemTransforms.TransformType.valueOf(mode.toUpperCase());
+            this.left = this.displayMode == ItemTransforms.TransformType.FIRST_PERSON_LEFT_HAND || this.displayMode == ItemTransforms.TransformType.THIRD_PERSON_LEFT_HAND;
+            return this;
         } catch (Exception ignored) {
-            throw new LuaError("Illegal RenderType: \"" + type + "\".");
+            throw new LuaError("Illegal display mode: \"" + mode + "\".");
         }
     }
 
     @LuaWhitelist
-    @LuaMethodShadow("setRenderType")
-    public RenderTask renderType(@LuaNotNil String type) {
-        setRenderType(type);
-        return this;
+    public ItemTask displayMode(@LuaNotNil String mode) {
+        return setDisplayMode(mode);
     }
 
     @Override

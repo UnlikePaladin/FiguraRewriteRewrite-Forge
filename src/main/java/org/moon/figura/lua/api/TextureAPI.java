@@ -1,6 +1,8 @@
 package org.moon.figura.lua.api;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import net.minecraft.client.Minecraft;
+import net.minecraft.server.packs.resources.Resource;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.moon.figura.avatar.Avatar;
@@ -9,15 +11,17 @@ import org.moon.figura.lua.LuaWhitelist;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
+import org.moon.figura.mixin.render.MissingTextureAtlasSpriteAccessor;
 import org.moon.figura.model.rendering.texture.FiguraTexture;
-import org.moon.figura.trust.Trust;
+import org.moon.figura.permissions.Permissions;
 import org.moon.figura.utils.ColorUtils;
+import org.moon.figura.utils.LuaUtils;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -40,9 +44,9 @@ public class TextureAPI {
     }
 
     public FiguraTexture register(String name, NativeImage image, boolean ignoreSize) {
-        int max = owner.trust.get(Trust.TEXTURE_SIZE);
+        int max = owner.permissions.get(Permissions.TEXTURE_SIZE);
         if (!ignoreSize && (image.getWidth() > max || image.getHeight() > max)) {
-            owner.trustIssues.add(Trust.TEXTURE_SIZE);
+            owner.noPermissions.add(Permissions.TEXTURE_SIZE);
             throw new LuaError("Texture exceeded max size of " + max + " x " + max + " resolution, got " + image.getWidth() + " x " + image.getHeight());
         }
 
@@ -74,7 +78,7 @@ public class TextureAPI {
         }
 
         FiguraTexture texture = register(name, image, false);
-        texture.fill(0, 0, width, height, ColorUtils.Colors.FRAN_PINK.vec.augmented(), null, null, null);
+        texture.fill(0, 0, width, height, ColorUtils.Colors.FRAN_PINK.vec.augmented(1d), null, null, null);
         return texture;
     }
 
@@ -119,6 +123,18 @@ public class TextureAPI {
     @LuaWhitelist
     @LuaMethodDoc(
             overloads = @LuaMethodOverload(
+                    argumentTypes = {String.class, FiguraTexture.class},
+                    argumentNames = {"name", "texture"}
+            ),
+            value = "textures.copy")
+    public FiguraTexture copy(@LuaNotNil String name, @LuaNotNil FiguraTexture texture) {
+        NativeImage image = texture.copy();
+        return register(name, image, false);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
                     argumentTypes = String.class,
                     argumentNames = "name"
             ),
@@ -136,19 +152,30 @@ public class TextureAPI {
     }
 
     @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = {String.class, String.class},
+                    argumentNames = {"name", "path"}
+            ),
+            value = "textures.from_vanilla"
+    )
+    public FiguraTexture fromVanilla(@LuaNotNil String name, @LuaNotNil String path) {
+        check();
+        Optional<Resource> resource = Minecraft.getInstance().getResourceManager().getResource(LuaUtils.parsePath(path));
+        try {
+            //if the string is a valid resourceLocation but does not point to a valid resource, missingno
+            NativeImage image = resource.isPresent() ? NativeImage.read(resource.get().open()) : MissingTextureAtlasSpriteAccessor.getImageData().get();
+            return register(name, image, false);
+        } catch (Exception e) {
+            //spit an error if the player inputs a resource location that does point to a thing, but not to an image
+            throw new LuaError(e.getMessage());
+        }
+    }
+
+    @LuaWhitelist
     public FiguraTexture __index(@LuaNotNil String name) {
         check();
-
-        FiguraTexture texture = get(name);
-        if (texture != null)
-            return texture;
-
-        for (Map.Entry<String, FiguraTexture> entry : owner.renderer.textures.entrySet()) {
-            if (entry.getKey().equals(name))
-                return entry.getValue();
-        }
-
-        return null;
+        return owner.renderer.getTexture(name);
     }
 
     @Override

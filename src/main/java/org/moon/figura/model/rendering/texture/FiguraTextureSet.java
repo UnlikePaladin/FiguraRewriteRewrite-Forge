@@ -2,6 +2,7 @@ package org.moon.figura.model.rendering.texture;
 
 import com.mojang.datafixers.util.Pair;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.resources.ResourceLocation;
@@ -10,9 +11,12 @@ import org.moon.figura.mixin.render.layers.elytra.ElytraLayerAccessor;
 import java.util.UUID;
 
 public class FiguraTextureSet {
+
+    public final String name;
     public final FiguraTexture[] textures = new FiguraTexture[4];
 
-    public FiguraTextureSet(FiguraTexture mainData, FiguraTexture emissiveData, FiguraTexture specularData, FiguraTexture normalData) {
+    public FiguraTextureSet(String name, FiguraTexture mainData, FiguraTexture emissiveData, FiguraTexture specularData, FiguraTexture normalData) {
+        this.name = name;
         textures[0] = mainData;
         textures[1] = emissiveData;
         textures[2] = specularData;
@@ -57,10 +61,11 @@ public class FiguraTextureSet {
 
         return switch (type) {
             case SKIN, CAPE, ELYTRA -> {
-                if (Minecraft.getInstance().player == null)
+                ClientPacketListener connection = Minecraft.getInstance().getConnection();
+                if (connection == null)
                     yield null;
 
-                PlayerInfo info = Minecraft.getInstance().player.connection.getPlayerInfo(owner);
+                PlayerInfo info = connection.getPlayerInfo(owner);
                 if (info == null)
                     yield null;
 
@@ -72,8 +77,7 @@ public class FiguraTextureSet {
             }
             case RESOURCE -> {
                 try {
-                    ResourceLocation resource = new ResourceLocation(String.valueOf(pair.getSecond()));
-                    yield Minecraft.getInstance().getResourceManager().getResource(resource).isPresent() ? resource : MissingTextureAtlasSprite.getLocation();
+                    yield new ResourceLocation(String.valueOf(pair.getSecond()));
                 } catch (Exception ignored) {
                     yield MissingTextureAtlasSprite.getLocation();
                 }

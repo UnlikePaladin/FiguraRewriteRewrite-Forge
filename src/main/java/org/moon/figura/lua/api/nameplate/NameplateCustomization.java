@@ -2,7 +2,6 @@ package org.moon.figura.lua.api.nameplate;
 
 import net.minecraft.network.chat.Component;
 import org.luaj.vm2.LuaError;
-import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Badges;
 import org.moon.figura.gui.Emojis;
 import org.moon.figura.lua.LuaWhitelist;
@@ -18,19 +17,20 @@ import org.moon.figura.utils.TextUtils;
 )
 public class NameplateCustomization {
 
+    private Component json;
     private String text;
 
-    public static Component applyCustomization(String text) {
-        FiguraMod.pushProfiler("parseJson");
-        Component c = TextUtils.tryParseJson(text);
-        FiguraMod.popPushProfiler("removeBadges");
-        c = Badges.noBadges4U(c);
-        FiguraMod.popPushProfiler("removeClick");
-        c = TextUtils.removeClickableObjects(c);
-        FiguraMod.popPushProfiler("applyEmoji");
-        c = Emojis.applyEmojis(c);
-        FiguraMod.popProfiler();
-        return c;
+    private Component parseJsonText(String text) {
+        Component component = TextUtils.tryParseJson(text);
+        component = Badges.noBadges4U(component);
+        component = TextUtils.removeClickableObjects(component);
+        component = Emojis.applyEmojis(component);
+        component = Emojis.removeBlacklistedEmojis(component);
+        return component;
+    }
+
+    public Component getJson() {
+        return json;
     }
 
     @LuaWhitelist
@@ -47,10 +47,17 @@ public class NameplateCustomization {
             ),
             value = "nameplate_customization.set_text"
     )
-    public void setText(String text) {
-        if (text != null && TextUtils.tryParseJson(text).getString().length() > 256)
-            throw new LuaError("Text length exceeded limit of 256 characters");
+    public NameplateCustomization setText(String text) {
         this.text = text;
+        if (text != null) {
+            Component component = parseJsonText(text);
+            if (component.getString().length() > 64)
+                throw new LuaError("Text length exceeded limit of 64 characters");
+            json = component;
+        } else {
+            json = null;
+        }
+        return this;
     }
 
     @Override

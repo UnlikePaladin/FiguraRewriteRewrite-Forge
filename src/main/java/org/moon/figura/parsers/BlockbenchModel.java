@@ -45,6 +45,7 @@ public class BlockbenchModel {
         float inflate;
 
         Boolean visibility;
+        Boolean export;
 
         //do not reflection-parse faces nor vertices
         //since those are based on type
@@ -57,6 +58,7 @@ public class BlockbenchModel {
         String name;
         String uuid;
         Boolean visibility;
+        Boolean export;
         float[] origin;
         float[] rotation;
 
@@ -107,6 +109,12 @@ public class BlockbenchModel {
 
         //keyframe data can contain any type of object
         JsonArray data_points;
+
+        //bezier stuff
+        float[] bezier_left_value;
+        float[] bezier_right_value;
+        float[] bezier_left_time;
+        float[] bezier_right_time;
     }
 
     public static class KeyFrameData {

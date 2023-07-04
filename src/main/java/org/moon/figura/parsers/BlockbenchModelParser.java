@@ -8,6 +8,8 @@ import org.moon.figura.model.ParentType;
 import org.moon.figura.utils.IOUtils;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -30,15 +32,15 @@ public class BlockbenchModelParser {
     private final HashMap<Integer, String> textureIdMap = new HashMap<>();
 
     //parser
-    public ModelData parseModel(Path avatarFolder, File sourceFile, String json, String modelName, String folders) throws Exception {
+    public ModelData parseModel(String avatarFolder, Path sourceFile, String json, String modelName, String folders) throws Exception {
         //parse json -> object
         BlockbenchModel model = GSON.fromJson(json, BlockbenchModel.class);
 
         //meta check
-        if (!model.meta.model_format.equals("free"))
-            throw new Exception("Model \"" + modelName + "\" not generic format");
+        if (!model.meta.model_format.equals("free") && !model.meta.model_format.contains(FiguraMod.MOD_ID))
+            throw new Exception("Model \"" + modelName + "\" have an incompatible model format. Compatibility is limited to \"Generic Model\" format and third-party " + FiguraMod.MOD_NAME + " specific formats");
         if (Integer.parseInt(model.meta.format_version.split("\\.")[0]) < 4)
-            throw new Exception("Model \"" + modelName + "\" is too old (version " + model.meta.format_version + "), minimum compatible version is 4.0");
+            throw new Exception("Model \"" + modelName + "\" was created using a version too old (" + model.meta.format_version + ") of Blockbench. Minimum compatible version is 4.0");
 
         //return lists
         CompoundTag textures = new CompoundTag();
@@ -65,7 +67,7 @@ public class BlockbenchModelParser {
         parseAnimations(animationList, model.animations, modelName, folders);
 
         //add and parse the outliner
-        nbt.put("chld", parseOutliner(model.outliner, null));
+        nbt.put("chld", parseOutliner(model.outliner, true));
 
         //clear variables used by the parser
         elementMap.clear();
@@ -85,11 +87,11 @@ public class BlockbenchModelParser {
 
     // -- internal functions -- //
 
-    private void parseTextures(Path avatar, File sourceFile, String folders, String modelName, CompoundTag texturesNbt, BlockbenchModel.Texture[] textures, BlockbenchModel.Resolution resolution) {
+    private void parseTextures(String avatar, Path sourceFile, String folders, String modelName, CompoundTag texturesNbt, BlockbenchModel.Texture[] textures, BlockbenchModel.Resolution resolution) {
         if (textures == null)
             return;
 
-        String pathRegex = Pattern.quote(avatar + File.separator);
+        String pathRegex = Pattern.quote(avatar.isEmpty() ? avatar : avatar + sourceFile.getFileSystem().getSeparator());
 
         //temp lists
 
@@ -108,7 +110,7 @@ public class BlockbenchModelParser {
             BlockbenchModel.Texture texture = textures[i];
 
             //name
-            String name = folders + texture.name;
+            String name = texture.name;
             if (name.endsWith(".png"))
                 name = name.substring(0, name.length() - 4);
 
@@ -130,25 +132,36 @@ public class BlockbenchModelParser {
             byte[] source;
             try {
                 //check the file to load
-                Path p = sourceFile.toPath().resolve(texture.relative_path);
-                File f = p.toFile();
-                if (!f.exists()) throw new Exception("File do not exists!");
-                if (!p.normalize().startsWith(avatar)) throw new Exception("File from outside the avatar folder!");
+                Path p = sourceFile.resolve(texture.relative_path);
+                if (p.getFileSystem() == FileSystems.getDefault()) {
+                    File f = p.toFile().getCanonicalFile();
+                    p = f.toPath();
+                    if (!f.exists()) throw new IllegalStateException("File do not exists!");
+                } else {
+                    p = p.normalize();
+                }
+                if (!p.startsWith(avatar)) throw new IllegalStateException("File from outside the avatar folder!");
 
                 //load texture
-                source = IOUtils.readFileBytes(f);
-                path = f.getCanonicalPath()
+                source = IOUtils.readFileBytes(p);
+                path = p.toString()
                         .replaceFirst(pathRegex, "")
                         .replaceAll("[/\\\\]", ".");
                 path = path.substring(0, path.length() - 4);
 
+                //fix name
+                name = folders + name;
+
                 //feedback
-                FiguraMod.debug("Loaded " + textureType.toUpperCase() + " Texture \"{}\" from {}", name, f);
-            } catch (Exception ignored) {
+                FiguraMod.debug("Loaded {} Texture \"{}\" from {}", textureType.toUpperCase(), name, p);
+            } catch (Exception e) {
+                if (e instanceof IOException)
+                    FiguraMod.LOGGER.error("", e);
+
                 //otherwise, load from the source stored in the model
                 source = Base64.getDecoder().decode(texture.source.substring("data:image/png;base64,".length()));
                 path = folders + modelName + "." + name;
-                FiguraMod.debug("Loaded " + textureType.toUpperCase() + " Texture \"{}\" from {}", name, path);
+                FiguraMod.debug("Loaded {} Texture \"{}\" from {}", textureType.toUpperCase(), name, path);
             }
 
             //add source nbt
@@ -202,6 +215,8 @@ public class BlockbenchModelParser {
                 element.type = "cube";
             if (!element.type.equalsIgnoreCase("cube") && !element.type.equalsIgnoreCase("mesh"))
                 continue;
+            if (element.export != null && !element.export)
+                continue;
 
             //temp variables
             String id = element.uuid;
@@ -211,19 +226,18 @@ public class BlockbenchModelParser {
             nbt.putString("name", element.name);
 
             //parse transform data
-            if (element.from != null && notZero(element.from))
+            if (notZero(element.from))
                 nbt.put("f", toNbtList(element.from));
-            if (element.to != null && notZero(element.to))
+            if (notZero(element.to))
                 nbt.put("t", toNbtList(element.to));
-            if (element.rotation != null && notZero(element.rotation))
+            if (notZero(element.rotation))
                 nbt.put("rot", toNbtList(element.rotation));
-            if (element.origin != null && notZero(element.origin))
+            if (notZero(element.origin))
                 nbt.put("piv", toNbtList(element.origin));
             if (element.inflate != 0f)
                 nbt.putFloat("inf", element.inflate);
 
-            if (element.visibility != null && !element.visibility)
-                nbt.putBoolean("vsb", false);
+            nbt.putBoolean("vsb", element.visibility == null || element.visibility);
 
             //parse faces
             CompoundTag data;
@@ -267,7 +281,7 @@ public class BlockbenchModelParser {
                 faceNbt.putFloat("rot", face.rotation);
 
             //parse uv
-            if (face.uv != null && notZero(face.uv)) {
+            if (notZero(face.uv)) {
                 float[] uv = {face.uv[0] * texture.fixedSize[0], face.uv[1] * texture.fixedSize[1], face.uv[2] * texture.fixedSize[0], face.uv[3] * texture.fixedSize[1]};
                 faceNbt.put("uv", toNbtList(uv));
             }
@@ -291,10 +305,10 @@ public class BlockbenchModelParser {
         int index = 0;
         for (Map.Entry<String, JsonElement> entry : vertices.entrySet()) {
             verticesMap.put(entry.getKey(), index);
-            JsonArray arr = entry.getValue().getAsJsonArray();
-            verticesList.add(FloatTag.valueOf(arr.get(0).getAsFloat()+offset[0]));
-            verticesList.add(FloatTag.valueOf(arr.get(1).getAsFloat()+offset[1]));
-            verticesList.add(FloatTag.valueOf(arr.get(2).getAsFloat()+offset[2]));
+            float[] arr = jsonToFloat(entry.getValue().getAsJsonArray());
+            verticesList.add(FloatTag.valueOf(arr[0] + offset[0]));
+            verticesList.add(FloatTag.valueOf(arr[1] + offset[1]));
+            verticesList.add(FloatTag.valueOf(arr[2] + offset[2]));
             index++;
         }
 
@@ -339,9 +353,9 @@ public class BlockbenchModelParser {
                 facesList.add(bestVal);
 
                 //UVs
-                JsonArray uv = face.uv.getAsJsonArray(vertex);
-                float u = uv.get(0).getAsFloat() * texture.fixedSize[0];
-                float v = uv.get(1).getAsFloat() * texture.fixedSize[1];
+                float[] uv = jsonToFloat(face.uv.getAsJsonArray(vertex));
+                float u = uv[0] * texture.fixedSize[0];
+                float v = uv[1] * texture.fixedSize[1];
                 uvsList.add(FloatTag.valueOf(u));
                 uvsList.add(FloatTag.valueOf(v));
             }
@@ -424,7 +438,8 @@ public class BlockbenchModelParser {
             //animation metadata
             animNbt.putString("mdl", folders.isBlank() ? modelName : folders + modelName);
             animNbt.putString("name", animation.name);
-            animNbt.putString("loop", animation.loop);
+            if (!animation.loop.equals("once"))
+                animNbt.putString("loop", animation.loop);
             if (animation.override != null && animation.override)
                 animNbt.putBoolean("ovr", true);
             if (animation.length != 0f)
@@ -488,6 +503,16 @@ public class BlockbenchModelParser {
                             keyframeNbt.put("end", parseKeyFrameData(endDataPoints, keyFrame.channel));
                         }
 
+                        //bezier stuff
+                        if (notZero(keyFrame.bezier_left_value))
+                            keyframeNbt.put("bl", toNbtList(keyFrame.bezier_left_value));
+                        if (notZero(keyFrame.bezier_right_value))
+                            keyframeNbt.put("br", toNbtList(keyFrame.bezier_right_value));
+                        if (isDifferent(keyFrame.bezier_left_time, -0.1f))
+                            keyframeNbt.put("blt", toNbtList(keyFrame.bezier_left_time));
+                        if (isDifferent(keyFrame.bezier_right_time, 0.1f))
+                            keyframeNbt.put("brt", toNbtList(keyFrame.bezier_right_time));
+
                         switch (keyFrame.channel) {
                             case "position" -> posData.add(keyframeNbt);
                             case "rotation" -> rotData.add(keyframeNbt);
@@ -536,29 +561,28 @@ public class BlockbenchModelParser {
     }
 
     private ListTag parseKeyFrameData(JsonObject object, String channel) {
-        BlockbenchModel.KeyFrameData endFrameData = GSON.fromJson(object, BlockbenchModel.KeyFrameData.class);
+        BlockbenchModel.KeyFrameData frameData = GSON.fromJson(object, BlockbenchModel.KeyFrameData.class);
 
         float fallback = channel.equals("scale") ? 1f : 0f;
-        float x = toFloat(endFrameData.x, fallback);
-        float y = toFloat(endFrameData.y, fallback);
-        float z = toFloat(endFrameData.z, fallback);
-
-        if (channel.equals("position")) {
-            x = -x;
-        } else if (channel.equals("rotation")) {
-            x = -x;
-            y = -y;
-        }
+        Object x = keyFrameData(frameData.x, fallback);
+        Object y = keyFrameData(frameData.y, fallback);
+        Object z = keyFrameData(frameData.z, fallback);
 
         ListTag nbt = new ListTag();
-        nbt.add(FloatTag.valueOf(x));
-        nbt.add(FloatTag.valueOf(y));
-        nbt.add(FloatTag.valueOf(z));
+        if (x instanceof Float xx && y instanceof Float yy && z instanceof Float zz) {
+            nbt.add(FloatTag.valueOf(xx));
+            nbt.add(FloatTag.valueOf(yy));
+            nbt.add(FloatTag.valueOf(zz));
+        } else {
+            nbt.add(StringTag.valueOf(String.valueOf(x)));
+            nbt.add(StringTag.valueOf(String.valueOf(y)));
+            nbt.add(StringTag.valueOf(String.valueOf(z)));
+        }
 
         return nbt;
     }
 
-    private ListTag parseOutliner(JsonArray outliner, Boolean parentVsb) {
+    private ListTag parseOutliner(JsonArray outliner, boolean parentVsb) {
         ListTag children = new ListTag();
 
         if (outliner == null)
@@ -567,13 +591,12 @@ public class BlockbenchModelParser {
         for (JsonElement element : outliner) {
             //check if it is an ID first
             if (element instanceof JsonPrimitive) {
-                if (elementMap.containsKey(element.getAsString())) {
-                    CompoundTag elementNbt = elementMap.get(element.getAsString());
-
+                String key = element.getAsString();
+                if (elementMap.containsKey(key)) {
+                    CompoundTag elementNbt = elementMap.get(key);
                     //fix children visibility (very jank)
-                    if (parentVsb != null && elementNbt.contains("vsb") && elementNbt.getBoolean("vsb") == parentVsb)
+                    if (elementNbt.contains("vsb") && elementNbt.getBoolean("vsb") == parentVsb)
                         elementNbt.remove("vsb");
-
                     children.add(elementNbt);
                 }
 
@@ -584,25 +607,30 @@ public class BlockbenchModelParser {
             CompoundTag groupNbt = new CompoundTag();
             BlockbenchModel.GroupElement group = GSON.fromJson(element, BlockbenchModel.GroupElement.class);
 
+            //skip not exported groups
+            if (group.export != null && !group.export)
+                continue;
+
             //parse fields
             groupNbt.putString("name", group.name);
 
             //visibility
-            if (group.visibility != null && !group.visibility && (parentVsb == null || parentVsb))
-                groupNbt.putBoolean("vsb", false);
+            boolean thisVisibility = group.visibility == null || group.visibility;
+            if (thisVisibility != parentVsb)
+                groupNbt.putBoolean("vsb", thisVisibility);
 
             //parse transforms
-            if (group.origin != null && notZero(group.origin))
+            if (notZero(group.origin))
                 groupNbt.put("piv", toNbtList(group.origin));
-            if (group.rotation != null && notZero(group.rotation))
+            if (notZero(group.rotation))
                 groupNbt.put("rot", toNbtList(group.rotation));
 
             //parent type
             parseParent(group.name, groupNbt);
 
             //parse children
-            if (group.children != null && group.children.size() > 0)
-                groupNbt.put("chld", parseOutliner(group.children, group.visibility));
+            if (!(group.children == null || group.children.isEmpty()))
+                groupNbt.put("chld", parseOutliner(group.children, thisVisibility));
 
             //add animations
             if (animationMap.containsKey(group.uuid))
@@ -648,16 +676,20 @@ public class BlockbenchModelParser {
 
     //check if a float array is not composed of only zeros
     public static boolean notZero(float[] floats) {
-        boolean zero = true;
+        return isDifferent(floats, 0f);
+    }
+
+    public static boolean isDifferent(float[] floats, float value) {
+        if (floats == null)
+            return false;
 
         for (float f : floats) {
-            if (f != 0) {
-                zero = false;
-                break;
+            if (f != value) {
+                return true;
             }
         }
 
-        return !zero;
+        return false;
     }
 
     //try converting a String to float, with a fallback
@@ -666,6 +698,14 @@ public class BlockbenchModelParser {
             return Float.parseFloat(input);
         } catch (Exception ignored) {
             return fallback;
+        }
+    }
+
+    public static Object keyFrameData(String input, float fallback) {
+        try {
+            return Float.parseFloat(input);
+        } catch (Exception ignored) {
+            return input.isBlank() ? fallback : input;
         }
     }
 
@@ -682,6 +722,18 @@ public class BlockbenchModelParser {
         h = (h << 8) + ((int) texture[23] & 0xFF);
 
         return new int[]{w, h};
+    }
+
+    public static float[] jsonToFloat(JsonArray array) {
+        float[] f = new float[array.size()];
+
+        int i = 0;
+        for (JsonElement element : array) {
+            f[i] = element.isJsonNull() ? 0f : element.getAsFloat();
+            i++;
+        }
+
+        return f;
     }
 
     //dummy texture data
