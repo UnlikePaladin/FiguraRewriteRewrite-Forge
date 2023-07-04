@@ -38,9 +38,7 @@ import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.utils.EntityUtils;
 import org.moon.figura.utils.LuaUtils;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -71,11 +69,10 @@ public class WorldAPI {
     )
     public static BiomeAPI getBiome(Object x, Double y, Double z) {
         FiguraVec3 pos = LuaUtils.parseVec3("getBiome", x, y, z);
-        BiomeAPI result = new BiomeAPI(getCurrentWorld().getBiome(pos.asBlockPos()).value(), pos.asBlockPos());
-        pos.free();
-        return result;
+        return new BiomeAPI(getCurrentWorld().getBiome(pos.asBlockPos()).value(), pos.asBlockPos());
     }
 
+    @SuppressWarnings("deprecation")
     @LuaWhitelist
     @LuaMethodDoc(
             overloads = {
@@ -88,16 +85,58 @@ public class WorldAPI {
                             argumentNames = {"x", "y", "z"}
                     )
             },
-            value = "world.get_blockstate"
+            value = "world.get_block_state"
     )
     public static BlockStateAPI getBlockState(Object x, Double y, Double z) {
         FiguraVec3 pos = LuaUtils.parseVec3("getBlockState", x, y, z);
         BlockPos blockPos = pos.asBlockPos();
-        pos.free();
         Level world = getCurrentWorld();
-        if (world.getChunkAt(blockPos) == null)
+        if (!world.hasChunkAt(blockPos))
             return new BlockStateAPI(Blocks.AIR.defaultBlockState(), blockPos);
         return new BlockStateAPI(world.getBlockState(blockPos), blockPos);
+    }
+
+    @SuppressWarnings("deprecation")
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = {
+                    @LuaMethodOverload(
+                            argumentTypes = {FiguraVec3.class, FiguraVec3.class},
+                            argumentNames = {"min", "max"}
+                    ),
+                    @LuaMethodOverload(
+                            argumentTypes = {Double.class, Double.class, Double.class, FiguraVec3.class},
+                            argumentNames = {"minX", "minY", "minZ", "max"}
+                    ),
+                    @LuaMethodOverload(
+                            argumentTypes = {FiguraVec3.class, Double.class, Double.class, Double.class},
+                            argumentNames = {"min", "maxX", "maxY", "maxZ"}
+                    ),
+                    @LuaMethodOverload(
+                            argumentTypes = {Double.class, Double.class, Double.class, Double.class, Double.class, Double.class},
+                            argumentNames = {"minX", "minY", "minZ", "maxX", "maxY", "maxZ"}
+                    )
+            },
+            value = "world.get_blocks"
+    )
+    public static List<BlockStateAPI> getBlocks(Object x, Object y, Double z, Double w, Double t, Double h) {
+        Pair<FiguraVec3, FiguraVec3> pair = LuaUtils.parse2Vec3("getBlocks", x, y, z, w, t, h);
+        List<BlockStateAPI> list = new ArrayList<>();
+
+        BlockPos min = pair.getFirst().asBlockPos();
+        BlockPos max = pair.getSecond().asBlockPos();
+        max = new BlockPos(
+                Math.min(min.getX() + 8, max.getX()),
+                Math.min(min.getY() + 8, max.getY()),
+                Math.min(min.getZ() + 8, max.getZ())
+        );
+
+        Level world = getCurrentWorld();
+        if (!world.hasChunksAt(min, max))
+            return list;
+
+        BlockPos.betweenClosedStream(min, max).forEach(blockPos -> list.add(new BlockStateAPI(world.getBlockState(blockPos), blockPos)));
+        return list;
     }
 
     @LuaWhitelist
@@ -117,7 +156,6 @@ public class WorldAPI {
     public static int getRedstonePower(Object x, Double y, Double z) {
         FiguraVec3 pos = LuaUtils.parseVec3("getRedstonePower", x, y, z);
         BlockPos blockPos = pos.asBlockPos();
-        pos.free();
         if (getCurrentWorld().getChunkAt(blockPos) == null)
             return 0;
         return getCurrentWorld().getBestNeighborSignal(blockPos);
@@ -140,7 +178,6 @@ public class WorldAPI {
     public static int getStrongRedstonePower(Object x, Double y, Double z) {
         FiguraVec3 pos = LuaUtils.parseVec3("getStrongRedstonePower", x, y, z);
         BlockPos blockPos = pos.asBlockPos();
-        pos.free();
         if (getCurrentWorld().getChunkAt(blockPos) == null)
             return 0;
         return getCurrentWorld().getDirectSignalTo(blockPos);
@@ -224,7 +261,6 @@ public class WorldAPI {
     public static Integer getLightLevel(Object x, Double y, Double z) {
         FiguraVec3 pos = LuaUtils.parseVec3("getLightLevel", x, y, z);
         BlockPos blockPos = pos.asBlockPos();
-        pos.free();
         Level world = getCurrentWorld();
         if (world.getChunkAt(blockPos) == null)
             return null;
@@ -249,7 +285,6 @@ public class WorldAPI {
     public static Integer getSkyLightLevel(Object x, Double y, Double z) {
         FiguraVec3 pos = LuaUtils.parseVec3("getSkyLightLevel", x, y, z);
         BlockPos blockPos = pos.asBlockPos();
-        pos.free();
         Level world = getCurrentWorld();
         if (world.getChunkAt(blockPos) == null)
             return null;
@@ -273,7 +308,6 @@ public class WorldAPI {
     public static Integer getBlockLightLevel(Object x, Double y, Double z) {
         FiguraVec3 pos = LuaUtils.parseVec3("getBlockLightLevel", x, y, z);
         BlockPos blockPos = pos.asBlockPos();
-        pos.free();
         Level world = getCurrentWorld();
         if (world.getChunkAt(blockPos) == null)
             return null;
@@ -297,7 +331,6 @@ public class WorldAPI {
     public static Boolean isOpenSky(Object x, Double y, Double z) {
         FiguraVec3 pos = LuaUtils.parseVec3("isOpenSky", x, y, z);
         BlockPos blockPos = pos.asBlockPos();
-        pos.free();
         Level world = getCurrentWorld();
         if (world.getChunkAt(blockPos) == null)
             return null;
@@ -345,10 +378,6 @@ public class WorldAPI {
         end = pair.getSecond();
 
         BlockHitResult result = getCurrentWorld().clip(new ClipContext(start.asVec3(), end.asVec3(), ClipContext.Block.OUTLINE, fluid ? ClipContext.Fluid.NONE : ClipContext.Fluid.ANY, new Marker(EntityType.MARKER, getCurrentWorld())));
-
-        start.free();
-        end.free();
-
         if (result == null || result.getType() == HitResult.Type.MISS)
             return null;
 

@@ -22,13 +22,13 @@ import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.avatar.local.LocalAvatarLoader;
 import org.moon.figura.backend2.NetworkStuff;
 import org.moon.figura.commands.FiguraCommands;
-import org.moon.figura.config.Config;
 import org.moon.figura.config.ConfigManager;
+import org.moon.figura.config.Configs;
+import org.moon.figura.entries.EntryPointManager;
 import org.moon.figura.config.ModMenuConfig;
 import org.moon.figura.forge.GUIActionWheelOverlay;
 import org.moon.figura.forge.GUIOverlay;
 import org.moon.figura.gui.Emojis;
-import org.moon.figura.lua.FiguraAPIManager;
 import org.moon.figura.lua.FiguraLuaPrinter;
 import org.moon.figura.lua.docs.FiguraDocsManager;
 import org.moon.figura.mixin.SkullBlockEntityAccessor;
@@ -51,6 +51,7 @@ public class FiguraMod {
 
     public static final String MOD_ID = "figura";
     public static final String MOD_NAME = "Figura";
+    public static final ModMetadata METADATA = FabricLoader.getInstance().getModContainer(MOD_ID).get().getMetadata();
     public static final Version VERSION = new Version(ModList.get().getModContainerById("figura").get().getModInfo().getVersion().toString());
     public static final boolean DEBUG_MODE = Math.random() + 1 < 0;
     public static final Calendar CALENDAR = Calendar.getInstance();
@@ -60,6 +61,9 @@ public class FiguraMod {
     public static int ticks;
     public static Entity extendedPickEntity;
     public static Component splashText;
+    public static boolean parseMessages = true;
+    public static boolean processingKeybind;
+
     public FiguraMod() {
 
     }
@@ -68,7 +72,8 @@ public class FiguraMod {
         pushProfiler("network");
         NetworkStuff.tick();
         popPushProfiler("files");
-        LocalAvatarLoader.tickWatchedKey();
+        LocalAvatarLoader.tick();
+        LocalAvatarFetcher.tick();
         popPushProfiler("avatars");
         AvatarManager.tickLoadedAvatars();
         popPushProfiler("chatPrint");
@@ -81,13 +86,13 @@ public class FiguraMod {
 
     //debug print
     public static void debug(String str, Object... args) {
-        if (DEBUG_MODE) LOGGER.info(str, args);
+        if (DEBUG_MODE) LOGGER.info("[DEBUG] " + str, args);
         else LOGGER.debug(str, args);
     }
 
     //mod root directory
     public static Path getFiguraDirectory() {
-        String config = Config.MAIN_DIR.asString();
+        String config = Configs.MAIN_DIR.value;
         Path p = config.isBlank() ? GAME_DIR.resolve(MOD_ID) : Path.of(config);
         return IOUtils.createDirIfNeeded(p);
     }
@@ -112,10 +117,13 @@ public class FiguraMod {
      * @param message - text to send
      */
     public static void sendChatMessage(Component message) {
-        if (Minecraft.getInstance().gui != null)
+        if (Minecraft.getInstance().gui != null) {
+            parseMessages = false;
             Minecraft.getInstance().gui.getChat().addMessage(TextUtils.replaceTabs(message));
-        else
+            parseMessages = true;
+        } else {
             LOGGER.info(message.getString());
+        }
     }
 
     /**

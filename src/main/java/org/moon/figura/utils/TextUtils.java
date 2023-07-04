@@ -4,10 +4,7 @@ import com.google.gson.JsonParser;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.Font;
 import net.minecraft.locale.Language;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.FormattedText;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.*;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
@@ -15,12 +12,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 public class TextUtils {
 
     public static final Component TAB = FiguraText.of("tab");
     public static final Component ELLIPSIS = FiguraText.of("ellipsis");
     public static final Component UNKNOWN = Component.literal("�").withStyle(Style.EMPTY.withFont(Style.DEFAULT_FONT));
+
+    public static boolean allowScriptEvents;
 
     public static List<Component> splitText(FormattedText text, String regex) {
         //list to return
@@ -55,9 +55,13 @@ public class TextUtils {
     }
 
     public static Component removeClickableObjects(FormattedText text) {
+        return removeClickableObjects(text, p -> true);
+    }
+
+    public static Component removeClickableObjects(FormattedText text, Predicate<ClickEvent> pred) {
         MutableComponent ret = Component.empty();
         text.visit((style, string) -> {
-            ret.append(Component.literal(string).withStyle(style.withClickEvent(null)));
+            ret.append(Component.literal(string).withStyle(style.getClickEvent() != null && pred.test(style.getClickEvent()) ? style.withClickEvent(null) : style));
             return Optional.empty();
         }, Style.EMPTY);
         return ret;
@@ -94,11 +98,15 @@ public class TextUtils {
     }
 
     public static Component replaceInText(FormattedText text, String regex, Object replacement, BiPredicate<String, Style> predicate, int times) {
+        return replaceInText(text, regex, replacement, predicate, 0, times);
+    }
+
+    public static Component replaceInText(FormattedText text, String regex, Object replacement, BiPredicate<String, Style> predicate, int beginIndex, int times) {
         //fix replacement object
         Component replace = replacement instanceof Component c ? c : Component.literal(replacement.toString());
         MutableComponent ret = Component.empty();
 
-        int[] remaining = {times};
+        int[] ints = {beginIndex, times};
         text.visit((style, string) -> {
             //test predicate
             if (!predicate.test(string, style)) {
@@ -109,13 +117,19 @@ public class TextUtils {
             //split
             String[] split = string.split("((?<=" + regex + ")|(?=" + regex + "))");
             for (String s : split) {
-                //append the text if it does not match the split, otherwise append the replacement instead
-                if (!s.matches(regex) || remaining[0] <= 0)
+                if (!s.matches(regex)) {
                     ret.append(Component.literal(s).withStyle(style));
-                else {
-                    ret.append(Component.empty().withStyle(style).append(replace));
-                    remaining[0]--;
+                    continue;
                 }
+
+                if (ints[0] > 0 || ints[1] <= 0) {
+                    ret.append(Component.literal(s).withStyle(style));
+                } else {
+                    ret.append(Component.empty().withStyle(style).append(replace));
+                }
+
+                ints[0]--;
+                ints[1]--;
             }
 
             return Optional.empty();
@@ -143,13 +157,13 @@ public class TextUtils {
         return TextUtils.replaceInText(text, "\\t", TAB);
     }
 
-    public static List<FormattedCharSequence> wrapTooltip(FormattedText text, Font font, int mousePos, int screenWidth) {
+    public static List<FormattedCharSequence> wrapTooltip(FormattedText text, Font font, int mousePos, int screenWidth, int offset) {
         //first split the new line text
         List<Component> splitText = TextUtils.splitText(text, "\n");
 
         //get the possible tooltip width
-        int left = mousePos - 12;
-        int right = screenWidth - mousePos - 12;
+        int left = mousePos - offset;
+        int right = screenWidth - mousePos - offset;
 
         //get largest text size
         int largest = getWidth(splitText, font);
@@ -181,10 +195,26 @@ public class TextUtils {
         return width;
     }
 
-    public static Component replaceStyle(FormattedText text, Style newStyle) {
+    public static Component replaceStyle(FormattedText text, Style newStyle, Predicate<Style> predicate) {
         MutableComponent ret = Component.empty();
         text.visit((style, string) -> {
-            ret.append(Component.literal(string).withStyle(newStyle));
+            ret.append(Component.literal(string).withStyle(predicate.test(style) ? newStyle.applyTo(style) : style));
+            return Optional.empty();
+        }, Style.EMPTY);
+        return ret;
+    }
+
+    public static Component setStyleAtWidth(FormattedText text, int width, Font font, Style newStyle) {
+        MutableComponent ret = Component.empty();
+        text.visit((style, string) -> {
+            MutableComponent current = Component.literal(string).withStyle(style);
+
+            int prevWidth = font.width(ret);
+            int currentWidth = font.width(current);
+            if (prevWidth <= width && prevWidth + currentWidth > width)
+                current.withStyle(newStyle);
+
+            ret.append(current);
             return Optional.empty();
         }, Style.EMPTY);
         return ret;
@@ -198,14 +228,32 @@ public class TextUtils {
 
     public static Component charSequenceToText(FormattedCharSequence charSequence) {
         MutableComponent builder = Component.empty();
+        StringBuilder buffer = new StringBuilder();
+        Style[] lastStyle = new Style[1];
+
         charSequence.accept((index, style, codePoint) -> {
-            builder.append(Component.literal(String.valueOf(Character.toChars(codePoint))).withStyle(style));
+            if (!style.equals(lastStyle[0])) {
+                if (buffer.length() > 0) {
+                    builder.append(Component.literal(buffer.toString()).withStyle(lastStyle[0]));
+                    buffer.setLength(0);
+                }
+                lastStyle[0] = style;
+            }
+
+            buffer.append(Character.toChars(codePoint));
             return true;
         });
+
+        if (buffer.length() > 0)
+            builder.append(Component.literal(buffer.toString()).withStyle(lastStyle[0]));
+
         return builder;
     }
 
     public static Component formattedTextToText(FormattedText formattedText) {
+        if (formattedText instanceof Component c)
+            return c;
+
         MutableComponent builder = Component.empty();
         formattedText.visit((style, string) -> {
             builder.append(Component.literal(string).withStyle(style));
@@ -333,6 +381,14 @@ public class TextUtils {
 
         public int apply(Font font, FormattedText component) {
             return function.apply(font, component);
+        }
+    }
+
+    public static class FiguraClickEvent extends ClickEvent {
+        public final Runnable onClick;
+        public FiguraClickEvent(Runnable onClick) {
+            super(Action.SUGGEST_COMMAND, "");
+            this.onClick = onClick;
         }
     }
 }

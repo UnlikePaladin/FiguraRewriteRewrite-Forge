@@ -15,10 +15,12 @@ import org.moon.figura.math.vector.FiguraVector;
 import org.moon.figura.utils.IOUtils;
 import org.moon.figura.utils.MathUtils;
 
-import java.io.FileOutputStream;
-import java.io.FileReader;
+import java.io.BufferedReader;
+import java.io.OutputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Base64;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -59,6 +61,10 @@ public class ConfigAPI {
         return IOUtils.getOrCreateDir(FiguraMod.getFiguraDirectory(), "data");
     }
 
+    public static void clearAllData() {
+        IOUtils.deleteFile(getConfigDataDir());
+    }
+
     private Path getPath() {
         try {
             Path dir = getConfigDataDir().toAbsolutePath();
@@ -84,7 +90,7 @@ public class ConfigAPI {
             root.add(key.toString(), writeArg(luaTable.get(key), new JsonObject()));
 
         //write file
-        try (FileOutputStream fs = new FileOutputStream(path.toFile())) {
+        try (OutputStream fs = Files.newOutputStream(path)) {
             fs.write(GSON.toJson(root).getBytes());
         } catch (Exception e) {
             FiguraMod.LOGGER.error("", e);
@@ -96,9 +102,8 @@ public class ConfigAPI {
         if (val.isboolean()) {
             obj.addProperty("type", Type.BOOL.name());
             obj.addProperty("data", val.checkboolean());
-        } else if (val instanceof LuaString) {
-            obj.addProperty("type", Type.STRING.name());
-            obj.addProperty("data", val.checkjstring());
+        } else if (val instanceof LuaString str) {
+            writeString(str, obj);
         } else if (val.isint()) {
             obj.addProperty("type", Type.INT.name());
             obj.addProperty("data", val.checkinteger().v);
@@ -116,6 +121,16 @@ public class ConfigAPI {
         }
 
         return obj;
+    }
+
+    private static void writeString(LuaString string, JsonObject obj) {
+        int len = string.length();
+        byte[] copyTarget = new byte[len];
+        string.copyInto(0, copyTarget, 0, len);
+        String b64 = Base64.getEncoder().encodeToString(copyTarget);
+
+        obj.addProperty("type", Type.STRING.name());
+        obj.addProperty("data", b64);
     }
 
     private static void writeTable(LuaTable table, JsonObject obj) {
@@ -165,10 +180,10 @@ public class ConfigAPI {
         Path path = getPath();
         JsonObject root;
 
-        if (!path.toFile().exists())
+        if (!Files.exists(path))
             return;
 
-        try (FileReader reader = new FileReader(path.toFile())) {
+        try (BufferedReader reader = Files.newBufferedReader(path)) {
             JsonElement element = JsonParser.parseReader(reader);
             if (element.isJsonNull())
                 return;
@@ -192,7 +207,7 @@ public class ConfigAPI {
             case BOOL -> LuaBoolean.valueOf(data.getAsBoolean());
             case INT -> LuaInteger.valueOf(data.getAsInt());
             case DOUBLE -> LuaDouble.valueOf(data.getAsDouble());
-            case STRING -> LuaString.valueOf(data.getAsString());
+            case STRING -> LuaString.valueOf(Base64.getDecoder().decode(data.getAsString()));
             case TABLE -> readTable(data.getAsJsonArray(), owner);
             case VECTOR -> owner.luaRuntime.typeManager.javaToLua(readVec(data.getAsJsonArray())).arg1();
             case MATRIX -> owner.luaRuntime.typeManager.javaToLua(readMat(data.getAsJsonArray())).arg1();

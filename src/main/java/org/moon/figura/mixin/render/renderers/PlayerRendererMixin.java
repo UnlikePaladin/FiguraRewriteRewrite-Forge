@@ -19,7 +19,7 @@ import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.avatar.Badges;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.lua.api.nameplate.EntityNameplateCustomization;
 import org.moon.figura.lua.api.vanilla_model.VanillaPart;
 import org.moon.figura.math.vector.FiguraVec3;
@@ -47,7 +47,7 @@ public abstract class PlayerRendererMixin extends LivingEntityRenderer<AbstractC
     @Inject(method = "renderNameTag(Lnet/minecraft/client/player/AbstractClientPlayer;Lnet/minecraft/network/chat/Component;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V", at = @At("HEAD"), cancellable = true)
     private void renderNameTag(AbstractClientPlayer player, Component text, PoseStack stack, MultiBufferSource multiBufferSource, int light, CallbackInfo ci) {
         //return on config or high entity distance
-        int config = Config.ENTITY_NAMEPLATE.asInt();
+        int config = Configs.ENTITY_NAMEPLATE.value;
         if (config == 0 || AvatarManager.panic || this.entityRenderDispatcher.distanceToSqr(player) > 4096)
             return;
 
@@ -55,8 +55,11 @@ public abstract class PlayerRendererMixin extends LivingEntityRenderer<AbstractC
         Avatar avatar = AvatarManager.getAvatarForPlayer(player.getUUID());
         EntityNameplateCustomization custom = avatar == null || avatar.luaRuntime == null ? null : avatar.luaRuntime.nameplate.ENTITY;
 
+        //customization boolean, which also is the permission check
+        boolean hasCustom = custom != null && avatar.permissions.get(Permissions.NAMEPLATE_EDIT) == 1;
+
         //enabled
-        if (custom != null && !custom.visible) {
+        if (hasCustom && !custom.visible) {
             ci.cancel();
             return;
         }
@@ -64,9 +67,6 @@ public abstract class PlayerRendererMixin extends LivingEntityRenderer<AbstractC
         FiguraMod.pushProfiler(FiguraMod.MOD_ID);
         FiguraMod.pushProfiler(player.getName().getString());
         FiguraMod.pushProfiler("nameplate");
-
-        //customization boolean, which also is the trust check
-        boolean hasCustom = avatar != null && avatar.permissions.get(Permissions.NAMEPLATE_EDIT) == 1 && custom != null;
 
         stack.pushPose();
 
@@ -216,10 +216,11 @@ public abstract class PlayerRendererMixin extends LivingEntityRenderer<AbstractC
             return;
 
         float delta = Minecraft.getInstance().getFrameTime();
-        int overlay = getOverlayCoords(player, getWhiteOverlayProgress(player, delta));
-        avatar.firstPersonRender(stack, multiBufferSource, player, (PlayerRenderer) (Object) this, arm, light, overlay, delta);
+        avatar.firstPersonRender(stack, multiBufferSource, player, (PlayerRenderer) (Object) this, arm, light, delta);
 
         if (avatar.luaRuntime != null)
             avatar.luaRuntime.vanilla_model.PLAYER.restore(this.getModel());
+
+        avatar = null;
     }
 }

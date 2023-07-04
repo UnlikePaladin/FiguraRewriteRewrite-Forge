@@ -1,53 +1,85 @@
 package org.moon.figura.gui.widgets.avatar;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import org.jetbrains.annotations.NotNull;
+import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.gui.FiguraToast;
 import org.moon.figura.gui.widgets.AbstractContainerElement;
+import org.moon.figura.gui.widgets.Button;
 import org.moon.figura.gui.widgets.ContextMenu;
-import org.moon.figura.gui.widgets.TexturedButton;
 import org.moon.figura.gui.widgets.lists.AvatarList;
 import org.moon.figura.utils.FiguraText;
 import org.moon.figura.utils.ui.UIHelper;
 
-import java.io.File;
-
 public abstract class AbstractAvatarWidget extends AbstractContainerElement implements Comparable<AbstractAvatarWidget> {
+
+    protected static final int SPACING = 6;
+    protected static final Component FAVOURITE = Component.literal("★").withStyle(Style.EMPTY.withFont(UIHelper.UI_FONT).withColor(ChatFormatting.YELLOW));
+    protected static final Component ADD_FAVOURITE = FiguraText.of("gui.context.favorite.add");
+    protected static final Component REMOVE_FAVOURITE = FiguraText.of("gui.context.favorite.remove");
 
     protected final AvatarList parent;
     protected final int depth;
     protected final ContextMenu context;
 
     protected LocalAvatarFetcher.AvatarPath avatar;
-    protected TexturedButton button;
+    protected Button button;
     protected String filter = "";
+    protected boolean favourite;
 
-    public AbstractAvatarWidget(int depth, int width, LocalAvatarFetcher.AvatarPath avatar, AvatarList parent) {
-        super(0, 0, width, 20);
+    public AbstractAvatarWidget(int depth, int width, int height, LocalAvatarFetcher.AvatarPath avatar, AvatarList parent) {
+        super(0, 0, width, height);
         this.parent = parent;
         this.avatar = avatar;
         this.depth = depth;
         this.context = new ContextMenu(this);
+        this.favourite = avatar.isFavourite();
 
-        context.addAction(FiguraText.of("gui.context.open_folder"), button -> {
-            File f = avatar.getPath().toFile();
-            Util.getPlatform().openFile(f.isDirectory() ? f : f.getParentFile());
+        context.addAction(favourite ? REMOVE_FAVOURITE : ADD_FAVOURITE, null, button -> {
+            favourite = !favourite;
+            avatar.setFavourite(favourite);
+            button.setMessage(favourite ? REMOVE_FAVOURITE : ADD_FAVOURITE);
+            context.updateDimensions();
         });
-        context.addAction(FiguraText.of("gui.context.copy_path"), button -> {
-            Minecraft.getInstance().keyboardHandler.setClipboard(avatar.getPath().toString());
+        context.addAction(FiguraText.of("gui.context.open_folder"), null, button -> {
+            try {
+                Util.getPlatform().openUri(avatar.getFSPath().toUri());
+            } catch (Exception e) {
+                FiguraMod.debug("failed to open avatar folder: ", e.getMessage());
+                Util.getPlatform().openUri(LocalAvatarFetcher.getLocalAvatarDirectory().toUri());
+            }
+        });
+        context.addAction(FiguraText.of("gui.context.copy_path"), null, button -> {
+            Minecraft.getInstance().keyboardHandler.setClipboard(avatar.getFSPath().toString());
             FiguraToast.sendToast(FiguraText.of("toast.clipboard"));
         });
     }
 
     @Override
     public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
-        if (UIHelper.getContext() == this.context && this.context.isVisible())
-            this.button.setHovered(true);
+        if (!isVisible())
+            return;
 
         super.render(stack, mouseX, mouseY, delta);
+
+        if (favourite) {
+            Font font = Minecraft.getInstance().font;
+            int width = font.width(FAVOURITE);
+            int x = this.getX() + this.getWidth() - width;
+            int y = this.getY() + 2;
+
+            font.draw(stack, FAVOURITE, x, y, 0xFFFFFF);
+
+            if (mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + font.lineHeight)
+                UIHelper.setTooltip(FiguraText.of("gui.favorited").append(" ").append(FAVOURITE));
+        }
     }
 
     @Override
@@ -60,7 +92,8 @@ public abstract class AbstractAvatarWidget extends AbstractContainerElement impl
 
         //context menu on right click
         if (button == 1) {
-            context.setPos((int) mouseX, (int) mouseY);
+            context.setX((int) mouseX);
+            context.setY((int) mouseY);
             context.setVisible(true);
             UIHelper.setContext(context);
             return true;
@@ -81,23 +114,22 @@ public abstract class AbstractAvatarWidget extends AbstractContainerElement impl
     public void update(LocalAvatarFetcher.AvatarPath path, String filter) {
         this.avatar = path;
         this.filter = filter.toLowerCase();
-        updateName();
-    }
-
-    public void updateName() {
-        this.button.setMessage(Component.literal("  ".repeat(depth)).append(getName()));
     }
 
     public Component getName() {
         return Component.literal(avatar.getName());
     }
 
-    public void setPos(int x, int y) {
-        this.x = x;
-        this.y = y;
+    @Override
+    public void setX(int x) {
+        super.setX(x);
+        this.button.setX(x);
+    }
 
-        this.button.x = x;
-        this.button.y = y;
+    @Override
+    public void setY(int y) {
+        super.setY(y);
+        this.button.setY(y);
     }
 
     public boolean filtered() {
@@ -110,7 +142,13 @@ public abstract class AbstractAvatarWidget extends AbstractContainerElement impl
     }
 
     @Override
-    public int compareTo(AbstractAvatarWidget other) {
+    public int compareTo(@NotNull AbstractAvatarWidget other) {
+        //compare favourite
+        if (this.favourite && !other.favourite)
+            return -1;
+        else if (other.favourite && !this.favourite)
+            return 1;
+
         //compare types
         if (this instanceof AvatarFolderWidget && other instanceof AvatarWidget)
             return -1;

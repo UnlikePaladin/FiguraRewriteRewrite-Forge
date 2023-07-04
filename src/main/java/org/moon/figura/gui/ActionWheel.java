@@ -14,7 +14,7 @@ import net.minecraft.world.item.ItemStack;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.lua.api.action_wheel.Action;
 import org.moon.figura.lua.api.action_wheel.Page;
 import org.moon.figura.math.vector.FiguraVec3;
@@ -30,6 +30,8 @@ public class ActionWheel {
 
     private static final ResourceLocation TEXTURE = new FiguraIdentifier("textures/gui/action_wheel.png");
     private static final ResourceLocation ICONS = new FiguraIdentifier("textures/gui/action_wheel_icons.png");
+    private static final double DISTANCE = 41;
+    private static final double DEADZONE = 19;
 
     private static boolean enabled = false;
     private static int selected = -1;
@@ -53,7 +55,7 @@ public class ActionWheel {
         stack.pushPose();
         stack.translate(x, y, 0d);
 
-        scale = Config.ACTION_WHEEL_SCALE.asFloat();
+        scale = Configs.ACTION_WHEEL_SCALE.value;
         stack.scale(scale, scale, scale);
 
         Avatar avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
@@ -88,8 +90,7 @@ public class ActionWheel {
 
         //render title
         FiguraMod.popPushProfiler("texts");
-        Action action = selected == -1 ? null : currentPage.slots()[selected];
-        renderTexts(stack, currentPage, action == null ? null : action.getTitle());
+        renderTexts(stack, currentPage);
 
         FiguraMod.popProfiler();
     }
@@ -126,7 +127,7 @@ public class ActionWheel {
         double mouseDistance = Math.sqrt(Math.pow(x - mouseX, 2) + Math.pow(y - mouseY, 2));
 
         //no need to sum left side because if the right side is 0, the left side will also be 0
-        if (rightSlots == 0 || mouseDistance < (19 * scale)) {
+        if (rightSlots == 0 || mouseDistance < (DEADZONE * scale)) {
             selected = -1;
             return;
         }
@@ -180,20 +181,20 @@ public class ActionWheel {
     }
 
     private static void renderItemsAndIcons(PoseStack stack, Page page) {
-        double distance = 41;
-
         for (int i = 0; i < slots; i++) {
             Action action = page.slots()[i];
             if (action == null)
                 continue;
 
+            boolean isSelected = selected == i;
+
             //convert angle to x and y coordinates
             double angle = getAngle(i);
-            double xOff = Math.cos(angle) * distance;
-            double yOff = Math.sin(angle) * distance;
+            double xOff = Math.cos(angle) * DISTANCE;
+            double yOff = Math.sin(angle) * DISTANCE;
 
             //texture
-            Action.TextureData texture = action.getTexture(selected == i);
+            Action.TextureData texture = action.getTexture(isSelected);
             if (texture != null) {
                 UIHelper.setupTexture(texture.texture.getLocation());
                 UIHelper.blit(stack,
@@ -206,7 +207,7 @@ public class ActionWheel {
             }
 
             //no item, no render
-            ItemStack item = action.getItem(selected == i);
+            ItemStack item = action.getItem(isSelected);
             if (item == null || item.isEmpty())
                 continue;
 
@@ -217,7 +218,7 @@ public class ActionWheel {
             modelStack.scale(scale, scale, scale);
 
             minecraft.getItemRenderer().renderGuiItem(item, (int) Math.round(xOff - 8), (int) Math.round(yOff - 8));
-            if (Config.ACTION_WHEEL_DECORATIONS.asBool())
+            if (Configs.ACTION_WHEEL_DECORATIONS.value)
                 minecraft.getItemRenderer().renderGuiItemDecorations(minecraft.font, item, (int) Math.round(xOff - 8), (int) Math.round(yOff - 8));
 
             modelStack.popPose();
@@ -225,14 +226,17 @@ public class ActionWheel {
         }
     }
 
-    private static void renderTexts(PoseStack stack, Page page, String title) {
+    private static void renderTexts(PoseStack stack, Page page) {
         Font font = minecraft.font;
-        int titlePosition = Config.ACTION_WHEEL_TITLE.asInt();
-        int indicatorPosition = Config.ACTION_WHEEL_SLOTS_INDICATOR.asInt();
+        int titlePosition = Configs.ACTION_WHEEL_TITLE.value;
+        int indicatorPosition = Configs.ACTION_WHEEL_SLOTS_INDICATOR.value;
+
+        Action selectedTitleAction = selected == -1 ? null : page.slots()[selected];
+        String selectedTitle = selectedTitleAction == null ? null : selectedTitleAction.getTitle();
 
         //page indicator
         int groupCount = page.getGroupCount();
-        if (groupCount > 1 && (title == null || indicatorPosition != titlePosition - 2)) {
+        if (groupCount > 1 && (selectedTitle == null || indicatorPosition != titlePosition - 2)) {
             stack.pushPose();
             stack.translate(0d, 0d, 999d);
             int index = page.getSlotsShift();
@@ -261,16 +265,59 @@ public class ActionWheel {
             }
 
             //draw
-            font.drawShadow(stack, indicator, x - (font.width(indicator) - extraWidth) / 2, (int) Position.index(indicatorPosition).apply(font.lineHeight), 0xFFFFFF);
+            font.drawShadow(stack, indicator, x - (int) ((font.width(indicator) - extraWidth) / 2f), (int) Position.index(indicatorPosition).apply(font.lineHeight), 0xFFFFFF);
             stack.popPose();
         }
 
+        //all titles
+        if (titlePosition >= 5) {
+            boolean internal = titlePosition == 5;
+            double distance = (internal ? DISTANCE : 66) * scale;
+            stack.pushPose();
+            stack.translate(0f, 0f, 999f);
+            for (int i = 0; i < slots; i++) {
+                Action action = page.slots()[i];
+                if (action == null)
+                    continue;
+
+                String title = action.getTitle();
+                if (title == null)
+                    continue;
+
+                //convert angle to x and y coordinates
+                double angle = getAngle(i);
+                double xOff = Math.cos(angle) * distance;
+                double yOff = Math.sin(angle) * distance;
+
+                //render text
+                int textX = x + (int) (Math.round(xOff));
+                int textY = y + (int) (Math.round(yOff + (internal ? 9 * scale : -font.lineHeight / 2f)));
+
+                Component text = Emojis.applyEmojis(TextUtils.tryParseJson(title));
+                int textWidth = font.width(text);
+
+                if (internal) {
+                    textX -= textWidth / 2f;
+                    if (i >= rightSlots)
+                        textX = Math.min(textX, x - textWidth - 1);
+                    else
+                        textX = Math.max(textX, x + 1);
+                } else if (i >= rightSlots) {
+                    textX -= textWidth;
+                }
+
+                font.drawShadow(stack, text, textX, textY, 0xFFFFFF);
+            }
+            stack.popPose();
+            return;
+        }
+
         //title
-        if (title == null)
+        if (selectedTitle == null)
             return;
 
         //vars
-        Component text = Emojis.applyEmojis(TextUtils.tryParseJson(title));
+        Component text = Emojis.applyEmojis(TextUtils.tryParseJson(selectedTitle));
         List<Component> list = TextUtils.splitText(text, "\n");
         int height = font.lineHeight * list.size();
 
@@ -284,7 +331,7 @@ public class ActionWheel {
             int y = (int) Position.index(titlePosition - 2).apply(height);
             for (int i = 0; i < list.size(); i++) {
                 Component component = list.get(i);
-                font.drawShadow(stack, component, x - font.width(component) / 2, y + font.lineHeight * i, 0xFFFFFF);
+                font.drawShadow(stack, component, x - (int) (font.width(component) / 2f), y + font.lineHeight * i, 0xFFFFFF);
             }
 
             stack.popPose();
@@ -315,6 +362,10 @@ public class ActionWheel {
         if (action != null) action.execute(avatar, left);
 
         selected = -1;
+    }
+
+    public static void hotbarKeyPressed(int i) {
+        execute(i, true);
     }
 
     public static void scroll(double delta) {

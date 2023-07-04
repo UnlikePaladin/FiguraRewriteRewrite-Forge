@@ -5,6 +5,8 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.*;
 import net.minecraft.resources.ResourceLocation;
 import org.moon.figura.FiguraMod;
+import org.moon.figura.config.Configs;
+import org.moon.figura.lua.api.sound.SoundAPI;
 import org.moon.figura.permissions.PermissionManager;
 import org.moon.figura.permissions.Permissions;
 import org.moon.figura.utils.ColorUtils;
@@ -96,11 +98,21 @@ public class Badges {
                 badges.append(special[i].badge);
         }
 
+
+        // -- extra -- //
+
+
+        //sound
+        if (Configs.SOUND_BADGE.value && SoundAPI.getSoundEngine().figura$isPlaying(id))
+            badges.append(System.SOUND.badge);
+
+
+        // -- return -- //
         return badges;
     }
 
     public static Component noBadges4U(Component text) {
-        return TextUtils.replaceInText(text, "[-*/+=❗❌\uD83D\uDEE1★☆❤文✒0-9a-f]", TextUtils.UNKNOWN, (s, style) -> style.getFont().equals(FONT) || style.getFont().equals(UIHelper.UI_FONT), Integer.MAX_VALUE);
+        return TextUtils.replaceInText(text, "[-*/+=❗❌\uD83D\uDEE1★☆❤文✒\uD83D\uDDFF0-9a-f]", TextUtils.UNKNOWN, (s, style) -> style.getFont().equals(FONT) || style.getFont().equals(UIHelper.UI_FONT), Integer.MAX_VALUE);
     }
 
     public static Pair<BitSet, BitSet> emptyBadges() {
@@ -129,7 +141,8 @@ public class Badges {
         DEFAULT("△"),
         PERMISSIONS("\uD83D\uDEE1"),
         WARNING("❗"),
-        ERROR("❌");
+        ERROR("❌"),
+        SOUND("\uD83D\uDD0A");
 
         public final Component badge;
         public final Component desc;
@@ -182,7 +195,8 @@ public class Badges {
         CONTEST("☆", ColorUtils.Colors.FRAN_PINK.hex),
         DONATOR("❤", ColorUtils.Colors.FRAN_PINK.hex),
         TRANSLATOR("文"),
-        TEXTURE_ARTIST("✒");
+        TEXTURE_ARTIST("✒"),
+        IMMORTALIZED("\uD83D\uDDFF");
 
         public final Component badge;
         public final Component desc;

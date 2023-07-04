@@ -124,7 +124,6 @@ public class MatricesAPI {
         FiguraVec3 angles = LuaUtils.parseVec3("rotation3", x, y, z);
         FiguraMat3 result = FiguraMat3.of();
         result.rotateZYX(angles);
-        angles.free();
         return result;
     }
 
@@ -188,7 +187,6 @@ public class MatricesAPI {
         FiguraVec3 angles = LuaUtils.parseVec3("rotation4", x, y, z);
         FiguraMat4 result = FiguraMat4.of();
         result.rotateZYX(angles);
-        angles.free();
         return result;
     }
 
@@ -253,7 +251,6 @@ public class MatricesAPI {
         FiguraVec2 vec = LuaUtils.parseVec2("scale2", x, y, 1, 1);
         FiguraMat2 result = FiguraMat2.of();
         result.scale(vec);
-        vec.free();
         return result;
     }
 
@@ -272,10 +269,9 @@ public class MatricesAPI {
             value = "matrices.scale3"
     )
     public static FiguraMat3 scale3(Object x, Double y, Double z) {
-        FiguraVec3 scale = LuaUtils.parseVec3("scale3", x, y, z, 1, 1, 1);
+        FiguraVec3 scale = LuaUtils.parseOneArgVec("scale3", x, y, z, 1d);
         FiguraMat3 result = FiguraMat3.of();
         result.scale(scale);
-        scale.free();
         return result;
     }
 
@@ -294,10 +290,9 @@ public class MatricesAPI {
             value = "matrices.scale4"
     )
     public static FiguraMat4 scale4(Object x, Double y, Double z) {
-        FiguraVec3 scale = LuaUtils.parseVec3("scale4", x, y, z, 1, 1, 1);
+        FiguraVec3 scale = LuaUtils.parseOneArgVec("scale4", x, y, z, 1d);
         FiguraMat4 result = FiguraMat4.of();
         result.scale(scale);
-        scale.free();
         return result;
     }
 
@@ -320,7 +315,6 @@ public class MatricesAPI {
         FiguraVec2 offset = LuaUtils.parseVec2("translate3", x, y);
         FiguraMat3 result = FiguraMat3.of();
         result.translate(offset);
-        offset.free();
         return result;
     }
     @LuaWhitelist
@@ -341,7 +335,6 @@ public class MatricesAPI {
         FiguraVec3 offset = LuaUtils.parseVec3("translate4", x, y, z);
         FiguraMat4 result = FiguraMat4.of();
         result.translate(offset);
-        offset.free();
         return result;
     }
 

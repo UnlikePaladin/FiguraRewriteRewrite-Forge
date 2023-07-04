@@ -2,9 +2,12 @@ package org.moon.figura.lua.api;
 
 import com.google.common.base.Suppliers;
 import com.mojang.blaze3d.platform.Window;
+import net.minecraft.SharedConstants;
+import net.minecraft.client.ClientBrandRetriever;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.gui.Font;
+import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.server.IntegratedServer;
 import net.minecraft.core.UUIDUtil;
@@ -17,16 +20,14 @@ import org.luaj.vm2.LuaError;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.lua.LuaNotNil;
 import org.moon.figura.lua.LuaWhitelist;
-import org.moon.figura.lua.api.entity.EntityAPI;
-import org.moon.figura.lua.api.entity.PlayerAPI;
+import org.moon.figura.lua.api.entity.ViewerAPI;
 import org.moon.figura.lua.docs.LuaMethodDoc;
 import org.moon.figura.lua.docs.LuaMethodOverload;
 import org.moon.figura.lua.docs.LuaTypeDoc;
 import org.moon.figura.math.vector.FiguraVec2;
 import org.moon.figura.math.vector.FiguraVec3;
-import org.moon.figura.utils.MathUtils;
-import org.moon.figura.utils.TextUtils;
-import org.moon.figura.utils.Version;
+import org.moon.figura.mixin.gui.PlayerTabOverlayAccessor;
+import org.moon.figura.utils.*;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -79,13 +80,25 @@ public class ClientAPI {
     @LuaWhitelist
     @LuaMethodDoc("client.get_version")
     public static String getVersion() {
-        return Minecraft.getInstance().getLaunchedVersion();
+        return SharedConstants.getCurrentVersion().getId();
     }
 
     @LuaWhitelist
-    @LuaMethodDoc("client.get_version_type")
-    public static String getVersionType() {
-        return Minecraft.getInstance().getVersionType();
+    @LuaMethodDoc("client.get_version_name")
+    public static String getVersionName() {
+        return SharedConstants.getCurrentVersion().getName();
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("client.is_snapshot")
+    public static boolean isSnapshot() {
+        return !SharedConstants.getCurrentVersion().isStable();
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("client.get_client_brand")
+    public static String getClientBrand() {
+        return ClientBrandRetriever.getClientModName();
     }
 
     @LuaWhitelist
@@ -235,6 +248,12 @@ public class ClientAPI {
     }
 
     @LuaWhitelist
+    @LuaMethodDoc("client.get_camera_dir")
+    public static FiguraVec3 getCameraDir() {
+        return FiguraVec3.fromVec3f(Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector());
+    }
+
+    @LuaWhitelist
     @LuaMethodDoc(
             overloads = @LuaMethodOverload(
                     argumentTypes = String.class,
@@ -323,8 +342,8 @@ public class ClientAPI {
             value = "client.has_resource"
     )
     public static boolean hasResource(@LuaNotNil String path) {
+        ResourceLocation resource = LuaUtils.parsePath(path);
         try {
-            ResourceLocation resource = new ResourceLocation(path);
             return Minecraft.getInstance().getResourceManager().getResource(resource).isPresent();
         } catch (Exception ignored) {
             return false;
@@ -385,8 +404,8 @@ public class ClientAPI {
 
     @LuaWhitelist
     @LuaMethodDoc("client.get_viewer")
-    public static EntityAPI<?> getViewer() {
-        return PlayerAPI.wrap(Minecraft.getInstance().player);
+    public static ViewerAPI getViewer() {
+        return new ViewerAPI(Minecraft.getInstance().player);
     }
 
     @LuaWhitelist
@@ -450,6 +469,60 @@ public class ClientAPI {
     public static double getFrameTime() {
         return Minecraft.getInstance().getFrameTime();
     }
+
+    @LuaWhitelist
+    @LuaMethodDoc("client.list_atlases")
+    public static List<String> listAtlases() {
+        return List.of();
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc(
+            overloads = @LuaMethodOverload(
+                    argumentTypes = String.class,
+                    argumentNames = "path"
+            ),
+            value = "client.get_atlas"
+    )
+    public static TextureAtlasAPI getAtlas(@LuaNotNil String atlas) {
+        ResourceLocation path = LuaUtils.parsePath(atlas);
+        try {
+            return new TextureAtlasAPI(Minecraft.getInstance().getModelManager().getAtlas(path));
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("client.get_tab_list")
+    public static Map<String, Object> getTabList() {
+        Map<String, Object> map = new HashMap<>();
+        PlayerTabOverlayAccessor accessor = (PlayerTabOverlayAccessor) Minecraft.getInstance().gui.getTabList();
+
+        //header
+        Component header = accessor.getHeader();
+        if (header != null) {
+            map.put("header", header.getString());
+            map.put("headerJson", header);
+        }
+
+        //players
+        List<String> list = new ArrayList<>();
+        for (PlayerInfo entry : EntityUtils.getTabList())
+            list.add(entry.getTabListDisplayName() != null ? entry.getTabListDisplayName().getString() : entry.getProfile().getName());
+        map.put("players", list);
+
+        //footer
+        Component footer = accessor.getFooter();
+        if (footer != null) {
+            map.put("footer", footer.getString());
+            map.put("footerJson", footer);
+        }
+
+        return map;
+    }
+
+
 
     @Override
     public String toString() {

@@ -1,21 +1,23 @@
 package org.moon.figura.avatar.local;
 
+import net.minecraft.Util;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import org.moon.figura.FiguraMod;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 import org.moon.figura.gui.cards.CardBackground;
 import org.moon.figura.parsers.AvatarMetadataParser;
+import org.moon.figura.utils.FileTexture;
 import org.moon.figura.utils.IOUtils;
 
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.IOException;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * Navigates through the file system, finding all folders
@@ -28,13 +30,15 @@ public class LocalAvatarFetcher {
      * the whole filesystem of avatars.
      */
     public static final List<AvatarPath> ALL_AVATARS = new ArrayList<>();
-    private static final Map<String, Boolean> FOLDER_DATA = new HashMap<>();
+    private static final Map<String, Properties> SAVED_DATA = new HashMap<>();
+
+    private static final Map<Path, WatchKey> WATCHED_KEYS = new HashMap<>();
 
     /**
      * Clears out the root AvatarFolder, and regenerates it from the
      * file system.
      */
-    public static void load() {
+    public static void loadAvatars() {
         //clear loaded avatars
         ALL_AVATARS.clear();
 
@@ -44,22 +48,61 @@ public class LocalAvatarFetcher {
 
         //add new avatars
         ALL_AVATARS.addAll(root.getChildren());
+
+        FiguraMod.debug("Reloading Avatar List...");
+    }
+
+    public static void tick() {
+        boolean reload = false;
+
+        for (Map.Entry<Path, WatchKey> entry : WATCHED_KEYS.entrySet()) {
+            WatchKey key = entry.getValue();
+            if (!key.isValid())
+                continue;
+
+            for (WatchEvent<?> event : key.pollEvents()) {
+                WatchEvent.Kind<?> kind = event.kind();
+                if (kind == StandardWatchEventKinds.OVERFLOW)
+                    continue;
+
+                if (kind == StandardWatchEventKinds.ENTRY_CREATE && !LocalAvatarLoader.IS_WINDOWS) {
+                    Path child = entry.getKey().resolve((Path) event.context());
+                    LocalAvatarLoader.addWatchKey(child, WATCHED_KEYS::put);
+                }
+
+                reload = true;
+            }
+
+            if (reload)
+                break;
+        }
+
+        if (reload)
+            loadAvatars();
+    }
+
+    public static void init() {
+        load();
+        LocalAvatarLoader.addWatchKey(getLocalAvatarDirectory(), WATCHED_KEYS::put);
     }
 
     /**
      * Loads the folder data from the disk
      * the folder data contains information about the avatar folders
      */
-    public static void init() {
-        IOUtils.readCacheFile("folders", nbt -> {
+    public static void load() {
+        IOUtils.readCacheFile("avatars", nbt -> {
             //loading
-            ListTag groupList = nbt.getList("folders", Tag.TAG_COMPOUND);
-            for (Tag tag : groupList) {
+            ListTag list = nbt.getList("properties", Tag.TAG_COMPOUND);
+            for (Tag tag : list) {
                 CompoundTag compound = (CompoundTag) tag;
 
                 String path = compound.getString("path");
-                boolean expanded = compound.getBoolean("expanded");
-                FOLDER_DATA.put(path, expanded);
+                Properties properties = new Properties();
+                properties.expanded = compound.getBoolean("expanded");
+                properties.favourite = compound.getBoolean("favourite");
+
+                SAVED_DATA.put(path, properties);
             }
         });
     }
@@ -68,18 +111,30 @@ public class LocalAvatarFetcher {
      * Saves the folder data to disk
      */
     public static void save() {
-        IOUtils.saveCacheFile("folders", nbt -> {
-            ListTag list = new ListTag();
+        IOUtils.saveCacheFile("avatars", nbt -> {
+            ListTag properties = new ListTag();
 
-            for (Map.Entry<String, Boolean> entry : FOLDER_DATA.entrySet()) {
+            for (Map.Entry<String, Properties> entry : SAVED_DATA.entrySet()) {
                 CompoundTag compound = new CompoundTag();
-                compound.putString("path", entry.getKey());
-                compound.putBoolean("expanded", entry.getValue());
-                list.add(compound);
+
+                Properties prop = entry.getValue();
+                if (!prop.expanded)
+                    compound.putBoolean("expanded", false);
+                if (prop.favourite)
+                    compound.putBoolean("favourite", true);
+
+                if (!compound.isEmpty()) {
+                    compound.putString("path", entry.getKey());
+                    properties.add(compound);
+                }
             }
 
-            nbt.put("folders", list);
+            nbt.put("properties", properties);
         });
+    }
+
+    public static void clearCache() {
+        IOUtils.deleteCacheFile("avatars");
     }
 
     /**
@@ -90,74 +145,166 @@ public class LocalAvatarFetcher {
         return IOUtils.getOrCreateDir(FiguraMod.getFiguraDirectory(), "avatars");
     }
 
+    public static boolean isAvatar(Path path) {
+        if (!Files.exists(path))
+            return false;
+        if (FiguraMod.DEBUG_MODE && path.toString().toLowerCase().endsWith(".moon"))
+            return true;
+
+        Path metadata = path.resolve("avatar.json");
+        return Files.exists(metadata) && !Files.isDirectory(metadata);
+    }
+
+    public static void loadExternal(List<Path> paths) throws IOException {
+        for (Path path : paths) {
+            Path dest = getLocalAvatarDirectory();
+            try (Stream<Path> stream = Files.walk(path)) {
+                for (Path p : stream.toList()) {
+                    Util.copyBetweenDirs(path.getParent(), dest, p);
+                }
+            }
+        }
+    }
+
     /**
      * Represents a path which contains an avatar.
      */
     public static class AvatarPath {
 
-        protected final Path path;
-        protected final String name;
+        protected final Path path, folder; // murder, why does everything needs to be protected/private :sob: 
+        protected final String name, description;
         protected final CardBackground background;
+        protected final FileTexture iconTexture;
 
-        public AvatarPath(Path path) {
+        protected Properties properties;
+
+        protected AvatarPath(Path path, Path folder, String name) {
             this.path = path;
-            String filename = path.getFileName().toString();
+            this.folder = folder;
+            this.name = name;
+            this.description = "";
+            this.background = CardBackground.DEFAULT;
+            this.iconTexture = null;
+            this.properties = SAVED_DATA.computeIfAbsent(path.toAbsolutePath().toString(), __ -> new Properties());
+        }
 
-            String name;
-            CardBackground bg;
+        public AvatarPath(Path path, Path folder) {
+            this.path = path;
+            this.folder = folder;
 
-            if (path.toString().toLowerCase().endsWith(".moon") || this instanceof FolderPath) {
-                name = filename;
-                bg = CardBackground.DEFAULT;
-            } else {
+            properties = SAVED_DATA.computeIfAbsent(path.toAbsolutePath().toString(), __ -> new Properties());
+
+            String filename = IOUtils.getFileNameOrEmpty(path);
+
+            String name = filename;
+            String description = "";
+            CardBackground bg = CardBackground.DEFAULT;
+            FileTexture iconTexture = null;
+
+            if (!path.toString().toLowerCase().endsWith(".moon") && !(this instanceof FolderPath)) {
+                //metadata
                 try {
-                    String str = IOUtils.readFile(path.resolve("avatar.json").toFile());
+                    String str = IOUtils.readFile(path.resolve("avatar.json"));
                     AvatarMetadataParser.Metadata metadata = AvatarMetadataParser.read(str);
 
-                    name = Config.WARDROBE_FILE_NAMES.asBool() || metadata.name == null || metadata.name.isBlank() ? filename : metadata.name;
+                    name = Configs.WARDROBE_FILE_NAMES.value || metadata.name == null || metadata.name.isBlank() ? filename : metadata.name;
+                    description = metadata.description == null ? "" : metadata.description;
                     bg = CardBackground.parse(metadata.background);
-                } catch (Exception ignored) {
-                    name = filename;
-                    bg = CardBackground.DEFAULT;
-                }
+                } catch (Exception ignored) {}
+
+                //icon
+                try {
+                    Path p = path.resolve("avatar.png");
+                    if (Files.exists(p))
+                        iconTexture = FileTexture.of(p);
+                } catch (Exception ignored) {}
             }
 
             this.name = name;
+            this.description = description;
             this.background = bg;
+            this.iconTexture = iconTexture;
         }
 
         public boolean search(String query) {
             String q = query.toLowerCase();
-            return this.getName().toLowerCase().contains(q) || path.getFileName().toString().contains(q);
+            return this.getName().toLowerCase().contains(q) || IOUtils.getFileNameOrEmpty(path).contains(q);
         }
 
         public Path getPath() {
             return path;
         }
 
+        public Path getFolder() {
+            return folder;
+        }
+
+        public Path getFSPath() {
+            Path path = getPath();
+            Path folder = getFolder();
+            return path.getFileSystem() == folder.getFileSystem() ? path : folder;
+        }
+
         public String getName() {
             return name;
+        }
+
+        public String getDescription() {
+            return description;
         }
 
         public CardBackground getBackground() {
             return background;
         }
+
+        public FileTexture getIcon() {
+            return iconTexture;
+        }
+
+        public boolean isExpanded() {
+            return properties.expanded;
+        }
+
+        public void setExpanded(boolean expanded) {
+            properties.expanded = expanded;
+            saveProperties();
+        }
+
+        public boolean isFavourite() {
+            return properties.favourite;
+        }
+
+        public void setFavourite(boolean favourite) {
+            properties.favourite = favourite;
+            saveProperties();
+        }
+
+        private void saveProperties() {
+            String key = this.path.toAbsolutePath().toString();
+            SAVED_DATA.put(key, properties);
+        }
     }
 
     /**
-     * Represents a path were its sub paths contains an avatar.
+     * Represents a path which contains avatar(s) in it's sub-paths.
      */
     public static class FolderPath extends AvatarPath {
 
         protected final List<AvatarPath> children = new ArrayList<>();
-        protected boolean expanded = true;
+        protected final FileSystem fileSystem;
+
+        public FolderPath(FileSystem fileSystem, Path folder, Path path) {
+            super(fileSystem.getPath(""), folder, IOUtils.getFileNameOrEmpty(path));
+            this.fileSystem = fileSystem;
+        }
+
+        public FolderPath(Path path, Path folder) {
+            super(path, folder);
+            this.fileSystem = path.getFileSystem();
+        }
 
         public FolderPath(Path path) {
-            super(path);
-
-            Boolean expanded = FOLDER_DATA.get(this.path.toFile().getAbsolutePath());
-            if (expanded != null)
-                this.expanded = expanded;
+            this(path, path);
         }
 
         /**
@@ -168,30 +315,45 @@ public class LocalAvatarFetcher {
          * We only want our FolderPath to contain sub-folders that actually have avatars.
          */
         public boolean fetch() {
-            File[] files = path.toFile().listFiles();
+            List<Path> files = IOUtils.listPaths(getPath());
             if (files == null)
                 return false;
 
             boolean found = false;
 
+            Path folderPath = this.path.getFileSystem() == FileSystems.getDefault() ? path : this.folder;
+
             //iterate over all files on this path
             //but skip non-folders and non-moon
-            for (File file : files) {
-                Path path = file.toPath();
-                boolean moon = FiguraMod.DEBUG_MODE && path.toString().toLowerCase().endsWith(".moon");
-
-                if (!Files.isDirectory(path) && !moon)
-                    continue;
-
-                Path metadata = path.resolve("avatar.json");
-                if (moon || (Files.exists(metadata) && !Files.isDirectory(metadata))) {
-                    children.add(new AvatarPath(path));
+            for (Path path : files) {
+                if (isAvatar(path)) {
+                    children.add(new AvatarPath(path, folderPath));
                     found = true;
-                } else {
-                    FolderPath folder = new FolderPath(file.toPath());
+                } else if (Files.isDirectory(path)) {
+                    FolderPath folder = new FolderPath(path, folderPath);
                     if (folder.fetch()) {
                         children.add(folder);
                         found = true;
+                    }
+                } else if (IOUtils.getFileNameOrEmpty(path).endsWith(".zip")) {
+                    try {
+                        FileSystem opened = FileSystems.newFileSystem(path);
+                        if ("jar".equalsIgnoreCase(opened.provider().getScheme())){
+                            Path newPath = opened.getPath("");
+                            if (isAvatar(newPath)) {
+                                children.add(new AvatarPath(newPath, folderPath));
+                                found = true;
+                            } else {
+                                FolderPath folder = new FolderPath(opened, folderPath, path);
+                                if (folder.fetch()) {
+                                    children.add(folder);
+                                    found = true;
+                                } else
+                                    opened.close();
+                            }
+                        } else
+                            opened.close();
+                    } catch (IOException ignored) {
                     }
                 }
             }
@@ -214,17 +376,10 @@ public class LocalAvatarFetcher {
         public List<AvatarPath> getChildren() {
             return children;
         }
+    }
 
-        public boolean isExpanded() {
-            return expanded;
-        }
-
-        public void setExpanded(boolean expanded) {
-            this.expanded = expanded;
-
-            String key = this.path.toFile().getAbsolutePath();
-            if (!this.expanded) FOLDER_DATA.put(key, false);
-            else FOLDER_DATA.remove(key);
-        }
+    private static class Properties {
+        public boolean expanded = true;
+        public boolean favourite;
     }
 }

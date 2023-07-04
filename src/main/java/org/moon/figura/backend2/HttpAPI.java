@@ -2,7 +2,7 @@ package org.moon.figura.backend2;
 
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import org.moon.figura.FiguraMod;
-import org.moon.figura.config.Config;
+import org.moon.figura.config.Configs;
 
 import java.io.InputStream;
 import java.net.URI;
@@ -29,7 +29,7 @@ public class HttpAPI {
     }
 
     protected static String getBackendAddress() {
-        ServerAddress backendIP = ServerAddress.parseString(Config.SERVER_IP.asString());
+        ServerAddress backendIP = ServerAddress.parseString(Configs.SERVER_IP.value);
         return "https://" + backendIP.getHost() + "/api";
     }
 
@@ -52,7 +52,8 @@ public class HttpAPI {
             if (code == 401) NetworkStuff.reAuth();
             consumer.accept(code, response.body());
         } catch (Exception e) {
-            FiguraMod.LOGGER.error("", e);
+            if (!e.getMessage().contains("GOAWAY received"))
+                FiguraMod.LOGGER.error("", e);
         }
     }
 
@@ -64,7 +65,8 @@ public class HttpAPI {
             if (code == 401) NetworkStuff.reAuth();
             consumer.accept(code, response.body());
         } catch (Exception e) {
-            FiguraMod.LOGGER.error("", e);
+            if (!e.getMessage().contains("GOAWAY received"))
+                FiguraMod.LOGGER.error("", e);
         }
     }
 

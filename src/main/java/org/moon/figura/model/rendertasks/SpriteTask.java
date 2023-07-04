@@ -4,7 +4,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Matrix3f;
 import com.mojang.math.Matrix4f;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.texture.MissingTextureAtlasSprite;
 import net.minecraft.resources.ResourceLocation;
@@ -19,10 +18,14 @@ import org.moon.figura.math.vector.FiguraVec2;
 import org.moon.figura.math.vector.FiguraVec3;
 import org.moon.figura.math.vector.FiguraVec4;
 import org.moon.figura.model.PartCustomization;
+import org.moon.figura.model.rendering.Vertex;
 import org.moon.figura.model.rendering.texture.FiguraTexture;
 import org.moon.figura.model.rendering.texture.RenderTypes;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.LuaUtils;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @LuaWhitelist
 @LuaTypeDoc(
@@ -38,16 +41,14 @@ public class SpriteTask extends RenderTask {
     private float u = 0f, v = 0f;
     private int r = 0xFF, g = 0xFF, b = 0xFF, a = 0xFF;
     private RenderTypes renderType = RenderTypes.TRANSLUCENT;
+    private final List<Vertex> vertices = new ArrayList<>(4);
 
     public SpriteTask(String name, Avatar owner) {
         super(name, owner);
     }
 
     @Override
-    public boolean render(PartCustomization.Stack stack, MultiBufferSource buffer, int light, int overlay) {
-        if (!enabled || texture == null || renderType == RenderTypes.NONE)
-            return false;
-
+    public void render(PartCustomization.PartCustomizationStack stack, MultiBufferSource buffer, int light, int overlay) {
         this.pushOntoStack(stack); //push
         PoseStack poseStack = stack.peek().copyIntoGlobalPoseStack();
         poseStack.scale(-1, -1, 1);
@@ -56,27 +57,45 @@ public class SpriteTask extends RenderTask {
         Matrix4f pose = poseStack.last().pose();
         Matrix3f normal = poseStack.last().normal();
 
-        int newLight = this.light != null ? this.light : light;
-        int newOverlay = this.overlay != null ? this.overlay : overlay;
-        float u2 = u + regionW / (float) textureW;
-        float v2 = v + regionH / (float) textureH;
+        int newLight = this.customization.light != null ? this.customization.light : light;
+        int newOverlay = this.customization.overlay != null ? this.customization.overlay : overlay;
 
         //setup texture render
         VertexConsumer consumer = buffer.getBuffer(renderType.get(texture));
 
         //create vertices
-        consumer.vertex(pose, 0f, height, 0f).color(r, g, b, a).uv(u, v2).overlayCoords(newOverlay).uv2(newLight).normal(normal, 0f, 0f, -1f).endVertex();
-        consumer.vertex(pose, width, height, 0f).color(r, g, b, a).uv(u2, v2).overlayCoords(newOverlay).uv2(newLight).normal(normal, 0f, 0f, -1f).endVertex();
-        consumer.vertex(pose, width, 0f, 0f).color(r, g, b, a).uv(u2, v).overlayCoords(newOverlay).uv2(newLight).normal(normal, 0f, 0f, -1f).endVertex();
-        consumer.vertex(pose, 0f, 0f, 0f).color(r, g, b, a).uv(u, v).overlayCoords(newOverlay).uv2(newLight).normal(normal, 0f, 0f, -1f).endVertex();
+        for (Vertex v : vertices) {
+            consumer.vertex(pose, v.x, v.y, v.z)
+                    .color(r, g, b, a)
+                    .uv(v.u, v.v)
+                    .overlayCoords(newOverlay)
+                    .uv2(newLight)
+                    .normal(normal, v.nx, v.ny, v.nz)
+                    .endVertex();
+        }
 
         stack.pop(); //pop
-        return true;
     }
 
     @Override
     public int getComplexity() {
         return 1; //1 face, 1 complexity
+    }
+
+    @Override
+    public boolean shouldRender() {
+        return super.shouldRender() && texture != null && renderType != RenderTypes.NONE;
+    }
+
+    private void recalculateVertices() {
+        float u2 = u + regionW / (float) textureW;
+        float v2 = v + regionH / (float) textureH;
+
+        vertices.clear();
+        vertices.add(new Vertex(0f, height, 0f, u, v2, 0f, 0f, -1f));
+        vertices.add(new Vertex(width, height, 0f, u2, v2, 0f, 0f, -1f));
+        vertices.add(new Vertex(width, 0f, 0f, u2, v, 0f, 0f, -1f));
+        vertices.add(new Vertex(0f, 0f, 0f, u, v, 0f, 0f, -1f));
     }
 
 
@@ -116,10 +135,9 @@ public class SpriteTask extends RenderTask {
 
         if (texture instanceof String s) {
             try {
-                ResourceLocation resource = new ResourceLocation(s);
-                this.texture = Minecraft.getInstance().getTextureManager().getTexture(resource, null) != null ? resource : MissingTextureAtlasSprite.getLocation();
+                this.texture = new ResourceLocation(s);
             } catch (Exception e) {
-                throw new LuaError(e.getMessage());
+                this.texture = MissingTextureAtlasSprite.getLocation();
             }
             if (width == null || height == null)
                 throw new LuaError("Texture dimensions cannot be null");
@@ -138,6 +156,7 @@ public class SpriteTask extends RenderTask {
 
         this.textureW = this.regionW = this.width = width;
         this.textureH = this.regionH = this.height = height;
+        recalculateVertices();
         return this;
     }
 
@@ -173,6 +192,7 @@ public class SpriteTask extends RenderTask {
             throw new LuaError("Invalid dimensions: " + vec.x + "x" + vec.y);
         this.textureW = (int) Math.round(vec.x);
         this.textureH = (int) Math.round(vec.y);
+        recalculateVertices();
         return this;
     }
 
@@ -206,6 +226,7 @@ public class SpriteTask extends RenderTask {
         FiguraVec2 vec = LuaUtils.parseVec2("setSize", w, h);
         this.width = (int) Math.round(vec.x);
         this.height = (int) Math.round(vec.y);
+        recalculateVertices();
         return this;
     }
 
@@ -239,6 +260,7 @@ public class SpriteTask extends RenderTask {
         FiguraVec2 vec = LuaUtils.parseVec2("setRegion", w, h);
         this.regionW = (int) Math.round(vec.x);
         this.regionH = (int) Math.round(vec.y);
+        recalculateVertices();
         return this;
     }
 
@@ -272,6 +294,7 @@ public class SpriteTask extends RenderTask {
         FiguraVec2 vec = LuaUtils.parseVec2("setUV", u, v);
         this.u = (float) vec.x;
         this.v = (float) vec.y;
+        recalculateVertices();
         return this;
     }
 
@@ -385,6 +408,12 @@ public class SpriteTask extends RenderTask {
     @LuaWhitelist
     public SpriteTask renderType(@LuaNotNil String renderType) {
         return setRenderType(renderType);
+    }
+
+    @LuaWhitelist
+    @LuaMethodDoc("sprite_task.get_vertices")
+    public List<Vertex> getVertices() {
+        return vertices;
     }
 
     @Override

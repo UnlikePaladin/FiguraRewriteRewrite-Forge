@@ -6,27 +6,19 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
-import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import org.apache.commons.codec.binary.Base64;
-import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.exporters.BlockBenchModel;
 import org.moon.figura.exporters.BlockBenchModel.Cube;
 import org.moon.figura.exporters.BlockBenchModel.Group;
 import org.moon.figura.math.vector.FiguraVec3;
-import org.moon.figura.utils.ColorUtils;
-import org.moon.figura.utils.FiguraIdentifier;
-import org.moon.figura.utils.FiguraResourceListener;
-import org.moon.figura.utils.IOUtils;
+import org.moon.figura.utils.*;
 
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
-import java.util.Optional;
 import java.util.function.BiFunction;
 
 public class AvatarWizard {
@@ -36,23 +28,18 @@ public class AvatarWizard {
     private static String playerTexture = "";
     private static String playerTextureSlim = "";
     private static String capeTexture = "";
+    private static byte[] iconTexture;
 
     private static final BiFunction<ResourceManager, String, String> GET_TEXTURE_DATA = (manager, path) -> {
-        Optional<Resource> optional = manager.getResource(new FiguraIdentifier(path));
-        if (optional.isPresent()) {
-            try (InputStream is = optional.get().open()) {
-                return Base64.encodeBase64String(is.readAllBytes());
-            } catch (Exception e) {
-                FiguraMod.LOGGER.error("", e);
-            }
-        }
-        return "";
+        byte[] bytes = ResourceUtils.getResource(manager, new FiguraIdentifier(path));
+        return bytes != null ? Base64.encodeBase64String(bytes) : "";
     };
 
     public static final FiguraResourceListener RESOURCE_LISTENER = new FiguraResourceListener("avatar_wizard", manager -> {
         playerTexture = GET_TEXTURE_DATA.apply(manager, "textures/avatar_wizard/texture.png");
         playerTextureSlim = GET_TEXTURE_DATA.apply(manager, "textures/avatar_wizard/texture_slim.png");
         capeTexture = GET_TEXTURE_DATA.apply(manager, "textures/avatar_wizard/cape.png");
+        iconTexture = ResourceUtils.getResource(manager, new FiguraIdentifier("textures/avatar_wizard/icon.png"));
     });
 
     private final HashMap<WizardEntry, Object> map = new HashMap<>();
@@ -109,28 +96,40 @@ public class AvatarWizard {
             i++;
         }
 
-        Files.createDirectories(folder);
-
         //metadata
-        buildMetadata(folder, name);
+        byte[] metadata = buildMetadata(name);
 
         //script
+        byte[] script = null;
         if (WizardEntry.DUMMY_SCRIPT.asBool(map))
-            buildScript(folder);
+            script = buildScript();
 
         //model
+        byte[] model = null;
         if (WizardEntry.DUMMY_MODEL.asBool(map))
-            buildModel(folder);
+            model = buildModel();
+
+        //write files
+        new IOUtils.DirWrapper(folder)
+                .create()
+                .write("avatar.json", metadata)
+                .write("script.lua", script)
+                .write("model.bbmodel", model)
+                .write("avatar.png", iconTexture);
 
         //open file manager
-        Util.getPlatform().openFile(folder.toFile());
+        Util.getPlatform().openUri(folder.toUri());
     }
 
-    private void buildMetadata(Path path, String name) throws IOException {
+    private byte[] buildMetadata(String name) {
         JsonObject root = new JsonObject();
 
         //name
         root.addProperty("name", name);
+
+        //description
+        String description = (String) map.get(WizardEntry.DESCRIPTION);
+        root.addProperty("description", description == null ? "" : description);
 
         //authors
         String authorStr = (String) map.get(WizardEntry.AUTHORS);
@@ -147,15 +146,11 @@ public class AvatarWizard {
         //color
         root.addProperty("color", "#" + ColorUtils.rgbToHex(ColorUtils.Colors.random().vec));
 
-        //write file
-        path = path.resolve("avatar.json");
-
-        try (FileOutputStream fs = new FileOutputStream(path.toFile())) {
-            fs.write(GSON.toJson(root).getBytes());
-        }
+        //return
+        return GSON.toJson(root).getBytes();
     }
 
-    private void buildScript(Path path) throws IOException {
+    private byte[] buildScript() {
         String script = "-- Auto generated script file --\n";
 
         boolean hasPlayerModel = WizardEntry.CUSTOM_PLAYER.asBool(map);
@@ -223,15 +218,11 @@ public class AvatarWizard {
                     end
                     """;
 
-        //write file
-        path = path.resolve("script.lua");
-
-        try (FileOutputStream fs = new FileOutputStream(path.toFile())) {
-            fs.write(script.getBytes());
-        }
+        //return
+        return script.getBytes();
     }
 
-    private void buildModel(Path path) throws IOException {
+    private byte[] buildModel() {
         boolean hasPlayer = WizardEntry.CUSTOM_PLAYER.asBool(map);
         boolean hasElytra = WizardEntry.ELYTRA.asBool(map);
         boolean hasCape = WizardEntry.CAPE.asBool(map);
@@ -317,15 +308,11 @@ public class AvatarWizard {
             model.addGroup("RightParrotPivot", FiguraVec3.of(6, 24, 0), body);
         }
 
-        //write file
-        path = path.resolve("model.bbmodel");
-
-        try (FileOutputStream fs = new FileOutputStream(path.toFile())) {
-            fs.write(GSON.toJson(model.build()).getBytes());
-        }
+        //return
+        return GSON.toJson(model.build()).getBytes();
     }
 
-    private void generateCubeAndLayer(BlockBenchModel model, String layerName, FiguraVec3 position, FiguraVec3 size, double inflation, Group parent, int x1, int y1, int x2, int y2, int texture) {
+    private static void generateCubeAndLayer(BlockBenchModel model, String layerName, FiguraVec3 position, FiguraVec3 size, double inflation, Group parent, int x1, int y1, int x2, int y2, int texture) {
         Cube c = model.addCube(position, size, parent);
         c.generateBoxFaces(x1, y1, texture);
         Cube l = model.addCube(layerName, position, size, parent);
@@ -337,6 +324,7 @@ public class AvatarWizard {
         //metadata
         Meta(Type.CATEGORY),
         NAME(Type.TEXT),
+        DESCRIPTION(Type.TEXT, NAME),
         AUTHORS(Type.TEXT, NAME),
         //model stuff
         Model(Type.CATEGORY, NAME),

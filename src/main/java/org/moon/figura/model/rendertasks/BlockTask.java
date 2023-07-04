@@ -31,18 +31,17 @@ public class BlockTask extends RenderTask {
     }
 
     @Override
-    public boolean render(PartCustomization.Stack stack, MultiBufferSource buffer, int light, int overlay) {
-        if (!enabled || block == null || block.isAir())
-            return false;
-
+    public void render(PartCustomization.PartCustomizationStack stack, MultiBufferSource buffer, int light, int overlay) {
         this.pushOntoStack(stack); //push
         PoseStack poseStack = stack.peek().copyIntoGlobalPoseStack();
         poseStack.scale(16, 16, 16);
 
-        Minecraft.getInstance().getBlockRenderer().renderSingleBlock(block, poseStack, buffer, this.light != null ? this.light : light, this.overlay != null ? this.overlay : overlay);
+        int newLight = this.customization.light != null ? this.customization.light : light;
+        int newOverlay = this.customization.overlay != null ? this.customization.overlay : overlay;
+
+        Minecraft.getInstance().getBlockRenderer().renderSingleBlock(block, poseStack, buffer, newLight, newOverlay);
 
         stack.pop(); //pop
-        return true;
     }
 
     @Override
@@ -50,6 +49,10 @@ public class BlockTask extends RenderTask {
         return cachedComplexity;
     }
 
+    @Override
+    public boolean shouldRender() {
+        return super.shouldRender() && block != null && !block.isAir();
+    }
 
     // -- lua -- //
 
