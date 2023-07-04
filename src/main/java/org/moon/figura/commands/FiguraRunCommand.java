@@ -23,7 +23,7 @@ public class FiguraRunCommand {
         return run;
     }
 
-    private static int executeCode(CommandContext<FabricClientCommandSource> context) {
+    private static int executeCode(CommandContext<CommandSourceStack> context) {
         if (!canRun)
             return 0;
 

@@ -44,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.Calendar;
+import java.util.Map;
 import java.util.UUID;
 
 @Mod("figura")
@@ -51,8 +52,8 @@ public class FiguraMod {
 
     public static final String MOD_ID = "figura";
     public static final String MOD_NAME = "Figura";
-    public static final ModMetadata METADATA = FabricLoader.getInstance().getModContainer(MOD_ID).get().getMetadata();
     public static final Version VERSION = new Version(ModList.get().getModContainerById("figura").get().getModInfo().getVersion().toString());
+    public static final Map<String,Object> METADATA = ModList.get().getModContainerById("figura").get().getModInfo().getModProperties();
     public static final boolean DEBUG_MODE = Math.random() + 1 < 0;
     public static final Calendar CALENDAR = Calendar.getInstance();
     public static final Path GAME_DIR = FMLPaths.GAMEDIR.relative().normalize();

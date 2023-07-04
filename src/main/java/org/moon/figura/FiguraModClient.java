@@ -1,5 +1,6 @@
 package org.moon.figura;
 
+import net.minecraft.client.KeyMapping;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
@@ -21,8 +22,8 @@ import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.avatar.local.CacheAvatarLoader;
 import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.avatar.local.LocalAvatarLoader;
-import org.moon.figura.config.Config;
 import org.moon.figura.config.ConfigManager;
+import org.moon.figura.config.Configs;
 import org.moon.figura.config.ModMenuConfig;
 import org.moon.figura.entries.EntryPointManager;
 import org.moon.figura.forge.GUIActionWheelOverlay;
@@ -159,9 +160,9 @@ public class FiguraModClient {
     }
     @SubscribeEvent
     public static void registerKeyBinding(RegisterKeyMappingsEvent event) {
-        for (Config value : Config.values()) {
-            if(value.keyBind != null)
-                event.register(value.keyBind);
+        for (KeyMapping value : Configs.KEY_MAPPINGS) {
+            if(value != null)
+                event.register(value);
         }
     }
 }

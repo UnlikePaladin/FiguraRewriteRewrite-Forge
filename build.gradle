@@ -221,7 +221,7 @@ dependencies {
         transitive(true)
     }
 
-    compileOnly ("maven.modrinth:oculus:1.18.2-1.6.4")
+    compileOnly ("maven.modrinth:oculus:1.19.2-1.6.4")
 
     // For more info...
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html

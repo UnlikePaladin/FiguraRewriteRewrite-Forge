@@ -18,7 +18,7 @@ import java.util.concurrent.CompletableFuture;
 
 public class FiguraRuntimeResources {
 
-    public static final String ASSETS_VERSION = FiguraMod.METADATA.getCustomValue("assets_version").getAsString();
+    public static final String ASSETS_VERSION = FiguraMod.METADATA.get("assets_version").toString();
     public static final FolderPackResources PACK = new FolderPackResources(getRootDirectory().toFile());
 
     public static Path getRootDirectory() {

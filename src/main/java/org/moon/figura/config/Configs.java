@@ -1,6 +1,7 @@
 package org.moon.figura.config;
 
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import org.moon.figura.FiguraMod;
@@ -28,6 +29,8 @@ public class Configs {
     //mod config version
     //only change this if you rename old configs
     public static final int CONFIG_VERSION = 1;
+
+    public static ArrayList<KeyMapping> KEY_MAPPINGS = new ArrayList<>();
 
     //config update hashmap; <version number, <actual config, old config name>>
     public static final HashMap<Integer, HashMap<ConfigType<?>, String>> CONFIG_UPDATES = new HashMap<>();
