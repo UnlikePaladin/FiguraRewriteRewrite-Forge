@@ -12,12 +12,10 @@ import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 
-@Pseudo
 @Mixin(SignRenderer.class)
 public class SignRendererMixin {
 
-    @Dynamic
-    @ModifyArg(method = "lambda$render$2", at = @At(value = "INVOKE", remap = false, target = "Lnet/minecraft/client/gui/Font;split(Lnet/minecraft/network/chat/FormattedText;I)Ljava/util/List;"), require = 0)
+    @ModifyArg(method = {"lambda$render$2", "m_173652_"}, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/Font;split(Lnet/minecraft/network/chat/FormattedText;I)Ljava/util/List;", remap = true), remap = false)
     private FormattedText modifyText(FormattedText charSequence) {
         return Configs.EMOJIS.value > 0 && charSequence instanceof Component text ? Emojis.applyEmojis(text) : charSequence;
     }
