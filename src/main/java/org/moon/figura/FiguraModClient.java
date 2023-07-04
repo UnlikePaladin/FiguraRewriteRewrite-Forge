@@ -13,6 +13,7 @@ import org.java_websocket.enums.Opcode;
 import org.java_websocket.exceptions.InvalidDataException;
 import org.java_websocket.framing.ControlFrame;
 import org.java_websocket.handshake.HandshakedataImpl1;
+import org.java_websocket.handshake.ServerHandshake;
 import org.luaj.vm2.*;
 import org.luaj.vm2.compiler.Constants;
 import org.luaj.vm2.lib.*;
@@ -34,16 +35,81 @@ import org.moon.figura.permissions.Permissions;
 import org.moon.figura.resources.FiguraRuntimeResources;
 import org.moon.figura.wizards.AvatarWizard;
 
+import java.net.URI;
 import java.nio.ByteBuffer;
 
 @Mod.EventBusSubscriber(modid = FiguraMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class FiguraModClient {
 
     static {
-       // ControlFrame.get(Opcode.PONG);
-       // Draft.readLine(ByteBuffer.allocateDirect(1));
-       // FiguraMod.LOGGER.info("Hello from UnlikePaladin");
-     //   FiguraMod.LOGGER.info(WebSocketClient.class.getName());
+        ControlFrame.get(Opcode.PONG);
+        Draft.readLine(ByteBuffer.allocateDirect(1));
+
+        /*
+          This was an attempt at mitigating log spam outside of a dev environment
+          Caused by this bug https://github.com/MinecraftForge/EventBus/issues/44
+         */
+        try {
+            WebSocketClient webSocketClient = new WebSocketClient(new URI("")) {
+                @Override
+                public void onOpen(ServerHandshake handshakedata) {
+
+                }
+
+                @Override
+                public void onMessage(String message) {
+
+                }
+
+                @Override
+                public void onClose(int code, String reason, boolean remote) {
+
+                }
+
+                @Override
+                public void onError(Exception ex) {
+
+                }
+            };
+            webSocketClient.close();
+            new HandshakedataImpl1();
+            Permissions.COMPLEXITY.showSteps();
+            LibFunction.NONE.checkint();
+            VarArgFunction.NONE.checkint();
+            TwoArgFunction.NONE.checkint();
+            OneArgFunction.NONE.checkint();
+            ZeroArgFunction.NONE.checkint();
+            BaseLib.NONE.checkint();
+            MathLib.NONE.checkint();
+            new Varargs() {
+                @Override
+                public LuaValue arg(int i) {
+                    return null;
+                }
+
+                @Override
+                public int narg() {
+                    return 0;
+                }
+
+                @Override
+                public LuaValue arg1() {
+                    return null;
+                }
+
+                @Override
+                public Varargs subargs(int start) {
+                    return null;
+                }
+            }.arg1();
+            LuaTable.NONE.call();
+            Globals.NONE.call();
+            OneArgFunction.NONE.call();
+            LuaNumber.NONE.checkint();
+            Constants.GET_OPCODE(Lua.iABC);
+            Lua.GETARG_A(0);
+        } catch (Exception ignored) {}
+
         Class.forName(ControlFrame.class.getModule(), ControlFrame.class.getSimpleName());
         Class.forName(Draft.class.getModule(), Draft.class.getSimpleName());
         Class.forName(WebSocketClient.class.getModule(), WebSocketClient.class.getSimpleName());
@@ -62,7 +128,6 @@ public class FiguraModClient {
         Class.forName(OneArgFunction.class.getModule(), OneArgFunction.class.getSimpleName());
         Class.forName(LuaNumber.class.getModule(), LuaNumber.class.getSimpleName());
         Class.forName(Constants.class.getModule(), Constants.class.getSimpleName());
-        Class.forName(Lua.class.getModule(), Lua.class.getSimpleName());
         Class.forName(Lua.class.getModule(), Lua.class.getSimpleName());
     }
 

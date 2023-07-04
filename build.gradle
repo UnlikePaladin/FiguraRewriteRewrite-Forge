@@ -157,14 +157,10 @@ repositories {
 repositories {
 	maven { url 'https://jitpack.io' }
 
-    exclusiveContent {
-        forRepository {
-            maven {
-                name = "Modrinth"
-                url = "https://api.modrinth.com/maven"
-            }
-        }
-        filter {
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
             includeGroup "maven.modrinth"
         }
     }
@@ -218,6 +214,8 @@ dependencies {
         transitive(true)
     }
 
+    compileOnly ("maven.modrinth:oculus:1.18.2-1.6.4")
+
     // For more info...
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
@@ -237,7 +235,7 @@ processTestResources {
 }
 
 tasks.jarJar.configure {
-    classifier project.minecraft_version
+    classifier 'forge+'+project.minecraft_version
 }
 
 // Example for how to get properties into the manifest for reading by the runtime..
