@@ -2,7 +2,7 @@ package org.moon.figura.config;
 
 import com.google.gson.*;
 import com.mojang.blaze3d.platform.InputConstants;
-import net.fabricmc.loader.api.FabricLoader;
+import net.minecraftforge.fml.loading.FMLPaths;
 import org.moon.figura.FiguraMod;
 
 import java.io.BufferedReader;
@@ -16,7 +16,7 @@ import java.util.Map;
 
 public final class ConfigManager {
 
-    private static final File FILE = new File(FabricLoader.getInstance().getConfigDir().resolve(FiguraMod.MOD_ID + ".json").toString());
+    private static final File FILE = new File(FMLPaths.CONFIGDIR.relative().resolve(FiguraMod.MOD_ID + ".json").toString());
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create();
     public static final List<ConfigType<?>> REGISTRY = new ArrayList<>();
     public static final Map<String, ConfigType.Category> CATEGORIES_REGISTRY = new LinkedHashMap<>();
@@ -133,5 +133,16 @@ public final class ConfigManager {
         }
 
         FiguraMod.debug("Config updated from version " + version);
+    }
+
+    //returns true if modmenu shifts other buttons on the game menu screen
+    public static boolean modmenuShift() {
+        //No Mod Menu on Forge!
+        /*if (FabricLoader.getInstance().isModLoaded("modmenu")) {
+            String buttonStyle = com.terraformersmc.modmenu.config.ModMenuConfig.MODS_BUTTON_STYLE.getValue().toString();
+            return !buttonStyle.equals("SHRINK") && !buttonStyle.equals("ICON");
+        }
+        */
+        return false;
     }
 }

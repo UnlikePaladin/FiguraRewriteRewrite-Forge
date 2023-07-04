@@ -6,8 +6,8 @@ import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
 import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.*;
 import org.luaj.vm2.*;
 import org.moon.figura.FiguraMod;
@@ -299,13 +299,13 @@ public class FiguraDocsManager {
 
     // -- commands -- //
 
-    public static LiteralArgumentBuilder<FabricClientCommandSource> getCommand() {
+    public static LiteralArgumentBuilder<CommandSourceStack> getCommand() {
         //root
-        LiteralArgumentBuilder<FabricClientCommandSource> root = LiteralArgumentBuilder.literal("docs");
+        LiteralArgumentBuilder<CommandSourceStack> root = LiteralArgumentBuilder.literal("docs");
         root.executes(context -> FiguraDoc.printRoot());
 
         //globals
-        LiteralArgumentBuilder<FabricClientCommandSource> globals = global == null ? LiteralArgumentBuilder.literal("globals") : global.getCommand();
+        LiteralArgumentBuilder<CommandSourceStack> globals = global == null ? LiteralArgumentBuilder.literal("globals") : global.getCommand();
         root.then(globals);
 
         //library overrides
@@ -318,11 +318,11 @@ public class FiguraDocsManager {
         return root;
     }
 
-    public static LiteralArgumentBuilder<FabricClientCommandSource> getExportCommand() {
-        LiteralArgumentBuilder<FabricClientCommandSource> root = LiteralArgumentBuilder.literal("export_docs");
+    public static LiteralArgumentBuilder<CommandSourceStack> getExportCommand() {
+        LiteralArgumentBuilder<CommandSourceStack> root = LiteralArgumentBuilder.literal("export_docs");
         root.executes(context -> exportDocsFunction(context, true));
 
-        RequiredArgumentBuilder<FabricClientCommandSource, Boolean> e = RequiredArgumentBuilder.argument("translate", BoolArgumentType.bool());
+        RequiredArgumentBuilder<CommandSourceStack, Boolean> e = RequiredArgumentBuilder.argument("translate", BoolArgumentType.bool());
         e.executes(context -> exportDocsFunction(context, BoolArgumentType.getBool(context, "translate")));
         root.then(e);
 
@@ -331,7 +331,7 @@ public class FiguraDocsManager {
 
     // -- export -- //
 
-    private static int exportDocsFunction(CommandContext<FabricClientCommandSource> context, boolean translate) {
+    private static int exportDocsFunction(CommandContext<CommandSourceStack> context, boolean translate) {
         try {
             //get path
             Path targetPath = FiguraMod.getFiguraDirectory().resolve("exported_docs.json");
@@ -346,7 +346,7 @@ public class FiguraDocsManager {
             fs.close();
 
             //feedback
-            context.getSource().sendFeedback(
+            context.getSource().sendSystemMessage(
                     FiguraText.of("command.docs_export.success")
                             .append(" ")
                             .append(FiguraText.of("command.click_to_open")
@@ -355,7 +355,7 @@ public class FiguraDocsManager {
             );
             return 1;
         } catch (Exception e) {
-            context.getSource().sendError(FiguraText.of("command.docs_export.error"));
+            context.getSource().sendFailure(FiguraText.of("command.docs_export.error"));
             FiguraMod.LOGGER.error("Failed to export docs!", e);
             return 0;
         }

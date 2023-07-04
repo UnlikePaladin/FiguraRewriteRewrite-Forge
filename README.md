@@ -1,4 +1,6 @@
-# Figura
+# This is an unofficial Forge Fork, please do not open any issues on the offical repository, open them here instead. Kingdom-of-The-Moon is not responsible for any issues you find with this port.
+
+# Figura for Forge
 
 ## A fully clientside Minecraft Java mod that allows you to customize your player model!
 ![image](https://user-images.githubusercontent.com/40085587/232265398-f193b7c2-428f-41df-bc65-7c6b5a02e31b.png)
@@ -37,8 +39,7 @@ Meet us on Discord for more info and help :)
 [ ![reddit][] ](https://www.reddit.com/r/Figura)
 
 ## Download:
-[ ![modrinth] ](https://modrinth.com/mod/figura)
-[ ![curseforge][] ](https://curseforge.com/minecraft/mc-mods/figura)
+Downloads available here, through [Github Actions](https://github.com/UnlikePaladin/FiguraRewriteRewrite-Forge/actions) and [Github Releases](https://github.com/UnlikePaladin/FiguraRewriteRewrite-Forge/tags)
 
 ## Donate:
 [ ![kofi][] ](https://ko-fi.com/francy_chan)
@@ -111,12 +112,13 @@ Meet us on Discord for more info and help :)
 > You can force your avatar to use the correct emissive render type by using the render type `EYES` on your model
 
 ### • How can I use Figura with OptiFine?
-> You can't, OptiFine's closed-source nature and invasive code makes mod compatibility very difficult
-> 
-> Check out these [alternatives](https://lambdaurora.dev/optifine_alternatives/) instead
+> This unofficial Forge Port works with Optifine and the CaffeineMC Forge Ports
 
 ### • Forge port?
-> No
+> You are looking at it
+
+### • Fabric port?
+> The original version is built for and around fabric, you can [find it here](https://github.com/Kingdom-of-The-Moon/FiguraRewriteRewrite)
 
 ### • Where can I find avatars to download?
 > For now you can find avatars in the showcase channel in the official Discord server

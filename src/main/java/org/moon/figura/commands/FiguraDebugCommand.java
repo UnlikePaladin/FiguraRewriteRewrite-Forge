@@ -6,7 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
-import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtIo;
@@ -49,13 +49,13 @@ public class FiguraDebugCommand {
 
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().serializeNulls().setPrettyPrinting().create();
 
-    public static LiteralArgumentBuilder<FabricClientCommandSource> getCommand() {
-        LiteralArgumentBuilder<FabricClientCommandSource> debug = LiteralArgumentBuilder.literal("debug");
+    public static LiteralArgumentBuilder<CommandSourceStack> getCommand() {
+        LiteralArgumentBuilder<CommandSourceStack> debug = LiteralArgumentBuilder.literal("debug");
         debug.executes(FiguraDebugCommand::commandAction);
         return debug;
     }
 
-    private static int commandAction(CommandContext<FabricClientCommandSource> context) {
+    private static int commandAction(CommandContext<CommandSourceStack> context) {
         try {
             //get path
             Path targetPath = FiguraMod.getFiguraDirectory().resolve("debug_data.json");
@@ -70,7 +70,7 @@ public class FiguraDebugCommand {
             fs.close();
 
             //feedback
-            context.getSource().sendFeedback(
+            context.getSource().sendSystemMessage(
                     FiguraText.of("command.debug.success")
                             .append(" ")
                             .append(FiguraText.of("command.click_to_open")
@@ -79,7 +79,7 @@ public class FiguraDebugCommand {
             );
             return 1;
         } catch (Exception e) {
-            context.getSource().sendError(FiguraText.of("command.debug.error"));
+            context.getSource().sendFailure(FiguraText.of("command.debug.error"));
             FiguraMod.LOGGER.error("Failed to save " + FiguraMod.MOD_NAME + " debug data!", e);
             return 0;
         }

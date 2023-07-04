@@ -1,15 +1,21 @@
 package org.moon.figura;
 
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.metadata.ModMetadata;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.players.GameProfileCache;
 import net.minecraft.world.entity.Entity;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
+import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLPaths;
+import net.minecraftforge.fml.loading.ModSorter;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.avatar.local.CacheAvatarLoader;
@@ -20,6 +26,9 @@ import org.moon.figura.commands.FiguraCommands;
 import org.moon.figura.config.ConfigManager;
 import org.moon.figura.config.Configs;
 import org.moon.figura.entries.EntryPointManager;
+import org.moon.figura.config.ModMenuConfig;
+import org.moon.figura.forge.GUIActionWheelOverlay;
+import org.moon.figura.forge.GUIOverlay;
 import org.moon.figura.gui.Emojis;
 import org.moon.figura.lua.FiguraLuaPrinter;
 import org.moon.figura.lua.docs.FiguraDocsManager;
@@ -36,17 +45,19 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.util.Calendar;
+import java.util.Map;
 import java.util.UUID;
 
-public class FiguraMod implements ClientModInitializer {
+@Mod("figura")
+public class FiguraMod {
 
     public static final String MOD_ID = "figura";
     public static final String MOD_NAME = "Figura";
-    public static final ModMetadata METADATA = FabricLoader.getInstance().getModContainer(MOD_ID).get().getMetadata();
-    public static final Version VERSION = new Version(METADATA.getVersion().getFriendlyString());
+    public static final Version VERSION = new Version(ModList.get().getModContainerById(MOD_ID).get().getModInfo().getVersion().toString());
+    public static final Map<String,Object> METADATA = ModList.get().getModContainerById("figura").get().getModInfo().getModProperties(); //FabricLoader.getInstance().getModContainer(MOD_ID).get().getMetadata();
     public static final boolean DEBUG_MODE = Math.random() + 1 < 0;
     public static final Calendar CALENDAR = Calendar.getInstance();
-    public static final Path GAME_DIR = FabricLoader.getInstance().getGameDir().normalize();
+    public static final Path GAME_DIR = FMLPaths.GAMEDIR.relative().normalize();
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_NAME);
 
     public static int ticks;
@@ -55,24 +66,7 @@ public class FiguraMod implements ClientModInitializer {
     public static boolean parseMessages = true;
     public static boolean processingKeybind;
 
-    @Override
-    public void onInitializeClient() {
-        //init managers
-        EntryPointManager.init();
-        ConfigManager.init();
-        PermissionManager.init();
-        LocalAvatarFetcher.init();
-        CacheAvatarLoader.init();
-        FiguraDocsManager.init();
-        FiguraCommands.init();
-        FiguraRuntimeResources.init();
-
-        //register reload listener
-        ResourceManagerHelper managerHelper = ResourceManagerHelper.get(PackType.CLIENT_RESOURCES);
-        managerHelper.registerReloadListener(LocalAvatarLoader.AVATAR_LISTENER);
-        managerHelper.registerReloadListener(Emojis.RESOURCE_LISTENER);
-        managerHelper.registerReloadListener(AvatarWizard.RESOURCE_LISTENER);
-        managerHelper.registerReloadListener(AvatarManager.RESOURCE_RELOAD_EVENT);
+    public FiguraMod() {
     }
 
     public static void tick() {

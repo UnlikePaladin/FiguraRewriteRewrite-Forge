@@ -13,10 +13,9 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArgs;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
 
 @Mixin(Camera.class)
 public abstract class CameraMixin {
@@ -55,35 +54,61 @@ public abstract class CameraMixin {
         setRotation(y, x);
     }
 
-    @ModifyArgs(method = "setup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"))
-    private void setupPivot(Args args) {
+    @ModifyArg(method = "setup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"), index = 0)
+    private double setupPivotX(double p_90585_) {
         if (avatar != null) {
-            int i = 0;
-            while (args.get(i) instanceof Camera)
-                i++;
-
-            double x = args.get(i++);
-            double y = args.get(i++);
-            double z = args.get(i);
+            double x = p_90585_;
 
             FiguraVec3 piv = avatar.luaRuntime.renderer.cameraPivot;
             if (piv != null && piv.notNaN()) {
-               x = piv.x;
-               y = piv.y;
-               z = piv.z;
+                x = piv.x;
             }
 
             FiguraVec3 offset = avatar.luaRuntime.renderer.cameraOffsetPivot;
             if (offset != null && offset.notNaN()) {
                 x += offset.x;
-                y += offset.y;
-                z += offset.z;
+            }
+            return x;
+        }
+        return p_90585_;
+    }
+
+    @ModifyArg(method = "setup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"), index = 1)
+    private double setupPivotY(double p_90585_) {
+        if (avatar != null) {
+            double y = p_90585_;
+
+            FiguraVec3 piv = avatar.luaRuntime.renderer.cameraPivot;
+            if (piv != null && piv.notNaN()) {
+                y = piv.y;
             }
 
-            args.set(0, x);
-            args.set(1, y);
-            args.set(2, z);
+            FiguraVec3 offset = avatar.luaRuntime.renderer.cameraOffsetPivot;
+            if (offset != null && offset.notNaN()) {
+                y += offset.y;
+            }
+            return y;
         }
+        return p_90585_;
+    }
+
+    @ModifyArg(method = "setup", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Camera;setPosition(DDD)V"), index = 2)
+    private double setupPivotZ(double p_90585_) {
+        if (avatar != null) {
+            double z = p_90585_;
+
+            FiguraVec3 piv = avatar.luaRuntime.renderer.cameraPivot;
+            if (piv != null && piv.notNaN()) {
+                z = piv.z;
+            }
+
+            FiguraVec3 offset = avatar.luaRuntime.renderer.cameraOffsetPivot;
+            if (offset != null && offset.notNaN()) {
+                z += offset.z;
+            }
+            return z;
+        }
+        return p_90585_;
     }
 
     @Inject(method = "setup", at = @At(value = "RETURN"))

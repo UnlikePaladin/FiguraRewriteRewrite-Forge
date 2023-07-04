@@ -2,6 +2,8 @@ package org.moon.figura.utils;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
+import net.minecraftforge.fml.ModContainer;
+import net.minecraftforge.fml.ModList;
 import org.moon.figura.FiguraMod;
 
 import java.io.IOException;
