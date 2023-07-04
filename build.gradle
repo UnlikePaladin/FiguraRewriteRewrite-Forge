@@ -155,19 +155,17 @@ repositories {
 }
 
 repositories {
-	maven { url 'https://jitpack.io' }
+    maven { url 'https://jitpack.io' }
 
-    exclusiveContent {
-        forRepository {
-            maven {
-                name = "Modrinth"
-                url = "https://api.modrinth.com/maven"
-            }
-        }
-        filter {
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
             includeGroup "maven.modrinth"
         }
     }
+    maven { url 'https://maven.fabricmc.net/'}
+
 }
 
 jarJar.enable()
@@ -177,12 +175,19 @@ dependencies {
     // We use 'testCompileOnly' and not 'implementation', we don't want it to actually load at runtime because the non-deobf
     // version of OptiFine and OptiFineDevTweaker are loaded from the mods folder at runtime
     // OptiFine is the first dependency because so that we can compile against its version of vanilla's classes, not Forge's
+    testCompileOnly fileTree(include: ['OptiFine_*_MOD-deobf.jar'], dir: 'libs')
 
     // Specify the version of Minecraft to use. If this is any group other than 'net.minecraft', it is assumed
     // that the dep is a ForgeGradle 'patcher' dependency, and its patches will be applied.
     // The userdev artifact is a special name and will get all sorts of transformations applied to it.
     minecraft 'net.minecraftforge:forge:1.19-41.1.0'
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    annotationProcessor 'net.fabricmc:sponge-mixin:0.12.5+mixin.0.8.5'
+
+    fileTree(include: ['*.jar'], exclude: ['OptiFine_*_MOD-deobf.jar'], dir: 'libs').each { file ->
+        def fileNameWithoutDotJarExtension = file.name.substring(0, file.name.length() - 4)
+        def indexOfLastDash = fileNameWithoutDotJarExtension.lastIndexOf('-');
+        implementation fg.deobf("local:${fileNameWithoutDotJarExtension.substring(0, indexOfLastDash)}:${fileNameWithoutDotJarExtension.substring(indexOfLastDash + 1)}")
+    }
 
     // Real mod deobf dependency examples - these get remapped to your current mappings
     // implementation fg.deobf("com.tterrag.registrate:Registrate:MC${mc_version}-${registrate_version}") // Adds registrate as a dependency
@@ -196,7 +201,7 @@ dependencies {
         exclude(group: "org.slf4j")
     }
     jarJar(group: 'org.java-websocket', name: 'Java-WebSocket', version: '[1.5.2,2.0.0)') {
-        transitive(false)
+        transitive(true)
     }
 
 
@@ -205,7 +210,7 @@ dependencies {
         exclude(group: "org.slf4j")
     }
     jarJar(group: 'com.github.Moonlight-MC.LuaJ', name: 'luaj-core', version: "[$luaj-figura,4.0.0-figura)") {
-        transitive(false)
+        transitive(true)
     }
 
     minecraftLibrary(group: 'com.github.Moonlight-MC.LuaJ', name: 'luaj-jse', version: "$luaj-figura") {
@@ -213,8 +218,10 @@ dependencies {
         exclude(group: "org.slf4j")
     }
     jarJar(group: 'com.github.Moonlight-MC.LuaJ', name: 'luaj-jse', version: "[$luaj-figura,4.0.0-figura)") {
-        transitive(false)
+        transitive(true)
     }
+
+    compileOnly ("maven.modrinth:oculus:1.19.2-1.6.4")
 
     // For more info...
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
@@ -230,8 +237,19 @@ mixin {
     debug.export = true
 }
 
+processTestResources {
+    duplicatesStrategy(DuplicatesStrategy.INCLUDE)
+}
+
+
+tasks.jarJar.configure {
+    classifier 'forge+'+project.minecraft_version
+}
+
 // Example for how to get properties into the manifest for reading at runtime.
 jar {
+    classifier 'slim'
+
     manifest {
         attributes([
                 "Specification-Title"     : "figura",

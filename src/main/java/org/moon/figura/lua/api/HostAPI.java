@@ -3,7 +3,6 @@ package org.moon.figura.lua.api;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.brigadier.StringReader;
 import com.mojang.datafixers.util.Pair;
-import net.minecraft.client.GuiMessageTag;
 import net.minecraft.client.GuiMessage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
@@ -211,7 +210,7 @@ public class HostAPI {
     public HostAPI sendChatCommand(@LuaNotNil String command) {
         if (!isHost() || !Configs.CHAT_MESSAGES.value) return this;
         LocalPlayer player = this.minecraft.player;
-        if (player != null) player.command(command.startsWith("/") ? command.substring(1) : command);
+        if (player != null) player.command(command.startsWith("/") ? command.substring(1) : command, null);
         return this;
     }
 
@@ -280,8 +279,8 @@ public class HostAPI {
         if (newMessage == null)
             messages.remove(index);
         else {
-            GuiMessage old = messages.get(index);
-            messages.set(index, new GuiMessage(this.minecraft.gui.getGuiTicks(), TextUtils.tryParseJson(newMessage), null, GuiMessageTag.chatModified(old.content().getString())));
+            GuiMessage<Component> old = messages.get(index);
+            messages.set(index, new GuiMessage<>(this.minecraft.gui.getGuiTicks(), TextUtils.tryParseJson(newMessage), old.getId()));
         }
 
         this.minecraft.gui.getChat().rescaleChat();
