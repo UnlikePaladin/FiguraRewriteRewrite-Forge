@@ -1,9 +1,11 @@
 package org.moon.figura.mixin.gui;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.PlayerTabOverlay;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import org.moon.figura.avatar.Avatar;
 import org.moon.figura.avatar.AvatarManager;
 import org.moon.figura.avatar.Badges;
@@ -64,11 +66,11 @@ public class PlayerTabOverlayMixin {
         return id;
     }
 
-    @ModifyArg(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/components/PlayerFaceRenderer;draw(Lcom/mojang/blaze3d/vertex/PoseStack;IIIZZ)V"), index = 3)
-    private int doNotDrawFace(PoseStack poseStack, int x, int y, int size, boolean p_240137_, boolean p_240138_) {
+    @ModifyArg(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/components/PlayerFaceRenderer;draw(Lnet/minecraft/client/gui/GuiGraphics;Lnet/minecraft/resources/ResourceLocation;IIIZZ)V"), index = 4)
+    private int doNotDrawFace(GuiGraphics guiGraphics, ResourceLocation id, int x, int y, int size, boolean p_283149_, boolean p_283555_) {
         if (uuid != null) {
             Avatar avatar = AvatarManager.getAvatarForPlayer(uuid);
-            if (avatar != null && avatar.renderPortrait(poseStack, x, y, size, 16, p_240138_))
+            if (avatar != null && avatar.renderPortrait(guiGraphics, x, y, size, 16, p_283555_))
                 return 0;
         }
         return size;

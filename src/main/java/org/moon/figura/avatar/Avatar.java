@@ -9,6 +9,7 @@ import com.mojang.datafixers.util.Pair;
 import com.mojang.math.Axis;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.model.EntityModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.client.renderer.LightTexture;
@@ -27,6 +28,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.moon.figura.FiguraMod;
@@ -110,6 +112,7 @@ public class Avatar {
     public Component errorText;
     public Set<Permissions> noPermissions = new HashSet<>();
     public Set<Permissions> permissionsToTick = new HashSet<>();
+    public int lastPlayingSound = 0;
     public int versionStatus = 0;
 
     //limits
@@ -220,6 +223,8 @@ public class Avatar {
                 noPermissions.add(t);
             }
         }
+        if (lastPlayingSound > 0)
+            lastPlayingSound--;
 
         //sound
         particlesRemaining.set(permissions.get(Permissions.PARTICLES));
@@ -677,30 +682,31 @@ public class Avatar {
         return comp > 0 && luaRuntime != null && !luaRuntime.vanilla_model.HEAD.checkVisible();
     }
 
-    public boolean renderPortrait(PoseStack stack, int x, int y, int size, float modelScale, boolean upsideDown) {
+    public boolean renderPortrait(GuiGraphics gui, int x, int y, int size, float modelScale, boolean upsideDown) {
         if (!Configs.AVATAR_PORTRAIT.value || renderer == null || !loaded)
             return false;
 
         //matrices
-        stack.pushPose();
-        stack.translate(x, y, 0d);
-        stack.scale(modelScale, modelScale * (upsideDown ? 1 : -1), modelScale);
-        stack.mulPose(Axis.XP.rotationDegrees(180f));
+        PoseStack pose = gui.pose();
+        pose.pushPose();
+        pose.translate(x, y, 0d);
+        pose.scale(modelScale, modelScale * (upsideDown ? 1 : -1), modelScale);
+        pose.mulPose(Axis.XP.rotationDegrees(180f));
 
         //scissors
-        FiguraVec3 pos = FiguraMat4.of().set(stack.last().pose()).apply(0d, 0d, 0d);
+        Vector3f pos = pose.last().pose().transformPosition(new Vector3f());
 
         int x1 = (int) pos.x;
         int y1 = (int) pos.y;
         int x2 = (int) pos.x + size;
         int y2 = (int) pos.y + size;
 
-        UIHelper.setupScissor(x1, y1, x2 - x1, y2 - y1);
+        gui.enableScissor(x1, y1, x2, y2);
         UIHelper.paperdoll = true;
         UIHelper.dollScale = 16f;
 
         //setup render
-        stack.translate(4d / 16d, 8d / 16d, 0d);
+        pose.translate(4d / 16d, upsideDown ? 0 : (8d / 16d), 0d);
 
         Lighting.setupForFlatItems();
 
@@ -710,20 +716,20 @@ public class Avatar {
         renderer.allowPivotParts = false;
 
         renderer.setupRenderer(
-                PartFilterScheme.PORTRAIT, buffer, stack,
+                PartFilterScheme.PORTRAIT, buffer, pose,
                 1f, light, 1f, OverlayTexture.NO_OVERLAY,
                 false, false
         );
 
         //render
         int comp = renderer.renderSpecialParts();
-        boolean ret = comp > 0 || headRender(stack, buffer, light, false);
+        boolean ret = comp > 0 || headRender(pose, buffer, light, false);
 
         //after render
         buffer.endBatch();
-        stack.popPose();
+        pose.popPose();
 
-        UIHelper.disableScissor();
+        gui.disableScissor();
         UIHelper.paperdoll = false;
 
         renderer.allowPivotParts = true;

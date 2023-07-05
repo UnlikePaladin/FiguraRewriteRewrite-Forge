@@ -10,6 +10,7 @@
     "BiomeAccessor",
     "BlockBehaviourAccessor",
     "ClientLevelInvoker",
+    "ClientPacketListenerMixin",
     "EntityAccessor",
     "EntityMixin",
     "ItemStackMixin",
@@ -34,8 +35,8 @@
     "gui.ScreenAccessor",
     "gui.ScreenMixin",
     "gui.SplashManagerMixin",
+    "gui.SplashRendererMixin",
     "gui.SuggestionsListMixin",
-    "gui.TitleScreenMixin",
 
     "input.InputConstantsTypeMixin",
     "input.KeyboardHandlerMixin",

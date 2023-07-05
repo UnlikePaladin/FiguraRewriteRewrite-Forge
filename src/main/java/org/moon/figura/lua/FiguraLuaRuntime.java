@@ -184,7 +184,7 @@ public class FiguraLuaRuntime {
         }
         
         // Class that creates input stream from 
-        private static class FuncStream extends InputStream {
+        static class FuncStream extends InputStream {
             private final LuaFunction function;
             // start at the end of empty string so next index will get first result
             private String string = "";

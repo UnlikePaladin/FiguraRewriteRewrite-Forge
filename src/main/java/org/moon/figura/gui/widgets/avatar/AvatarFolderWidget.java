@@ -1,6 +1,6 @@
 package org.moon.figura.gui.widgets.avatar;
 
-import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.gui.GuiGraphics;
 import org.moon.figura.avatar.local.LocalAvatarFetcher;
 import org.moon.figura.gui.widgets.ContainerButton;
 import org.moon.figura.gui.widgets.lists.AvatarList;
@@ -20,11 +20,11 @@ public class AvatarFolderWidget extends AbstractAvatarWidget {
 
         AvatarFolderWidget instance = this;
         this.button = new ContainerButton(parent, getX(), getY(), width, 20, getName(), null, button -> {
-            toggleEntries(((ContainerButton) this.button).isToggled());
+            toggleEntries(showChildren());
             parent.updateScroll();
         }) {
             @Override
-            protected  void renderText(PoseStack stack, float delta) {
+            protected void renderText(GuiGraphics gui, float delta) {
                 //ugly hack
                 int x = getX();
                 int width = getWidth();
@@ -34,13 +34,13 @@ public class AvatarFolderWidget extends AbstractAvatarWidget {
                 setX(x + space);
                 setWidth(width - space);
 
-                super.renderText(stack, delta);
+                super.renderText(gui, delta);
 
                 setX(x);
                 setWidth(width);
 
                 //fix tooltip
-                if (getTooltip() == getMessage())
+                if (tooltip() == getMessage())
                     setTooltip(instance.getName());
             }
 
@@ -63,6 +63,27 @@ public class AvatarFolderWidget extends AbstractAvatarWidget {
 
         toggleEntries(expanded);
         parent.updateScroll();
+    }
+
+    @Override
+    public void render(GuiGraphics gui, int mouseX, int mouseY, float delta) {
+        if (!isVisible() || !this.button.isVisible())
+            return;
+
+        if (showChildren()) {
+            int y0 = parent.getY() + parent.scissorsY;
+            int y1 = y0 + parent.getHeight() + parent.scissorsHeight;
+
+            for (AbstractAvatarWidget value : entries.values())
+                value.button.setVisible(value.getY() < y1 && value.getY() + value.getHeight() > y0);
+
+            super.render(gui, mouseX, mouseY, delta);
+
+            for (AbstractAvatarWidget value : entries.values())
+                value.button.setVisible(true);
+        } else {
+            super.render(gui, mouseX, mouseY, delta);
+        }
     }
 
     @Override
@@ -96,7 +117,7 @@ public class AvatarFolderWidget extends AbstractAvatarWidget {
             this.entries.computeIfAbsent(str, s -> {
                 AbstractAvatarWidget entry = child instanceof LocalAvatarFetcher.FolderPath folder ? new AvatarFolderWidget(depth + 1, getWidth(), folder, parent) : new AvatarWidget(depth + 1, getWidth(), child, parent);
                 children.add(entry);
-                entry.setVisible(((ContainerButton) this.button).isToggled());
+                entry.setVisible(showChildren());
                 return entry;
             });
         }
@@ -121,7 +142,7 @@ public class AvatarFolderWidget extends AbstractAvatarWidget {
     }
 
     public void toggleEntries(boolean toggle) {
-        toggle = toggle && ((ContainerButton) this.button).isToggled();
+        toggle = toggle && showChildren();
         avatar.setExpanded(toggle);
 
         for (AbstractAvatarWidget widget : entries.values()) {
@@ -135,15 +156,16 @@ public class AvatarFolderWidget extends AbstractAvatarWidget {
     }
 
     private void updateHeight() {
-        this.setHeight(20);
+        int height = 20;
 
+        boolean show = showChildren();
         for (AbstractAvatarWidget entry : entries.values()) {
             if (entry instanceof AvatarFolderWidget folder)
                 folder.updateHeight();
-
-            if (entry.isVisible())
-                this.setHeight(getHeight() + entry.getHeight() + 2);
+            if (show) height += entry.getHeight() + 2;
         }
+
+        this.setHeight(height);
     }
 
     @Override
@@ -178,5 +200,9 @@ public class AvatarFolderWidget extends AbstractAvatarWidget {
         }
 
         return result;
+    }
+
+    public boolean showChildren() {
+        return ((ContainerButton) this.button).isToggled();
     }
 }

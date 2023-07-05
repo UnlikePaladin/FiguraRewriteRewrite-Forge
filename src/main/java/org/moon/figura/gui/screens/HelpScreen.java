@@ -1,6 +1,6 @@
 package org.moon.figura.gui.screens;
 
-import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.core.particles.ParticleTypes;
@@ -110,7 +110,7 @@ public class HelpScreen extends AbstractPanelScreen {
         }
 
         @Override
-        public void render(PoseStack stack, int mouseX, int mouseY, float delta) {
+        public void render(GuiGraphics gui, int mouseX, int mouseY, float delta) {
             int x = getRawX();
             int y = getRawY();
 
@@ -120,14 +120,14 @@ public class HelpScreen extends AbstractPanelScreen {
 
             int x0 = x - width / 2;
             int x1 = x - getWidth() / 2 - 4;
-            UIHelper.fill(stack, x0, y0, x1, y1, 0xFFFFFFFF);
+            gui.fill(x0, y0, x1, y1, 0xFFFFFFFF);
 
             x0 = x + getWidth() / 2 + 4;
             x1 = x + width / 2;
-            UIHelper.fill(stack, x0, y0, x1, y1, 0xFFFFFFFF);
+            gui.fill(x0, y0, x1, y1, 0xFFFFFFFF);
 
             //text
-            super.render(stack, mouseX, mouseY, delta);
+            super.render(gui, mouseX, mouseY, delta);
         }
     }
 }

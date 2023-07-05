@@ -2,6 +2,7 @@ package org.moon.figura.forge;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraftforge.client.gui.overlay.ForgeGui;
@@ -16,17 +17,17 @@ import org.moon.figura.gui.PopupMenu;
 public class GUIOverlay implements IGuiOverlay {
 
     @Override
-    public void render(ForgeGui gui, PoseStack stack, float partialTick, int screenWidth, int screenHeight) {
+    public void render(ForgeGui gui, GuiGraphics guiGraphics, float partialTick, int screenWidth, int screenHeight) {
         if (AvatarManager.panic)
             return;
 
         FiguraMod.pushProfiler(FiguraMod.MOD_ID);
 
         FiguraMod.pushProfiler("popupMenu");
-        PopupMenu.render(stack);
+        PopupMenu.render(guiGraphics);
 
         FiguraMod.popPushProfiler("paperdoll");
-        PaperDoll.render(stack, false);
+        PaperDoll.render(guiGraphics, false);
 
         FiguraMod.popProfiler();
 
@@ -36,13 +37,13 @@ public class GUIOverlay implements IGuiOverlay {
 
         if (avatar != null) {
             //hud parent type
-            avatar.hudRender(stack, Minecraft.getInstance().renderBuffers().bufferSource(), entity, partialTick);
+            avatar.hudRender(guiGraphics.pose(), Minecraft.getInstance().renderBuffers().bufferSource(), entity, partialTick);
 
             //hud hidden by script
             if (avatar.luaRuntime != null && !avatar.luaRuntime.renderer.renderHUD) {
                 //render wheel
                 FiguraMod.pushProfiler("actionWheel");
-                ActionWheel.render(stack);
+                ActionWheel.render(guiGraphics);
                 FiguraMod.popProfiler();
 
                 //cancel this method

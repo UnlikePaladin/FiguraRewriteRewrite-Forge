@@ -1,6 +1,7 @@
 package org.moon.figura.mixin.gui;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.ChatScreen;
 import org.moon.figura.FiguraMod;
@@ -41,7 +42,7 @@ public class ChatScreenMixin {
     }
 
     @Inject(at = @At("HEAD"), method = "render")
-    private void render(PoseStack poseStack, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+    private void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         Avatar avatar = AvatarManager.getAvatarForPlayer(FiguraMod.getLocalPlayerUUID());
         if (avatar == null || avatar.luaRuntime == null)
             return;

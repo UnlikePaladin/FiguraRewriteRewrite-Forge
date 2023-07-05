@@ -1,8 +1,8 @@
 package org.moon.figura.config;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import org.moon.figura.FiguraMod;
 import org.moon.figura.avatar.AvatarManager;
@@ -19,7 +19,6 @@ import org.moon.figura.permissions.Permissions;
 import org.moon.figura.resources.FiguraRuntimeResources;
 import org.moon.figura.utils.ColorUtils;
 import org.moon.figura.utils.FiguraText;
-import org.moon.figura.utils.IOUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -119,12 +118,12 @@ public class Configs {
             };
     public static final PositiveIntConfig
             LOG_NUMBER_LENGTH = new PositiveIntConfig("log_number_length", SCRIPT, 5) {
-                @Override
-                public void onChange() {
-                    super.onChange();
-                    FiguraLuaPrinter.updateDecimalFormatting();
-                }
-            };
+        @Override
+        public void onChange() {
+            super.onChange();
+            FiguraLuaPrinter.updateDecimalFormatting();
+        }
+    };
 
 
     // -- RENDERING -- //
@@ -133,10 +132,10 @@ public class Configs {
     public static final EnumConfig
             IRIS_COMPATIBILITY_FIX = new EnumConfig("iris_compatibility_fix", RENDERING, 1, 3),
             RENDER_DEBUG_PARTS_PIVOT = new EnumConfig("render_debug_parts_pivot", RENDERING, 1, 3) {{
-                    String tooltip = "config.render_debug_parts_pivot.tooltip";
-                    this.tooltip = FiguraText.of(tooltip,
-                            FiguraText.of(tooltip + ".cubes").setStyle(ColorUtils.Colors.FRAN_PINK.style),
-                            FiguraText.of(tooltip + ".groups").setStyle(ColorUtils.Colors.MAYA_BLUE.style));
+                String tooltip = "config.render_debug_parts_pivot.tooltip";
+                this.tooltip = FiguraText.of(tooltip,
+                        FiguraText.of(tooltip + ".cubes").setStyle(ColorUtils.Colors.FRAN_PINK.style),
+                        FiguraText.of(tooltip + ".groups").setStyle(ColorUtils.Colors.MAYA_BLUE.style));
             }};
     public static final BoolConfig
             ALLOW_FP_HANDS = new BoolConfig("allow_fp_hands", RENDERING, false),
@@ -244,11 +243,11 @@ public class Configs {
             LOG_PINGS = new EnumConfig("log_pings", DEV, 0, 3);
     public static final BoolConfig
             SYNC_PINGS = new BoolConfig("sync_pings", DEV, false) {{
-                String tooltip = "config.sync_pings.tooltip.";
-                this.tooltip = FiguraText.of(tooltip + "1")
-                        .append("\n")
-                        .append(FiguraText.of(tooltip + "2").withStyle(ChatFormatting.RED));
-            }},
+        String tooltip = "config.sync_pings.tooltip.";
+        this.tooltip = FiguraText.of(tooltip + "1")
+                .append("\n")
+                .append(FiguraText.of(tooltip + "2").withStyle(ChatFormatting.RED));
+    }},
             CHAT_MESSAGES = new BoolConfig("chat_messages", DEV, false) {{
                 this.name = this.name.copy().withStyle(ChatFormatting.RED);
                 String tooltip = "config.chat_messages.tooltip.";
@@ -262,21 +261,21 @@ public class Configs {
             MAIN_DIR = new FolderConfig("main_dir", DEV, "");
     public static final IPConfig
             SERVER_IP = new IPConfig("server_ip", DEV, "figura.moonlight-devs.org") {
-                @Override
-                public void onChange() {
-                    super.onChange();
-                    NetworkStuff.reAuth();
-                }
-            };
+        @Override
+        public void onChange() {
+            super.onChange();
+            NetworkStuff.reAuth();
+        }
+    };
     @SuppressWarnings("unused")
     public static final ButtonConfig
             CLEAR_CACHE = new ButtonConfig("clear_cache", DEV, () -> {
-                CacheAvatarLoader.clearCache();
-                LocalAvatarFetcher.clearCache();
-                ConfigScreen.clearCache();
-                FiguraRuntimeResources.clearCache();
-                FiguraToast.sendToast(FiguraText.of("toast.cache_clear"));
-            }),
+        CacheAvatarLoader.clearCache();
+        LocalAvatarFetcher.clearCache();
+        ConfigScreen.clearCache();
+        FiguraRuntimeResources.clearCache();
+        FiguraToast.sendToast(FiguraText.of("toast.cache_clear"));
+    }),
             REDOWNLOAD_ASSETS = new ButtonConfig("redownload_assets", DEV, () -> {
                 FiguraRuntimeResources.init();
                 Minecraft.getInstance().reloadResourcePacks();
@@ -286,5 +285,6 @@ public class Configs {
                 FiguraToast.sendToast(FiguraText.of("toast.avatar_data_clear"));
             });
     public static final BoolConfig
-            FORCE_SMOOTH_AVATAR = new BoolConfig("force_smooth_avatar", DEV, false);
+            FORCE_SMOOTH_AVATAR = new BoolConfig("force_smooth_avatar", DEV, false),
+            GUI_FPS = new BoolConfig("gui_fps", DEV, false);
 }
