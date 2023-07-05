@@ -206,14 +206,13 @@ processTestResources {
 }
 
 mixin {
-    add sourceSets.main, "${mod_id}.refmap.json"
-
-    // Sets up the mixin config; this gets added to run configurations and the manifest in the final jar
-    config "${mod_id}.mixins.json"
+    add sourceSets.main, 'figura.mixins.refmap.json'
+    config 'figura.mixins.json'
 
     // Enables exporting mixin-changed classes to .mixin.out in the run folder
     debug.verbose = true
     debug.export = true
+    dumpTargetOnFailure = true
 }
 
 tasks.jarJar {
