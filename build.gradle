@@ -18,25 +18,15 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(java_version)
 
 println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
 minecraft {
-    // The mappings can be changed at any time and must be in the following format.
-    // Channel:   Version:
-    // official   MCVersion             Official field/method names from Mojang mapping files
-    // parchment  YYYY.MM.DD-MCVersion  Open community-sourced parameter names and javadocs layered on top of official
-    //
-    // You must be aware of the Mojang license when using the 'official' or 'parchment' mappings.
-    // See more information here: https://github.com/MinecraftForge/MCPConfig/blob/master/Mojang.md
-    //
-    // Parchment is an unofficial project maintained by ParchmentMC, separate from MinecraftForge
-    // Additional setup is needed to use their mappings: https://parchmentmc.org/docs/getting-started
-    //
-    // Use non-default mappings at your own risk. They may not always work.
-    // Simply re-run your setup task after changing the mappings to update your workspace.
     mappings channel: mapping_channel, version: mapping_version
 
-    // When true, this property will have all Eclipse/IntelliJ IDEA run configurations run the "prepareX" task for the given run configuration before launching the game.
+    // When true, this property will have all Eclipse run configurations run the "prepareX" task for the given run configuration before launching the game.
     // In most cases, it is not necessary to enable.
     // enableEclipsePrepareRuns = true
-    // enableIdeaPrepareRuns = true
+
+    // When true, this property will have all IntelliJ IDEA run configurations run the "prepareX" task for the given run configuration before launching the game.
+    // In most cases, it is not necessary to enable.
+    enableIdeaPrepareRuns = true
 
     // This property allows configuring Gradle's ProcessResources task(s) to run on IDE output locations before launching the game.
     // It is REQUIRED to be set to true for this template to function.
@@ -60,10 +50,7 @@ minecraft {
     // These can be tweaked, removed, or duplicated as needed.
     runs {
         client {
-            properties 'mixin.env.remapRefMap': 'true'
-            property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
             workingDirectory project.file('run')
-            arg "-mixin.config="+mod_id+".mixins.json"
 
             // Recommended logging data for a userdev environment
             // The markers can be added/remove as needed separated by commas.
@@ -78,31 +65,26 @@ minecraft {
             property 'forge.logging.console.level', 'debug'
 
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
-            property 'forge.enabledGameTestNamespaces', 'figura'
+            property 'forge.enabledGameTestNamespaces', mod_id
 
             mods {
-                figura {
+                "${mod_id}" {
                     source sourceSets.main
                 }
             }
         }
 
         server {
-            properties 'mixin.env.remapRefMap': 'true'
-            property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
-            arg "-mixin.config="+mod_id+".mixins.json"
-
             workingDirectory project.file('run')
 
             property 'forge.logging.markers', 'REGISTRIES'
 
             property 'forge.logging.console.level', 'debug'
 
-            // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
-            property 'forge.enabledGameTestNamespaces', 'figura'
+            property 'forge.enabledGameTestNamespaces', mod_id
 
             mods {
-                figura {
+                "${mod_id}" {
                     source sourceSets.main
                 }
             }
@@ -114,23 +96,14 @@ minecraft {
         gameTestServer {
             workingDirectory project.file('run')
 
-            // Recommended logging data for a userdev environment
-            // The markers can be added/remove as needed separated by commas.
-            // "SCAN": For mods scan.
-            // "REGISTRIES": For firing of registry events.
-            // "REGISTRYDUMP": For getting the contents of all registries.
             property 'forge.logging.markers', 'REGISTRIES'
 
-            // Recommended logging level for the console
-            // You can set various levels here.
-            // Please read: https://stackoverflow.com/questions/2031163/when-to-use-the-different-log-levels
             property 'forge.logging.console.level', 'debug'
 
-            // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
-            property 'forge.enabledGameTestNamespaces', 'figura'
+            property 'forge.enabledGameTestNamespaces', mod_id
 
             mods {
-                figura {
+                "${mod_id}" {
                     source sourceSets.main
                 }
             }
@@ -144,10 +117,10 @@ minecraft {
             property 'forge.logging.console.level', 'debug'
 
             // Specify the modid for data generation, where to output the resulting resource, and where to look for existing resources.
-            args '--mod', 'figura', '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
 
             mods {
-                figura {
+                "${mod_id}" {
                     source sourceSets.main
                 }
             }
@@ -223,17 +196,18 @@ dependencies {
     compileOnly ("maven.modrinth:oculus:${oculus}")
 }
 
-mixin {
-    // MixinGradle Settings
-    add sourceSets.main, 'figura.mixins.refmap.json'
-    config 'figura.mixins.json'
-
-    debug.verbose = true
-    debug.export = true
-}
-
 processTestResources {
     duplicatesStrategy(DuplicatesStrategy.INCLUDE)
+}
+
+mixin {
+    add sourceSets.main, "${mod_id}.refmap.json"
+
+    // Sets up the mixin config; this gets added to run configurations and the manifest in the final jar
+    config "${mod_id}.mixins.json"
+
+    // Enables exporting mixin-changed classes to .mixin.out in the run folder
+    debug.export = true
 }
 
 tasks.jarJar {
@@ -244,46 +218,53 @@ tasks.jarJar {
 // A missing property will result in an error. Properties are expanded using ${} Groovy notation.
 // When "copyIdeResources" is enabled, this will also run before the game launches in IDE environments.
 // See https://docs.gradle.org/current/dsl/org.gradle.language.jvm.tasks.ProcessResources.html
-tasks.named('processResources', ProcessResources).configure {
-    var replaceProperties = [
-            minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
-            forge_version: forge_version, forge_version_range: forge_version_range,
-            loader_version_range: loader_version_range,
-            mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
-            mod_authors: mod_authors, mod_description: mod_description,
-            assets_version : assets_version, credits : credits
-    ]
+def resourceTargets = ['META-INF/mods.toml', 'pack.mcmeta']
+def replaceProperties = [
+        minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
+        forge_version: forge_version, forge_version_range: forge_version_range,
+        loader_version_range: loader_version_range,
+        mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
+        mod_authors: mod_authors, mod_description: mod_description,
+        assets_version : assets_version, credits : credits
+]
+processResources {
     inputs.properties replaceProperties
+    replaceProperties.put 'project', project
 
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
-        expand replaceProperties + [project: project]
+    filesMatching(resourceTargets) {
+        expand replaceProperties
     }
 }
 
 // Example for how to get properties into the manifest for reading at runtime.
-tasks.named('jar', Jar).configure {
+jar {
     manifest {
         attributes([
-                'Specification-Title'     : mod_id,
-                "Specification-Vendor"    : "figura-kingdomofthemoon",
-                'Specification-Version'   : '1', // We are version 1 of ourselves
-                'Implementation-Title'    : project.name,
-                'Implementation-Version'  : project.mod_version,
-                "Implementation-Vendor"   : "figura-kingdomofthemoon",
-                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+                'Specification-Title': mod_id,
+                'Specification-Vendor': mod_authors,
+                'Specification-Version': '1', // We are version 1 of ourselves
+                'Implementation-Title': project.name,
+                'Implementation-Version': mod_version,
+                'Implementation-Vendor': mod_authors,
+                'Implementation-Timestamp': new Date().format('yyyy-MM-dd\'T\'HH:mm:ssZ')
         ])
     }
-
-    // This is the preferred method to reobfuscate your jar file
-    finalizedBy 'reobfJar'
 }
 
-reobf { jarJar { } }
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
 
 // Example configuration to allow publishing using the maven-publish plugin
+// This is the preferred method to reobfuscate your jar file
+jar.finalizedBy('reobfJar')
+// However if you are in a multi-project build, dev time needs unobfed jar files, so you can delay the obfuscation until publishing by doing
+// publish.dependsOn('reobfJar')
+reobf { jarJar { } }
+
 publishing {
     publications {
-        register('mavenJava', MavenPublication) {
+        mavenJava(MavenPublication) {
             artifact jar
         }
     }
@@ -292,8 +273,4 @@ publishing {
             url "file://${project.projectDir}/mcmodsrepo"
         }
     }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
