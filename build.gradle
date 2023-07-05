@@ -50,6 +50,8 @@ minecraft {
     // These can be tweaked, removed, or duplicated as needed.
     runs {
         client {
+            properties 'mixin.env.remapRefMap': 'true'
+            property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
             workingDirectory project.file('run')
 
             // Recommended logging data for a userdev environment
@@ -75,6 +77,9 @@ minecraft {
         }
 
         server {
+            properties 'mixin.env.remapRefMap': 'true'
+            property 'mixin.env.refMapRemappingFile', "${project.projectDir}/build/createSrgToMcp/output.srg"
+
             workingDirectory project.file('run')
 
             property 'forge.logging.markers', 'REGISTRIES'
@@ -207,11 +212,12 @@ mixin {
     config "${mod_id}.mixins.json"
 
     // Enables exporting mixin-changed classes to .mixin.out in the run folder
+    debug.verbose = true
     debug.export = true
 }
 
 tasks.jarJar {
-    archiveClassifier = 'forge'+project.minecraft_version
+    archiveClassifier = 'forge+'+project.minecraft_version
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
